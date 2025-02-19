@@ -15,6 +15,14 @@ interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
 }
 
+const isValidPeerDevice = (device: any): device is PeerDevice => {
+  return (
+    typeof device === 'object' &&
+    typeof device.code === 'string' &&
+    (device.type === 'computer' || device.type === 'smartphone')
+  );
+};
+
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [peerCode, setPeerCode] = useState("");
   const [targetPeerCode, setTargetPeerCode] = useState("");
@@ -22,8 +30,17 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isPermanent, setIsPermanent] = useState(false);
   const [pairedDevices, setPairedDevices] = useState<PeerDevice[]>(() => {
-    const saved = localStorage.getItem("pairedDevices");
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem("pairedDevices");
+      if (!saved) return [];
+      
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      
+      return parsed.filter(isValidPeerDevice);
+    } catch {
+      return [];
+    }
   });
   const { toast } = useToast();
 
@@ -109,7 +126,9 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       onConnectionChange(true, webrtc);
       
       if (isPermanent && !pairedDevices.some(device => device.code === targetPeerCode)) {
-        const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'smartphone' : 'computer';
+        const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) 
+          ? 'smartphone' as const 
+          : 'computer' as const;
         const newPairedDevices = [...pairedDevices, { code: targetPeerCode, type: deviceType }];
         setPairedDevices(newPairedDevices);
         localStorage.setItem("pairedDevices", JSON.stringify(newPairedDevices));
