@@ -5,6 +5,7 @@ import { PeerConnection } from "@/components/PeerConnection";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import WebRTCService from "@/services/webrtc";
+import { Shield, Zap, Server, Globe } from "lucide-react";
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -25,14 +26,37 @@ const Index = () => {
         <Header />
         
         <main className="container mx-auto px-4 py-8 space-y-8 animate-fade-up">
-          <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6">
-            <div className="space-y-2 text-center">
-              <h2 className="text-2xl font-semibold tracking-tight">
-                Quick File Transfer
+          <Card className="glass-card p-8 max-w-2xl mx-auto space-y-8">
+            <div className="space-y-4 text-center">
+              <h2 className="text-3xl font-bold tracking-tight">
+                Secure P2P File Transfer
               </h2>
-              <p className="text-muted-foreground">
-                Share files instantly with peers on your local network
+              <p className="text-lg text-muted-foreground max-w-xl mx-auto">
+                Like AirDrop, but for everyone. Transfer files instantly with complete privacy - no servers, no storage, just direct peer-to-peer connection.
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 py-4">
+              <div className="flex flex-col items-center text-center space-y-2 p-4">
+                <Shield className="w-8 h-8 text-neon mb-2" />
+                <h3 className="font-semibold">Completely Private</h3>
+                <p className="text-sm text-muted-foreground">Direct P2P transfer with no data storage</p>
+              </div>
+              <div className="flex flex-col items-center text-center space-y-2 p-4">
+                <Zap className="w-8 h-8 text-neon mb-2" />
+                <h3 className="font-semibold">Lightning Fast</h3>
+                <p className="text-sm text-muted-foreground">Instant transfers with no upload waiting</p>
+              </div>
+              <div className="flex flex-col items-center text-center space-y-2 p-4">
+                <Server className="w-8 h-8 text-neon mb-2" />
+                <h3 className="font-semibold">No Servers</h3>
+                <p className="text-sm text-muted-foreground">Your files never touch a server</p>
+              </div>
+              <div className="flex flex-col items-center text-center space-y-2 p-4">
+                <Globe className="w-8 h-8 text-neon mb-2" />
+                <h3 className="font-semibold">Cross Platform</h3>
+                <p className="text-sm text-muted-foreground">Works on any device with a browser</p>
+              </div>
             </div>
 
             <PeerConnection onConnectionChange={handleConnectionChange} />
