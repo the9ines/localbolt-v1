@@ -24,11 +24,16 @@ const Subscribe = () => {
       return;
     }
 
-    const { data: subscription } = await supabase
+    const { data: subscription, error } = await supabase
       .from("subscriptions")
       .select("status")
       .eq("user_id", session.user.id)
-      .single();
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error checking subscription:", error);
+      return;
+    }
 
     if (subscription) {
       setSubscriptionStatus(subscription.status);
