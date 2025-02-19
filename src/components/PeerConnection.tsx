@@ -105,7 +105,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       </div>
       
       <div className="space-y-2">
-        <label className="text-sm font-medium leading-none">Your Peer Code</label>
+        <label className="text-sm font-medium leading-none">Your Name</label>
         <div className="flex space-x-2">
           <Input
             value={peerCode}
