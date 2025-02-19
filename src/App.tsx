@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Subscribe from "./pages/Subscribe";
 import NotFound from "./pages/NotFound";
+import { useTheme } from "./hooks/use-theme";
 
 const queryClient = new QueryClient();
 
@@ -39,28 +40,32 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   return children;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route 
-            path="/subscribe" 
-            element={
-              <PrivateRoute>
-                <Subscribe />
-              </PrivateRoute>
-            } 
-          />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useTheme(); // Initialize theme
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route 
+              path="/subscribe" 
+              element={
+                <PrivateRoute>
+                  <Subscribe />
+                </PrivateRoute>
+              } 
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
