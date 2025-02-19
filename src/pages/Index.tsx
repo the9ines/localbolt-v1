@@ -5,6 +5,7 @@ import { PeerConnection } from "@/components/PeerConnection";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import WebRTCService from "@/services/webrtc";
+import { Shield, Wifi, Database, Zap } from "lucide-react";
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -24,14 +25,49 @@ const Index = () => {
       <div className="relative z-10">
         <Header />
         
-        <main className="container mx-auto px-4 py-8 space-y-8 animate-fade-up">
+        <main className="container mx-auto px-4 py-12 space-y-12">
+          <div className="text-center space-y-4 animate-fade-up">
+            <h1 className="text-5xl font-bold tracking-tight">
+              Private, Server-Free File Sharing
+            </h1>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              Like AirDrop, but for everyone. Transfer files directly between devices with end-to-end encryption. No servers, no storage, no limits.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 max-w-4xl mx-auto animate-fade-up">
+            <Card className="p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4">
+              <Shield className="w-8 h-8 text-neon mx-auto" />
+              <h2 className="text-lg font-semibold text-center">End-to-End Encrypted</h2>
+              <p className="text-sm text-gray-400 text-center">Your files never touch any servers</p>
+            </Card>
+
+            <Card className="p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4">
+              <Wifi className="w-8 h-8 text-neon mx-auto" />
+              <h2 className="text-lg font-semibold text-center">Direct P2P Transfer</h2>
+              <p className="text-sm text-gray-400 text-center">Secure device-to-device sharing</p>
+            </Card>
+
+            <Card className="p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4">
+              <Database className="w-8 h-8 text-neon mx-auto" />
+              <h2 className="text-lg font-semibold text-center">No Storage Limits</h2>
+              <p className="text-sm text-gray-400 text-center">Share files of any size</p>
+            </Card>
+
+            <Card className="p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4">
+              <Zap className="w-8 h-8 text-neon mx-auto" />
+              <h2 className="text-lg font-semibold text-center">Cross Platform</h2>
+              <p className="text-sm text-gray-400 text-center">Works on all devices & browsers</p>
+            </Card>
+          </div>
+
           <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6">
             <div className="space-y-2 text-center">
               <h2 className="text-2xl font-semibold tracking-tight">
-                Quick File Transfer
+                Fast, Private File Transfer
               </h2>
               <p className="text-muted-foreground">
-                Share files instantly with peers on your local network
+                Share files securely on your local network without uploading to the cloud
               </p>
             </div>
 
@@ -43,6 +79,12 @@ const Index = () => {
               </div>
             )}
           </Card>
+
+          <div className="text-center space-y-3 text-gray-400 max-w-2xl mx-auto animate-fade-up">
+            <h3 className="text-xl font-semibold text-white">Privacy by Design</h3>
+            <p>Unlike cloud storage services, your files are transferred directly between devices. No servers, no storage, no tracking - just secure, private sharing.</p>
+            <p className="text-sm">Works across all platforms and browsers, bringing AirDrop-like functionality to everyone.</p>
+          </div>
         </main>
       </div>
     </div>
