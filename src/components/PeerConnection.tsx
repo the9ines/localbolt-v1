@@ -6,6 +6,29 @@ import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
 
+const TEXAS_FIGURES = [
+  "DAVY_CROCKETT",
+  "SAM_HOUSTON",
+  "STEPHEN_AUSTIN",
+  "WILLIAM_TRAVIS",
+  "JIM_BOWIE",
+  "JANE_LONG",
+  "JUAN_SEGUIN",
+  "EMILY_WEST",
+  "LORENZO_ZAVALA",
+  "JAMES_FANNIN",
+  "ANSON_JONES",
+  "GAIL_BORDEN",
+  "JOSE_NAVARRO",
+  "MARY_MAVERICK",
+  "BEN_MILAM",
+  "ALMARON_DICKINSON",
+  "SUSANNA_DICKINSON",
+  "ELIZABETH_CROCKETT",
+  "HENRY_SMITH",
+  "JAMES_BONHAM"
+];
+
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
 }
@@ -34,9 +57,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   }, [toast]);
 
   useEffect(() => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive);
+    // Generate a random Texas figure name instead of a random code
+    const randomIndex = Math.floor(Math.random() * TEXAS_FIGURES.length);
+    const name = TEXAS_FIGURES[randomIndex];
+    setPeerCode(name);
+    const rtcService = new WebRTCService(name, handleFileReceive);
     setWebrtc(rtcService);
 
     return () => {
@@ -50,7 +75,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       setCopied(true);
       toast({
         title: "Copied to clipboard",
-        description: "Peer code has been copied to your clipboard",
+        description: "Name has been copied to your clipboard",
       });
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -65,10 +90,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const handleConnect = async () => {
     if (!webrtc) return;
     
-    if (targetPeerCode.length < 6) {
+    if (!TEXAS_FIGURES.includes(targetPeerCode)) {
       toast({
-        title: "Invalid peer code",
-        description: "Please enter a valid peer code",
+        title: "Invalid name",
+        description: "Please enter a valid Texas figure name",
         variant: "destructive",
       });
       return;
@@ -97,6 +122,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   };
 
+  const formatName = (name: string) => {
+    return name.replace(/_/g, ' ');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
@@ -105,10 +134,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       </div>
       
       <div className="space-y-2">
-        <label className="text-sm font-medium leading-none">Your Peer Code</label>
+        <label className="text-sm font-medium leading-none">Your Texas Figure</label>
         <div className="flex space-x-2">
           <Input
-            value={peerCode}
+            value={formatName(peerCode)}
             readOnly
             className="font-mono bg-dark-accent text-neon"
           />
@@ -135,13 +164,15 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           <Input
             value={targetPeerCode}
             onChange={(e) => setTargetPeerCode(e.target.value.toUpperCase())}
-            placeholder="Enter peer code"
+            placeholder="Enter Texas figure name"
             className="font-mono bg-dark-accent placeholder:text-white/20"
-            maxLength={6}
           />
           <Button onClick={handleConnect} className="shrink-0 bg-neon text-black hover:bg-neon/90">
             Connect
           </Button>
+        </div>
+        <div className="text-sm text-gray-400 mt-2">
+          Available names: {TEXAS_FIGURES.slice(0, 3).map(formatName).join(", ")}, and more...
         </div>
       </div>
     </div>
