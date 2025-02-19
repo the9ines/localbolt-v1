@@ -1,7 +1,5 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { box, randomBytes } from 'tweetnacl';
-import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 
 interface SignalData {
   type: 'offer' | 'answer' | 'ice-candidate';
@@ -17,13 +15,10 @@ class WebRTCService {
   private remotePeerCode: string = '';
   private onReceiveFile: (file: Blob, filename: string) => void;
   private chunksBuffer: { [key: string]: Blob[] } = {};
-  private keyPair: { publicKey: Uint8Array; secretKey: Uint8Array };
-  private remotePeerPublicKey: Uint8Array | null = null;
 
   constructor(localPeerCode: string, onReceiveFile: (file: Blob, filename: string) => void) {
     this.localPeerCode = localPeerCode;
     this.onReceiveFile = onReceiveFile;
-    this.keyPair = box.keyPair();
     this.setupSignalingListener();
   }
 
@@ -40,18 +35,13 @@ class WebRTCService {
 
     if (signal.type === 'offer') {
       this.remotePeerCode = signal.from;
-      this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
       await this.createPeerConnection();
-      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
+      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data));
       const answer = await this.peerConnection!.createAnswer();
       await this.peerConnection!.setLocalDescription(answer);
-      this.sendSignal('answer', {
-        answer,
-        publicKey: encodeBase64(this.keyPair.publicKey)
-      });
+      this.sendSignal('answer', answer);
     } else if (signal.type === 'answer') {
-      this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
-      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
+      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data));
     } else if (signal.type === 'ice-candidate' && this.peerConnection) {
       try {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
@@ -96,32 +86,6 @@ class WebRTCService {
     return this.peerConnection;
   }
 
-  private async encryptChunk(chunk: Uint8Array): Promise<Uint8Array> {
-    if (!this.remotePeerPublicKey) throw new Error('No remote peer public key');
-    const nonce = randomBytes(box.nonceLength);
-    const encryptedChunk = box(
-      chunk,
-      nonce,
-      this.remotePeerPublicKey,
-      this.keyPair.secretKey
-    );
-    return new Uint8Array([...nonce, ...encryptedChunk]);
-  }
-
-  private async decryptChunk(encryptedData: Uint8Array): Promise<Uint8Array> {
-    if (!this.remotePeerPublicKey) throw new Error('No remote peer public key');
-    const nonce = encryptedData.slice(0, box.nonceLength);
-    const encryptedChunk = encryptedData.slice(box.nonceLength);
-    const decryptedChunk = box.open(
-      encryptedChunk,
-      nonce,
-      this.remotePeerPublicKey,
-      this.keyPair.secretKey
-    );
-    if (!decryptedChunk) throw new Error('Failed to decrypt chunk');
-    return decryptedChunk;
-  }
-
   private setupDataChannel() {
     if (!this.dataChannel) return;
 
@@ -133,10 +97,13 @@ class WebRTCService {
           this.chunksBuffer[filename] = [];
         }
 
-        // Decrypt the chunk
-        const encryptedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
-        const decryptedChunk = await this.decryptChunk(encryptedChunk);
-        this.chunksBuffer[filename][chunkIndex] = new Blob([decryptedChunk]);
+        // Convert base64 chunk back to Blob
+        const binaryString = atob(chunk);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        this.chunksBuffer[filename][chunkIndex] = new Blob([bytes]);
 
         // Check if we have all chunks
         if (this.chunksBuffer[filename].length === totalChunks) {
@@ -157,10 +124,7 @@ class WebRTCService {
 
     const offer = await this.peerConnection!.createOffer();
     await this.peerConnection!.setLocalDescription(offer);
-    this.sendSignal('offer', {
-      offer,
-      publicKey: encodeBase64(this.keyPair.publicKey)
-    });
+    this.sendSignal('offer', offer);
   }
 
   async sendFile(file: File) {
@@ -176,15 +140,11 @@ class WebRTCService {
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
       
-      // Convert chunk to Uint8Array for encryption
-      const arrayBuffer = await chunk.arrayBuffer();
-      const chunkArray = new Uint8Array(arrayBuffer);
-      
-      // Encrypt the chunk
-      const encryptedChunk = await this.encryptChunk(chunkArray);
-      
-      // Convert encrypted chunk to base64
-      const base64 = btoa(String.fromCharCode(...encryptedChunk));
+      // Convert chunk to base64
+      const buffer = await chunk.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
 
       const message = JSON.stringify({
         type: 'file-chunk',
@@ -217,7 +177,6 @@ class WebRTCService {
     }
     this.dataChannel = null;
     this.peerConnection = null;
-    this.remotePeerPublicKey = null;
   }
 }
 
