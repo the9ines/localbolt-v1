@@ -1,52 +1,20 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Shield, Link, Unlink, Computer, Smartphone } from "lucide-react";
+import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
-import { supabase } from "@/integrations/supabase/client";
-
-interface PeerDevice {
-  code: string;
-  type: 'computer' | 'smartphone';
-}
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
 }
-
-interface NetworkDevice extends PeerDevice {
-  online_at: string;
-}
-
-const isValidPeerDevice = (device: any): device is PeerDevice => {
-  return (
-    typeof device === 'object' &&
-    typeof device.code === 'string' &&
-    (device.type === 'computer' || device.type === 'smartphone')
-  );
-};
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [peerCode, setPeerCode] = useState("");
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
-  const [isPermanent, setIsPermanent] = useState(false);
-  const [networkDevices, setNetworkDevices] = useState<NetworkDevice[]>([]);
-  const [pairedDevices, setPairedDevices] = useState<PeerDevice[]>(() => {
-    try {
-      const saved = localStorage.getItem("pairedDevices");
-      if (!saved) return [];
-      
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return [];
-      
-      return parsed.filter(isValidPeerDevice);
-    } catch {
-      return [];
-    }
-  });
   const { toast } = useToast();
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
@@ -71,49 +39,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     const rtcService = new WebRTCService(code, handleFileReceive);
     setWebrtc(rtcService);
 
-    const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) 
-      ? 'smartphone' as const 
-      : 'computer' as const;
-
-    const channel = supabase.channel('online-devices')
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const devices = Object.values(state).flat().map((device: any) => ({
-          code: device.code,
-          type: device.type,
-          online_at: device.online_at,
-        }));
-        setNetworkDevices(devices);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({
-            code,
-            type: deviceType,
-            online_at: new Date().toISOString(),
-          });
-        }
-      });
-
-    pairedDevices.forEach(async (device) => {
-      try {
-        await rtcService.connect(device.code);
-        onConnectionChange(true, rtcService);
-        setTargetPeerCode(device.code);
-        toast({
-          title: "Connected to paired device",
-          description: `Successfully connected to ${device.code}`,
-        });
-      } catch (error) {
-        console.error("Failed to connect to paired device:", error);
-      }
-    });
-
     return () => {
       rtcService.disconnect();
-      channel.unsubscribe();
     };
-  }, [handleFileReceive, onConnectionChange, pairedDevices, toast]);
+  }, [handleFileReceive]);
 
   const copyToClipboard = async () => {
     try {
@@ -154,15 +83,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       await webrtc.connect(targetPeerCode);
       onConnectionChange(true, webrtc);
       
-      if (isPermanent && !pairedDevices.some(device => device.code === targetPeerCode)) {
-        const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) 
-          ? 'smartphone' as const 
-          : 'computer' as const;
-        const newPairedDevices = [...pairedDevices, { code: targetPeerCode, type: deviceType }];
-        setPairedDevices(newPairedDevices);
-        localStorage.setItem("pairedDevices", JSON.stringify(newPairedDevices));
-      }
-      
       toast({
         title: "Connected!",
         description: "Secure connection established",
@@ -175,16 +95,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
       onConnectionChange(false);
     }
-  };
-
-  const removePairedDevice = (deviceCode: string) => {
-    const newPairedDevices = pairedDevices.filter(device => device.code !== deviceCode);
-    setPairedDevices(newPairedDevices);
-    localStorage.setItem("pairedDevices", JSON.stringify(newPairedDevices));
-    toast({
-      title: "Device unpaired",
-      description: "Device has been removed from paired devices",
-    });
   };
 
   return (
@@ -219,47 +129,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
       <div className="space-y-2">
         <label className="text-sm font-medium leading-none">
-          Available Devices
-        </label>
-        <div className="space-y-2">
-          {networkDevices
-            .filter(device => device.code !== peerCode)
-            .map((device) => (
-              <div
-                key={device.code}
-                className="flex items-center justify-between p-2 bg-dark-accent/50 rounded hover:bg-dark-accent/70 transition-colors cursor-pointer"
-                onClick={() => {
-                  setTargetPeerCode(device.code);
-                  handleConnect();
-                }}
-              >
-                <div className="flex items-center space-x-2">
-                  {device.type === 'computer' ? (
-                    <Computer className="w-4 h-4 text-neon" />
-                  ) : (
-                    <Smartphone className="w-4 h-4 text-neon" />
-                  )}
-                  <span className="font-mono text-sm">{device.code}</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-white/50 hover:text-white"
-                >
-                  <Link className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-          {networkDevices.length === 1 && (
-            <div className="text-sm text-gray-400 text-center py-2">
-              No other devices found on the network
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium leading-none">
           Connect to Peer
         </label>
         <div className="flex space-x-2">
@@ -274,53 +143,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
             Connect
           </Button>
         </div>
-        <div className="flex items-center space-x-2 mt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm"
-            onClick={() => setIsPermanent(!isPermanent)}
-          >
-            {isPermanent ? (
-              <Link className="w-4 h-4 mr-2 text-neon" />
-            ) : (
-              <Link className="w-4 h-4 mr-2" />
-            )}
-            Remember this connection
-          </Button>
-        </div>
       </div>
-
-      {pairedDevices.length > 0 && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium leading-none">Paired Devices</label>
-          <div className="space-y-2">
-            {pairedDevices.map((device) => (
-              <div
-                key={device.code}
-                className="flex items-center justify-between p-2 bg-dark-accent rounded"
-              >
-                <div className="flex items-center space-x-2">
-                  {device.type === 'computer' ? (
-                    <Computer className="w-4 h-4 text-neon" />
-                  ) : (
-                    <Smartphone className="w-4 h-4 text-neon" />
-                  )}
-                  <span className="font-mono text-sm">{device.code}</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removePairedDevice(device.code)}
-                  className="text-white/50 hover:text-white"
-                >
-                  <Unlink className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

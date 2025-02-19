@@ -8,7 +8,6 @@ interface SignalData {
   data: any;
   from: string;
   to: string;
-  deviceType?: 'computer' | 'smartphone';
 }
 
 class WebRTCService {
@@ -20,13 +19,11 @@ class WebRTCService {
   private chunksBuffer: { [key: string]: Blob[] } = {};
   private keyPair: { publicKey: Uint8Array; secretKey: Uint8Array };
   private remotePeerPublicKey: Uint8Array | null = null;
-  private deviceType: 'computer' | 'smartphone';
 
   constructor(localPeerCode: string, onReceiveFile: (file: Blob, filename: string) => void) {
     this.localPeerCode = localPeerCode;
     this.onReceiveFile = onReceiveFile;
     this.keyPair = box.keyPair();
-    this.deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 'smartphone' : 'computer';
     this.setupSignalingListener();
   }
 
@@ -73,7 +70,6 @@ class WebRTCService {
         data,
         from: this.localPeerCode,
         to: this.remotePeerCode,
-        deviceType: this.deviceType,
       },
     });
   }
