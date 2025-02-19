@@ -1,11 +1,14 @@
-
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Upload, File, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-export const FileUpload = () => {
+interface FileUploadProps {
+  webrtc?: WebRTCService;
+}
+
+export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
@@ -55,21 +58,46 @@ export const FileUpload = () => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const simulateUpload = () => {
-    setProgress(0);
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          toast({
-            title: "Transfer complete",
-            description: "All files have been sent successfully",
-          });
-          return 100;
-        }
-        return prev + 5;
+  const simulateUpload = async () => {
+    if (!webrtc) {
+      toast({
+        title: "Connection error",
+        description: "No peer connection available",
+        variant: "destructive",
       });
-    }, 100);
+      return;
+    }
+
+    setProgress(0);
+    for (const file of files) {
+      try {
+        const fileSize = file.size;
+        const updateInterval = setInterval(() => {
+          setProgress((prev) => {
+            if (prev >= 100) {
+              clearInterval(updateInterval);
+              return 100;
+            }
+            return prev + 5;
+          });
+        }, 100);
+
+        await webrtc.sendFile(file);
+        clearInterval(updateInterval);
+        setProgress(100);
+
+        toast({
+          title: "Transfer complete",
+          description: `${file.name} has been sent successfully`,
+        });
+      } catch (error) {
+        toast({
+          title: "Transfer failed",
+          description: `Failed to send ${file.name}`,
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   return (

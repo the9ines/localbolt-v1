@@ -1,9 +1,10 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import WebRTCService from "@/services/webrtc";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean) => void;
@@ -13,13 +14,35 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [peerCode, setPeerCode] = useState("");
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const { toast } = useToast();
 
+  const handleFileReceive = useCallback((file: Blob, filename: string) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "File received",
+      description: `Successfully received ${filename}`,
+    });
+  }, [toast]);
+
   useEffect(() => {
-    // Generate a random peer code
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-  }, []);
+    const rtcService = new WebRTCService(code, handleFileReceive);
+    setWebrtc(rtcService);
+
+    return () => {
+      rtcService.disconnect();
+    };
+  }, [handleFileReceive]);
 
   const copyToClipboard = async () => {
     try {
@@ -39,7 +62,9 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
+    if (!webrtc) return;
+    
     if (targetPeerCode.length < 6) {
       toast({
         title: "Invalid peer code",
@@ -49,19 +74,27 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       return;
     }
     
-    // Simulate connection for now
-    toast({
-      title: "Connecting...",
-      description: "Establishing peer connection",
-    });
-    
-    setTimeout(() => {
+    try {
+      toast({
+        title: "Connecting...",
+        description: "Establishing peer connection",
+      });
+      
+      await webrtc.connect(targetPeerCode);
       onConnectionChange(true);
+      
       toast({
         title: "Connected!",
         description: "Peer connection established successfully",
       });
-    }, 1500);
+    } catch (error) {
+      toast({
+        title: "Connection failed",
+        description: "Failed to establish peer connection",
+        variant: "destructive",
+      });
+      onConnectionChange(false);
+    }
   };
 
   return (
