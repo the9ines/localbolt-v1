@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { LightningBolt } from "lucide-react";
+import { Zap } from "lucide-react";
 
 export const Header = () => {
   return (
@@ -9,7 +9,7 @@ export const Header = () => {
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center space-x-2">
-            <LightningBolt className="w-8 h-8 text-neon" />
+            <Zap className="w-8 h-8 text-neon" />
             <span className="text-xl font-semibold">LocalBolt</span>
           </div>
           
