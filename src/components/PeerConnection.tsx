@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
 
@@ -77,7 +77,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     try {
       toast({
         title: "Connecting...",
-        description: "Establishing peer connection",
+        description: "Establishing secure connection",
       });
       
       await webrtc.connect(targetPeerCode);
@@ -85,12 +85,12 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       
       toast({
         title: "Connected!",
-        description: "Peer connection established successfully",
+        description: "Secure connection established",
       });
     } catch (error) {
       toast({
         title: "Connection failed",
-        description: "Failed to establish peer connection",
+        description: "Failed to establish connection",
         variant: "destructive",
       });
       onConnectionChange(false);
@@ -99,6 +99,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-center space-x-2 text-neon mb-4">
+        <Shield className="w-5 h-5" />
+        <span className="text-sm">End-to-End Encrypted</span>
+      </div>
+      
       <div className="space-y-2">
         <label className="text-sm font-medium leading-none">Your Peer Code</label>
         <div className="flex space-x-2">
