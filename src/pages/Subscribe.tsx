@@ -41,21 +41,19 @@ const Subscribe = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
-      // Create Stripe Checkout session
-      const response = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
+      // Call the Supabase Edge Function instead of direct API endpoint
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: {
           userId: session.user.id,
           email: session.user.email,
-        }),
+        },
       });
 
-      const { url } = await response.json();
-      window.location.href = url;
+      if (error) throw error;
+      if (!data?.url) throw new Error("No checkout URL received");
+
+      // Redirect to Stripe Checkout
+      window.location.href = data.url;
     } catch (error: any) {
       toast({
         title: "Error",
