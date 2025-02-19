@@ -86,6 +86,17 @@ const Index = () => {
             <p className="text-sm">Works across all platforms and browsers, bringing AirDrop-like functionality to everyone.</p>
           </div>
         </main>
+
+        <footer className="py-6 text-center text-sm text-gray-500">
+          <a 
+            href="https://the9ines.com" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="hover:text-neon transition-colors"
+          >
+            the9ines.com productions
+          </a>
+        </footer>
       </div>
     </div>
   );
