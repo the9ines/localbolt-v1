@@ -1,10 +1,10 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Shield, Link, Unlink, Computer, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PeerDevice {
   code: string;
@@ -13,6 +13,10 @@ interface PeerDevice {
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
+}
+
+interface NetworkDevice extends PeerDevice {
+  online_at: string;
 }
 
 const isValidPeerDevice = (device: any): device is PeerDevice => {
@@ -29,6 +33,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [copied, setCopied] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isPermanent, setIsPermanent] = useState(false);
+  const [networkDevices, setNetworkDevices] = useState<NetworkDevice[]>([]);
   const [pairedDevices, setPairedDevices] = useState<PeerDevice[]>(() => {
     try {
       const saved = localStorage.getItem("pairedDevices");
@@ -66,7 +71,30 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     const rtcService = new WebRTCService(code, handleFileReceive);
     setWebrtc(rtcService);
 
-    // Try to connect to paired devices
+    const deviceType = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) 
+      ? 'smartphone' as const 
+      : 'computer' as const;
+
+    const channel = supabase.channel('online-devices')
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const devices = Object.values(state).flat().map((device: any) => ({
+          code: device.code,
+          type: device.type,
+          online_at: device.online_at,
+        }));
+        setNetworkDevices(devices);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            code,
+            type: deviceType,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
     pairedDevices.forEach(async (device) => {
       try {
         await rtcService.connect(device.code);
@@ -83,6 +111,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
     return () => {
       rtcService.disconnect();
+      channel.unsubscribe();
     };
   }, [handleFileReceive, onConnectionChange, pairedDevices, toast]);
 
@@ -185,6 +214,47 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
               <Copy className="h-4 w-4" />
             )}
           </Button>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium leading-none">
+          Available Devices
+        </label>
+        <div className="space-y-2">
+          {networkDevices
+            .filter(device => device.code !== peerCode)
+            .map((device) => (
+              <div
+                key={device.code}
+                className="flex items-center justify-between p-2 bg-dark-accent/50 rounded hover:bg-dark-accent/70 transition-colors cursor-pointer"
+                onClick={() => {
+                  setTargetPeerCode(device.code);
+                  handleConnect();
+                }}
+              >
+                <div className="flex items-center space-x-2">
+                  {device.type === 'computer' ? (
+                    <Computer className="w-4 h-4 text-neon" />
+                  ) : (
+                    <Smartphone className="w-4 h-4 text-neon" />
+                  )}
+                  <span className="font-mono text-sm">{device.code}</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-white/50 hover:text-white"
+                >
+                  <Link className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          {networkDevices.length === 1 && (
+            <div className="text-sm text-gray-400 text-center py-2">
+              No other devices found on the network
+            </div>
+          )}
         </div>
       </div>
 
