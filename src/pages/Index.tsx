@@ -4,9 +4,18 @@ import { FileUpload } from "@/components/FileUpload";
 import { PeerConnection } from "@/components/PeerConnection";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
+import WebRTCService from "@/services/webrtc";
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
+  const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+
+  const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
+    setIsConnected(connected);
+    if (service) {
+      setWebrtc(service);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-dark text-white overflow-hidden">
@@ -26,11 +35,11 @@ const Index = () => {
               </p>
             </div>
 
-            <PeerConnection onConnectionChange={setIsConnected} />
+            <PeerConnection onConnectionChange={handleConnectionChange} />
             
-            {isConnected && (
+            {isConnected && webrtc && (
               <div className="animate-fade-in">
-                <FileUpload />
+                <FileUpload webrtc={webrtc} />
               </div>
             )}
           </Card>

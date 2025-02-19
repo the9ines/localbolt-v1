@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
 
 interface PeerConnectionProps {
-  onConnectionChange: (connected: boolean) => void;
+  onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
 }
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
@@ -81,7 +81,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
       
       await webrtc.connect(targetPeerCode);
-      onConnectionChange(true);
+      onConnectionChange(true, webrtc);
       
       toast({
         title: "Connected!",
