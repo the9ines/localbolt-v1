@@ -10,7 +10,7 @@ interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
 }
 
-const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
+export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [peerCode, setPeerCode] = useState("");
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
@@ -100,57 +100,46 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
-        <Shield className="w-5 h-5" aria-hidden="true" />
+        <Shield className="w-5 h-5" />
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
       
       <div className="space-y-2">
-        <label htmlFor="your-peer-code" className="text-sm font-medium leading-none">
-          Your Peer Code
-        </label>
+        <label className="text-sm font-medium leading-none">Your Peer Code</label>
         <div className="flex space-x-2">
           <Input
-            id="your-peer-code"
             value={peerCode}
             readOnly
             className="font-mono bg-dark-accent text-neon"
-            aria-label="Your peer code"
           />
           <Button
             variant="outline"
             size="icon"
             onClick={copyToClipboard}
             className="shrink-0"
-            aria-label={copied ? "Peer code copied" : "Copy peer code"}
           >
             {copied ? (
-              <Check className="h-4 w-4 text-neon" aria-hidden="true" />
+              <Check className="h-4 w-4 text-neon" />
             ) : (
-              <Copy className="h-4 w-4" aria-hidden="true" />
+              <Copy className="h-4 w-4" />
             )}
           </Button>
         </div>
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="target-peer-code" className="text-sm font-medium leading-none">
+        <label className="text-sm font-medium leading-none">
           Connect to Peer
         </label>
         <div className="flex space-x-2">
           <Input
-            id="target-peer-code"
             value={targetPeerCode}
             onChange={(e) => setTargetPeerCode(e.target.value.toUpperCase())}
             placeholder="Enter peer code"
             className="font-mono bg-dark-accent placeholder:text-white/20"
             maxLength={6}
-            aria-label="Enter target peer code"
           />
-          <Button 
-            onClick={handleConnect} 
-            className="shrink-0 bg-neon text-black hover:bg-neon/90"
-            aria-label="Connect to peer"
-          >
+          <Button onClick={handleConnect} className="shrink-0 bg-neon text-black hover:bg-neon/90">
             Connect
           </Button>
         </div>
@@ -158,5 +147,3 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     </div>
   );
 };
-
-export default PeerConnection;

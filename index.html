@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -8,70 +7,12 @@
     <meta name="description" content="Lovable Generated Project" />
     <meta name="author" content="Lovable" />
     <meta property="og:image" content="/og-image.png" />
-    
-    <!-- Theme color for mobile browsers -->
-    <meta name="theme-color" content="#39FF14" />
-    <!-- iOS Safari specific -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    
-    <!-- Inline critical CSS -->
-    <style>
-      /* Critical styles for first paint */
-      @font-face {
-        font-family: 'Inter';
-        font-style: normal;
-        font-weight: 400;
-        font-display: swap;
-        src: url('/fonts/inter-regular.woff2') format('woff2');
-      }
-      @font-face {
-        font-family: 'Inter';
-        font-style: normal;
-        font-weight: 500;
-        font-display: swap;
-        src: url('/fonts/inter-medium.woff2') format('woff2');
-      }
-      @font-face {
-        font-family: 'Inter';
-        font-style: normal;
-        font-weight: 600;
-        font-display: swap;
-        src: url('/fonts/inter-semibold.woff2') format('woff2');
-      }
-      @font-face {
-        font-family: 'Inter';
-        font-style: normal;
-        font-weight: 700;
-        font-display: swap;
-        src: url('/fonts/inter-bold.woff2') format('woff2');
-      }
-      
-      :root {
-        --background: 0 0% 7%;
-        --foreground: 0 0% 98%;
-      }
-      body {
-        margin: 0;
-        background-color: hsl(var(--background));
-        color: hsl(var(--foreground));
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        -webkit-font-smoothing: antialiased;
-      }
-      #root {
-        opacity: 0;
-        animation: fadeIn 0.3s ease-out forwards;
-      }
-      @keyframes fadeIn {
-        to { opacity: 1; }
-      }
-    </style>
   </head>
 
   <body>
     <div id="root"></div>
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
-    <script src="https://cdn.gpteng.co/gptengineer.js" type="module" async></script>
-    <script type="module" src="/src/main.tsx" defer async></script>
+    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

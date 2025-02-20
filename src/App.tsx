@@ -1,5 +1,4 @@
 
-import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,12 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-
-// Lazy load pages
-const Index = lazy(() => import("./pages/Index"));
-const Auth = lazy(() => import("./pages/Auth"));
-const Subscribe = lazy(() => import("./pages/Subscribe"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+import Index from "./pages/Index";
+import Auth from "./pages/Auth";
+import Subscribe from "./pages/Subscribe";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -48,21 +45,19 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Suspense fallback={<div className="h-screen w-screen flex items-center justify-center">Loading...</div>}>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route 
-              path="/subscribe" 
-              element={
-                <PrivateRoute>
-                  <Subscribe />
-                </PrivateRoute>
-              } 
-            />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route 
+            path="/subscribe" 
+            element={
+              <PrivateRoute>
+                <Subscribe />
+              </PrivateRoute>
+            } 
+          />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
