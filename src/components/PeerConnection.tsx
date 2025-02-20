@@ -1,10 +1,9 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import WebRTCService from "@/services/webrtc";
+import WebRTCService from "@/services/webrtc/WebRTCService";
 import { WebRTCError } from "@/types/webrtc-errors";
 
 interface PeerConnectionProps {
