@@ -4,7 +4,7 @@ import { FileUpload } from "@/components/FileUpload";
 import { PeerConnection } from "@/components/PeerConnection";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
-import WebRTCService from "@/services/webrtc";
+import WebRTCService from "@/services/webrtc/WebRTCService";
 import { Shield, Wifi, Database, Zap } from "lucide-react";
 
 const Index = () => {

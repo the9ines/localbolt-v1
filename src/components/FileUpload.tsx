@@ -1,10 +1,9 @@
-
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Upload, File, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import WebRTCService from "@/services/webrtc";
+import WebRTCService from "@/services/webrtc/WebRTCService";
 
 interface FileUploadProps {
   webrtc?: WebRTCService;
