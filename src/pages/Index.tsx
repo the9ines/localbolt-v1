@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { lazy, Suspense } from "react";
 import { Header } from "@/components/Header";
@@ -6,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Shield, Wifi, Database, Zap } from "lucide-react";
 import { sanitizeString } from "@/utils/sanitizer";
 import WebRTCService from "@/services/webrtc";
+import { NetworkDevices } from "@/components/NetworkDevices";
 
 const FileUpload = lazy(() => import("@/components/FileUpload"));
 const PeerConnection = lazy(() => import("@/components/PeerConnection"));
@@ -85,6 +85,8 @@ const Index = () => {
               </p>
             </Card>
           </div>
+
+          <NetworkDevices />
 
           <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6">
             <div className="space-y-2 text-center">
