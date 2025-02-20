@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { box, randomBytes } from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
@@ -39,20 +40,33 @@ class WebRTCService {
       this.peerConnection.close();
     }
 
+    // Enhanced configuration for iOS compatibility
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
+        {
+          urls: [
+            'stun:stun.l.google.com:19302',
+            'stun:stun1.l.google.com:19302',
+            'stun:stun2.l.google.com:19302'
+          ]
+        },
+        {
+          urls: [
+            'turn:turn.lovable.dev:3478'
+          ],
+          username: 'webrtc',
+          credential: 'turnserver'
+        }
       ],
       iceTransportPolicy: 'all',
+      iceCandidatePoolSize: 10,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require'
     });
 
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('[ICE] New ICE candidate generated');
+        console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
         this.sendSignal('ice-candidate', event.candidate).catch(error => {
           console.error('[ICE] Failed to send candidate:', error);
         });
@@ -60,16 +74,29 @@ class WebRTCService {
     };
 
     this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('[ICE] Connection state changed:', this.peerConnection?.iceConnectionState);
-      if (this.peerConnection?.iceConnectionState === 'failed') {
+      const state = this.peerConnection?.iceConnectionState;
+      console.log('[ICE] Connection state changed:', state);
+      
+      if (state === 'failed') {
         console.log('[ICE] Connection failed, restarting ICE');
-        this.peerConnection.restartIce();
+        this.peerConnection?.restartIce();
+      } else if (state === 'disconnected') {
+        console.log('[ICE] Connection disconnected, waiting for reconnection');
+        // Give some time for automatic recovery
+        setTimeout(() => {
+          if (this.peerConnection?.iceConnectionState === 'disconnected') {
+            console.log('[ICE] Still disconnected, forcing ICE restart');
+            this.peerConnection.restartIce();
+          }
+        }, 5000);
       }
     };
 
     this.peerConnection.onconnectionstatechange = () => {
-      console.log('[WEBRTC] Connection state changed:', this.peerConnection?.connectionState);
-      if (this.peerConnection?.connectionState === 'failed') {
+      const state = this.peerConnection?.connectionState;
+      console.log('[WEBRTC] Connection state changed:', state);
+      
+      if (state === 'failed') {
         console.log('[WEBRTC] Connection failed, attempting reconnect');
         this.connect(this.remotePeerCode).catch(error => {
           console.error('[WEBRTC] Reconnection failed:', error);
@@ -81,6 +108,11 @@ class WebRTCService {
       console.log('[DATACHANNEL] Received data channel');
       this.dataChannel = event.channel;
       this.setupDataChannel();
+    };
+
+    // Log gathering state changes
+    this.peerConnection.onicegatheringstatechange = () => {
+      console.log('[ICE] Gathering state:', this.peerConnection?.iceGatheringState);
     };
 
     return this.peerConnection;
@@ -237,6 +269,9 @@ class WebRTCService {
 
     console.log('[DATACHANNEL] Setting up data channel');
     
+    // iOS-optimized data channel configuration
+    this.dataChannel.binaryType = 'arraybuffer';
+    
     this.dataChannel.onopen = () => {
       console.log('[DATACHANNEL] Channel opened');
     };
@@ -285,7 +320,8 @@ class WebRTCService {
 
     this.dataChannel = this.peerConnection!.createDataChannel('fileTransfer', {
       ordered: true,
-      maxRetransmits: 3
+      maxRetransmits: 3,
+      maxPacketLifeTime: 3000 // 3 seconds timeout for iOS
     });
     this.setupDataChannel();
 
@@ -294,6 +330,7 @@ class WebRTCService {
       offerToReceiveVideo: false,
       iceRestart: true
     });
+    
     await this.peerConnection!.setLocalDescription(offer);
     console.log('[SIGNALING] Created and sent offer');
     await this.sendSignal('offer', {
