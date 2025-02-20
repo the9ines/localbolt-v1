@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      active_devices: {
+        Row: {
+          created_at: string | null
+          device_name: string
+          id: string
+          last_seen: string | null
+          network_id: string
+          peer_code: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_name: string
+          id?: string
+          last_seen?: string | null
+          network_id: string
+          peer_code: string
+        }
+        Update: {
+          created_at?: string | null
+          device_name?: string
+          id?: string
+          last_seen?: string | null
+          network_id?: string
+          peer_code?: string
+        }
+        Relationships: []
+      }
       signals: {
         Row: {
           created_at: string | null
