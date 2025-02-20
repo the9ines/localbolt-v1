@@ -19,6 +19,7 @@ class WebRTCService {
   private chunksBuffer: { [key: string]: Blob[] } = {};
   private keyPair: { publicKey: Uint8Array; secretKey: Uint8Array };
   private remotePeerPublicKey: Uint8Array | null = null;
+  private pendingIceCandidates: RTCIceCandidateInit[] = [];
 
   constructor(localPeerCode: string, onReceiveFile: (file: Blob, filename: string) => void) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
@@ -43,28 +44,73 @@ class WebRTCService {
     console.log('[SIGNALING] Processing signal:', signal.type, 'from:', signal.from);
 
     if (signal.type === 'offer') {
-      console.log('[SIGNALING] Received offer from peer:', signal.from);
-      this.remotePeerCode = signal.from;
-      this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
-      await this.createPeerConnection();
-      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
-      const answer = await this.peerConnection!.createAnswer();
-      await this.peerConnection!.setLocalDescription(answer);
-      console.log('[SIGNALING] Created and sending answer');
-      this.sendSignal('answer', {
-        answer,
-        publicKey: encodeBase64(this.keyPair.publicKey)
-      });
-    } else if (signal.type === 'answer') {
-      console.log('[SIGNALING] Received answer from peer:', signal.from);
-      this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
-      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
-    } else if (signal.type === 'ice-candidate' && this.peerConnection) {
       try {
-        console.log('[ICE] Adding received ICE candidate');
-        await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
+        console.log('[SIGNALING] Received offer from peer:', signal.from);
+        this.remotePeerCode = signal.from;
+        this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
+        await this.createPeerConnection();
+        
+        const offerDesc = new RTCSessionDescription(signal.data.offer);
+        await this.peerConnection!.setRemoteDescription(offerDesc);
+        console.log('[SIGNALING] Set remote description (offer)');
+        
+        const answer = await this.peerConnection!.createAnswer();
+        await this.peerConnection!.setLocalDescription(answer);
+        console.log('[SIGNALING] Created and sending answer');
+        
+        await this.sendSignal('answer', {
+          answer,
+          publicKey: encodeBase64(this.keyPair.publicKey)
+        });
+
+        // Process any pending ICE candidates
+        while (this.pendingIceCandidates.length > 0) {
+          const candidate = this.pendingIceCandidates.shift();
+          await this.peerConnection!.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log('[ICE] Added pending ICE candidate');
+        }
       } catch (e) {
-        console.error('[ICE] Error adding ice candidate:', e);
+        console.error('[SIGNALING] Error handling offer:', e);
+      }
+    } else if (signal.type === 'answer') {
+      try {
+        console.log('[SIGNALING] Received answer from peer:', signal.from);
+        this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
+        
+        if (this.peerConnection?.signalingState === 'have-local-offer') {
+          await this.peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
+          console.log('[SIGNALING] Set remote description (answer)');
+          
+          // Process any pending ICE candidates
+          while (this.pendingIceCandidates.length > 0) {
+            const candidate = this.pendingIceCandidates.shift();
+            await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log('[ICE] Added pending ICE candidate');
+          }
+        } else {
+          console.warn('[SIGNALING] Received answer in invalid state:', this.peerConnection?.signalingState);
+        }
+      } catch (e) {
+        console.error('[SIGNALING] Error handling answer:', e);
+      }
+    } else if (signal.type === 'ice-candidate') {
+      try {
+        if (!this.peerConnection) {
+          console.log('[ICE] Queuing ICE candidate (no peer connection)');
+          this.pendingIceCandidates.push(signal.data);
+          return;
+        }
+
+        const signalingState = this.peerConnection.signalingState;
+        if (signalingState === 'stable' || signalingState === 'have-remote-offer' || signalingState === 'have-local-offer') {
+          await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
+          console.log('[ICE] Added ICE candidate');
+        } else {
+          console.log('[ICE] Queuing ICE candidate (invalid state)');
+          this.pendingIceCandidates.push(signal.data);
+        }
+      } catch (e) {
+        console.error('[ICE] Error handling ICE candidate:', e);
       }
     }
   }
@@ -200,7 +246,8 @@ class WebRTCService {
 
     const offer = await this.peerConnection!.createOffer();
     await this.peerConnection!.setLocalDescription(offer);
-    console.log('[SIGNALING] Created and sent offer');
+    console.log('[SIGNALING] Created and set local description (offer)');
+    
     await this.sendSignal('offer', {
       offer,
       publicKey: encodeBase64(this.keyPair.publicKey)
