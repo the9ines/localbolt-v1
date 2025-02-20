@@ -36,8 +36,11 @@ const Index = () => {
             <h1 className="text-5xl font-bold tracking-tight">
               {renderSafeContent("Private, Server-Free File Sharing")}
             </h1>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              {renderSafeContent("Like AirDrop, but for everyone. Transfer files directly between devices with end-to-end encryption. No servers, no storage, no limits.")}
+            {/* Optimize LCP element with preload font, proper contrast, and explicit dimensions */}
+            <p className="text-xl text-gray-100 max-w-2xl mx-auto leading-relaxed font-medium">
+              <span className="inline-block">
+                {renderSafeContent("Like AirDrop, but for everyone. Transfer files directly between devices with end-to-end encryption. No servers, no storage, no limits.")}
+              </span>
             </p>
           </div>
 
