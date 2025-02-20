@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Shield } from "lucide-react";
 
 const Subscribe = () => {
@@ -98,7 +98,7 @@ const Subscribe = () => {
           <Shield className="w-12 h-12 text-neon mx-auto" />
           <h1 className="text-2xl font-bold">Upgrade to Pro</h1>
           <p className="text-gray-400">
-            Get unlimited secure file sharing for just $25/year
+            Get unlimited secure file sharing for just $5/year
           </p>
         </div>
 
@@ -123,7 +123,7 @@ const Subscribe = () => {
             className="w-full bg-neon hover:bg-neon/90 text-dark font-medium"
             disabled={loading}
           >
-            {loading ? "Loading..." : "Subscribe Now - $25/year"}
+            {loading ? "Loading..." : "Subscribe Now - $5/year"}
           </Button>
         </div>
 
