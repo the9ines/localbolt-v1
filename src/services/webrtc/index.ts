@@ -1,6 +1,6 @@
 import { box } from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
-import { SignalData, FileChunkMessage, WebRTCError, WebRTCErrorCode } from './types';
+import { SignalData, FileChunkMessage, WebRTCError, WebRTCErrorCode, TransferProgress } from './types';
 import { EncryptionService } from './encryption';
 import { SignalingService } from './signaling';
 import { ConnectionService } from './connection';
