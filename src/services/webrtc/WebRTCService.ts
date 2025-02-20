@@ -122,9 +122,9 @@ class WebRTCService {
     await this.dataChannelManager.sendFile(file);
   }
 
-  cancelTransfer(filename: string) {
+  cancelTransfer(filename: string, isReceiver: boolean = false) {
     console.log('[WEBRTC] Cancelling transfer:', filename);
-    this.dataChannelManager.cancelTransfer(filename);
+    this.dataChannelManager.cancelTransfer(filename, isReceiver);
   }
 
   disconnect() {
