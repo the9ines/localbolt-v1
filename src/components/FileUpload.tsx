@@ -1,13 +1,12 @@
-
-import React, { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { FileText, Upload, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { sanitizeFilename } from "@/utils/sanitizer";
-import WebRTCService from "@/services/webrtc";
+import type WebRTCService from "@/services/webrtc";
 
-export const FileUpload = ({ webrtc }: { webrtc: WebRTCService }) => {
+const FileUpload = ({ webrtc }: { webrtc: WebRTCService }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
@@ -45,7 +44,6 @@ export const FileUpload = ({ webrtc }: { webrtc: WebRTCService }) => {
     setUploadProgress(0);
 
     try {
-      // Pass just the file, not the progress callback since the method signature changed
       await webrtc.sendFile(selectedFile);
       alert("File sent successfully!");
     } catch (error) {
@@ -119,3 +117,5 @@ export const FileUpload = ({ webrtc }: { webrtc: WebRTCService }) => {
     </div>
   );
 };
+
+export default FileUpload;

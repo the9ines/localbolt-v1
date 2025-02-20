@@ -1,16 +1,15 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import WebRTCService from "@/services/webrtc";
+import type WebRTCService from "@/services/webrtc";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
 }
 
-export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
+const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [peerCode, setPeerCode] = useState("");
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
@@ -147,3 +146,5 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     </div>
   );
 };
+
+export default PeerConnection;

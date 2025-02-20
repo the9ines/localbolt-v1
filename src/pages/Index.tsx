@@ -1,12 +1,12 @@
-
 import { useState } from "react";
-import { FileUpload } from "@/components/FileUpload";
-import { PeerConnection } from "@/components/PeerConnection";
+import { lazy, Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
-import WebRTCService from "@/services/webrtc";
 import { Shield, Wifi, Database, Zap } from "lucide-react";
 import { sanitizeString } from "@/utils/sanitizer";
+
+const FileUpload = lazy(() => import("@/components/FileUpload"));
+const PeerConnection = lazy(() => import("@/components/PeerConnection"));
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -19,7 +19,6 @@ const Index = () => {
     }
   };
 
-  // Sanitize any user-provided content before rendering
   const renderSafeContent = (content: string) => {
     return sanitizeString(content);
   };
@@ -36,7 +35,6 @@ const Index = () => {
             <h1 className="text-5xl font-bold tracking-tight">
               {renderSafeContent("Private, Server-Free File Sharing")}
             </h1>
-            {/* Optimize LCP element with preload font, proper contrast, and explicit dimensions */}
             <p className="text-xl text-gray-100 max-w-2xl mx-auto leading-relaxed font-medium">
               <span className="inline-block">
                 {renderSafeContent("Like AirDrop, but for everyone. Transfer files directly between devices with end-to-end encryption. No servers, no storage, no limits.")}
@@ -96,12 +94,14 @@ const Index = () => {
               </p>
             </div>
 
-            <PeerConnection onConnectionChange={handleConnectionChange} />
+            <Suspense fallback={<div>Loading connection...</div>}>
+              <PeerConnection onConnectionChange={handleConnectionChange} />
+            </Suspense>
             
             {isConnected && webrtc && (
-              <div className="animate-fade-in">
+              <Suspense fallback={<div>Loading file upload...</div>}>
                 <FileUpload webrtc={webrtc} />
-              </div>
+              </Suspense>
             )}
           </Card>
 
