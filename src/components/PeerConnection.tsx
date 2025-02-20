@@ -1,10 +1,10 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
+import { WebRTCError, WebRTCErrorCode } from "@/services/webrtc/types";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -16,6 +16,50 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [copied, setCopied] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const { toast } = useToast();
+
+  const handleError = useCallback((error: WebRTCError) => {
+    console.error('WebRTC Error:', error);
+    let title = 'Connection Error';
+    let description = 'An unexpected error occurred';
+
+    switch (error.code) {
+      case WebRTCErrorCode.CONNECTION_FAILED:
+        title = 'Connection Failed';
+        description = 'Failed to establish connection with peer. Please try again.';
+        break;
+      case WebRTCErrorCode.ENCRYPTION_FAILED:
+        title = 'Encryption Error';
+        description = 'Failed to establish secure connection. Please try again.';
+        break;
+      case WebRTCErrorCode.DECRYPTION_FAILED:
+        title = 'Decryption Error';
+        description = 'Failed to decrypt received data. The connection may be compromised.';
+        break;
+      case WebRTCErrorCode.TRANSFER_FAILED:
+        title = 'Transfer Failed';
+        description = 'File transfer failed. Please try again.';
+        break;
+      case WebRTCErrorCode.NETWORK_ERROR:
+        title = 'Network Error';
+        description = 'Network connection issues detected. Check your internet connection.';
+        break;
+      case WebRTCErrorCode.PEER_DISCONNECTED:
+        title = 'Peer Disconnected';
+        description = 'The connection with your peer was lost.';
+        onConnectionChange(false);
+        break;
+      case WebRTCErrorCode.SIGNALING_FAILED:
+        title = 'Signaling Error';
+        description = 'Failed to establish initial connection. Please try again.';
+        break;
+    }
+
+    toast({
+      title,
+      description,
+      variant: "destructive",
+    });
+  }, [toast, onConnectionChange]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -36,13 +80,13 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive);
+    const rtcService = new WebRTCService(code, handleFileReceive, handleError);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
     };
-  }, [handleFileReceive]);
+  }, [handleFileReceive, handleError]);
 
   const copyToClipboard = async () => {
     try {
@@ -88,12 +132,7 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Secure connection established",
       });
     } catch (error) {
-      toast({
-        title: "Connection failed",
-        description: "Failed to establish connection",
-        variant: "destructive",
-      });
-      onConnectionChange(false);
+      handleError(error);
     }
   };
 
