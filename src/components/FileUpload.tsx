@@ -1,7 +1,8 @@
+
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, File, X } from "lucide-react";
+import { Upload, File, X, StopCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { TransferProgress } from "@/services/webrtc/FileTransferService";
@@ -60,6 +61,17 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const cancelTransfer = () => {
+    if (webrtc && progress) {
+      webrtc.cancelTransfer(progress.filename);
+      setProgress(null);
+      toast({
+        title: "Transfer cancelled",
+        description: `Cancelled transfer of ${progress.filename}`,
+      });
+    }
+  };
+
   const simulateUpload = async () => {
     if (!webrtc) {
       toast({
@@ -78,12 +90,17 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
           title: "Transfer complete",
           description: `${file.name} has been sent successfully`,
         });
-      } catch (error) {
-        toast({
-          title: "Transfer failed",
-          description: `Failed to send ${file.name}`,
-          variant: "destructive",
-        });
+      } catch (error: any) {
+        if (error.message === "Transfer cancelled by user") {
+          // Already handled by cancelTransfer
+          break;
+        } else {
+          toast({
+            title: "Transfer failed",
+            description: `Failed to send ${file.name}`,
+            variant: "destructive",
+          });
+        }
       }
     }
   };
@@ -153,10 +170,20 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
                 <span className="truncate">{progress.filename}</span>
                 <span>{Math.round((progress.loaded / progress.total) * 100)}%</span>
               </div>
-              <Progress 
-                value={(progress.currentChunk / progress.totalChunks) * 100}
-                className="h-2 bg-dark-accent"
-              />
+              <div className="flex space-x-2">
+                <Progress 
+                  value={(progress.currentChunk / progress.totalChunks) * 100}
+                  className="h-2 bg-dark-accent flex-1"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={cancelTransfer}
+                  className="text-white/50 hover:text-white shrink-0"
+                >
+                  <StopCircle className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           )}
 

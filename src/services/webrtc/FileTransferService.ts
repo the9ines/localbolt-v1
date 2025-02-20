@@ -12,6 +12,7 @@ export interface TransferProgress {
 
 export class FileTransferService {
   private chunksBuffer: { [key: string]: Blob[] } = {};
+  private cancelTransfer: boolean = false;
   
   constructor(
     private dataChannel: RTCDataChannel,
@@ -25,9 +26,15 @@ export class FileTransferService {
   private setupDataChannel() {
     this.dataChannel.onmessage = async (event) => {
       try {
-        const { type, filename, chunk, chunkIndex, totalChunks, fileSize } = JSON.parse(event.data);
+        const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled } = JSON.parse(event.data);
 
         if (type === 'file-chunk') {
+          if (cancelled) {
+            console.log(`[TRANSFER] Transfer cancelled for ${filename}`);
+            delete this.chunksBuffer[filename];
+            return;
+          }
+
           console.log(`[TRANSFER] Receiving chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
           
           if (!this.chunksBuffer[filename]) {
@@ -40,7 +47,6 @@ export class FileTransferService {
             const decryptedChunk = await this.encryptionService.decryptChunk(encryptedChunk);
             this.chunksBuffer[filename][chunkIndex] = new Blob([decryptedChunk]);
 
-            // Calculate and emit progress
             const received = this.chunksBuffer[filename].filter(Boolean).length;
             if (this.onProgress) {
               this.onProgress({
@@ -70,13 +76,37 @@ export class FileTransferService {
     };
   }
 
+  cancelCurrentTransfer(filename: string) {
+    console.log(`[TRANSFER] Cancelling transfer of ${filename}`);
+    this.cancelTransfer = true;
+    
+    // Notify peer about cancellation
+    const message = JSON.stringify({
+      type: 'file-chunk',
+      filename,
+      cancelled: true
+    });
+    this.dataChannel.send(message);
+    
+    // Clean up local buffer
+    if (this.chunksBuffer[filename]) {
+      delete this.chunksBuffer[filename];
+    }
+  }
+
   async sendFile(file: File) {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
     const CHUNK_SIZE = 16384; // 16KB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    this.cancelTransfer = false;
 
     try {
       for (let i = 0; i < totalChunks; i++) {
+        if (this.cancelTransfer) {
+          console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
+          throw new TransferError("Transfer cancelled by user");
+        }
+
         const start = i * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
@@ -111,7 +141,6 @@ export class FileTransferService {
           this.dataChannel.send(message);
           console.log(`[TRANSFER] Sent chunk ${i + 1}/${totalChunks}`);
 
-          // Emit upload progress
           if (this.onProgress) {
             this.onProgress({
               filename: file.name,

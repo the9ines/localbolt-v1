@@ -243,6 +243,13 @@ class WebRTCService {
     await this.fileTransferService.sendFile(file);
   }
 
+  cancelTransfer(filename: string) {
+    if (!this.fileTransferService) {
+      throw new ConnectionError("No connection established");
+    }
+    this.fileTransferService.cancelCurrentTransfer(filename);
+  }
+
   disconnect() {
     console.log('[WEBRTC] Disconnecting');
     if (this.dataChannel) {
