@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -32,37 +33,13 @@
     @apply border-border;
   }
   body {
-    @apply bg-dark text-foreground font-inter antialiased;
+    @apply bg-black text-foreground font-inter antialiased;
   }
 }
 
 @layer utilities {
   .glass {
     @apply bg-white/5 backdrop-blur-md border border-white/10;
-  }
-  
-  .animated-border {
-    @apply relative overflow-hidden;
-  }
-  
-  .animated-border::after {
-    @apply content-[''] absolute -top-[150%] -left-[150%] w-[300%] h-[300%];
-    background: conic-gradient(
-      from 90deg at 40% 40%,
-      #39FF14 0deg,
-      transparent 70deg,
-      transparent 180deg,
-      #39FF14 180deg,
-      transparent 250deg,
-      transparent 360deg
-    );
-    animation: rotate 4s linear infinite;
-  }
-  
-  @keyframes rotate {
-    100% {
-      transform: rotate(1turn);
-    }
   }
 }
 
@@ -77,45 +54,38 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #121212;
+  @apply bg-black;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #39FF14;
-  border-radius: 3px;
+  @apply bg-[#4A90E2] rounded;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2bff00;
+  @apply bg-[#4A90E2]/80;
 }
 
-/* Drag and drop styles */
-.drag-active {
-  @apply border-neon scale-[1.01] transition-all duration-200;
+/* Input focus styles */
+.focus-ring {
+  @apply focus:ring-2 focus:ring-[#4A90E2] focus:ring-offset-2 focus:ring-offset-black focus:outline-none;
 }
 
-/* Loader animation */
-.loader {
-  width: 48px;
-  height: 48px;
-  border: 5px solid #121212;
-  border-bottom-color: #39FF14;
-  border-radius: 50%;
-  display: inline-block;
-  box-sizing: border-box;
-  animation: rotation 1s linear infinite;
-}
-
-@keyframes rotation {
+/* Animated background */
+@keyframes pulse-ring {
   0% {
-    transform: rotate(0deg);
+    transform: scale(0.95);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 0.2;
   }
   100% {
-    transform: rotate(360deg);
+    transform: scale(0.95);
+    opacity: 0.5;
   }
 }
 
-/* Glass card effect */
-.glass-card {
-  @apply bg-dark-lighter/30 backdrop-blur-lg border border-white/10 shadow-xl;
+.animate-pulse-ring {
+  animation: pulse-ring 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
