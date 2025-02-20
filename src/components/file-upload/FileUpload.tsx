@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
@@ -17,6 +17,15 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (webrtc) {
+      webrtc.onProgress = (transferProgress: TransferProgress) => {
+        console.log('[TRANSFER] Progress update in UI:', transferProgress);
+        setProgress(transferProgress);
+      };
+    }
+  }, [webrtc]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
