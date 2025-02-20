@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,7 +177,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
             variant="outline"
             size="icon"
             onClick={copyToClipboard}
-            className="shrink-0"
+            className="shrink-0 hover:text-neon"
           >
             {copied ? (
               <Check className="h-4 w-4 text-neon" />
