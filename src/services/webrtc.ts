@@ -32,6 +32,60 @@ class WebRTCService {
     this.setupSignalingListener();
   }
 
+  private async createPeerConnection() {
+    console.log('[WEBRTC] Creating peer connection');
+    
+    if (this.peerConnection) {
+      this.peerConnection.close();
+    }
+
+    this.peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+      ],
+      iceTransportPolicy: 'all',
+    });
+
+    this.peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log('[ICE] New ICE candidate generated');
+        this.sendSignal('ice-candidate', event.candidate).catch(error => {
+          console.error('[ICE] Failed to send candidate:', error);
+        });
+      }
+    };
+
+    this.peerConnection.oniceconnectionstatechange = () => {
+      console.log('[ICE] Connection state changed:', this.peerConnection?.iceConnectionState);
+      if (this.peerConnection?.iceConnectionState === 'failed') {
+        console.log('[ICE] Connection failed, restarting ICE');
+        this.peerConnection.restartIce();
+      }
+    };
+
+    this.peerConnection.onconnectionstatechange = () => {
+      console.log('[WEBRTC] Connection state changed:', this.peerConnection?.connectionState);
+      if (this.peerConnection?.connectionState === 'failed') {
+        console.log('[WEBRTC] Connection failed, attempting reconnect');
+        this.connect(this.remotePeerCode).catch(error => {
+          console.error('[WEBRTC] Reconnection failed:', error);
+        });
+      }
+    };
+
+    this.peerConnection.ondatachannel = (event) => {
+      console.log('[DATACHANNEL] Received data channel');
+      this.dataChannel = event.channel;
+      this.setupDataChannel();
+    };
+
+    return this.peerConnection;
+  }
+
   private async setupSignalingListener() {
     console.log('[SIGNALING] Setting up signal listener');
     try {
@@ -242,7 +296,7 @@ class WebRTCService {
     });
     await this.peerConnection!.setLocalDescription(offer);
     console.log('[SIGNALING] Created and sent offer');
-    this.sendSignal('offer', {
+    await this.sendSignal('offer', {
       offer,
       publicKey: encodeBase64(this.keyPair.publicKey)
     });
