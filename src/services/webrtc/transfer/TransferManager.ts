@@ -47,10 +47,11 @@ export class TransferManager {
     };
     
     this.dataChannel.send(JSON.stringify(message));
-    this.cleanupTransfer(filename, isReceiver);
+    this.handleCleanup(filename, isReceiver);
   }
 
-  private cleanupTransfer(filename: string, isReceiver: boolean) {
+  // Changed from private to public and renamed for clarity
+  handleCleanup(filename: string, isReceiver: boolean) {
     if (this.chunksBuffer[filename]) {
       const totalChunks = this.chunksBuffer[filename].length;
       delete this.chunksBuffer[filename];

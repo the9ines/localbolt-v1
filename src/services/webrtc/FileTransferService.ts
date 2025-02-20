@@ -31,7 +31,7 @@ export class FileTransferService {
         if (type === 'file-chunk') {
           if (cancelled) {
             console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
-            this.transferManager.cleanupTransfer(filename, cancelledBy === 'receiver');
+            this.transferManager.handleCleanup(filename, cancelledBy === 'receiver');
             return;
           }
 
