@@ -1,8 +1,7 @@
-
 import { ConnectionError, WebRTCError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
-import { FileTransferService } from './FileTransferService';
+import { FileTransferService, TransferProgress } from './FileTransferService';
 
 class WebRTCService {
   private peerConnection: RTCPeerConnection | null = null;
@@ -14,15 +13,18 @@ class WebRTCService {
   private signalingService: SignalingService;
   private encryptionService: EncryptionService;
   private fileTransferService: FileTransferService | null = null;
+  private onProgressCallback?: (progress: TransferProgress) => void;
 
   constructor(
     private localPeerCode: string,
     private onReceiveFile: (file: Blob, filename: string) => void,
-    private onError: (error: WebRTCError) => void
+    private onError: (error: WebRTCError) => void,
+    onProgress?: (progress: TransferProgress) => void
   ) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     this.encryptionService = new EncryptionService();
     this.signalingService = new SignalingService(localPeerCode, this.handleSignal.bind(this));
+    this.onProgressCallback = onProgress;
   }
 
   private async handleSignal(signal: SignalData) {
@@ -180,7 +182,8 @@ class WebRTCService {
     this.fileTransferService = new FileTransferService(
       this.dataChannel,
       this.encryptionService,
-      this.onReceiveFile
+      this.onReceiveFile,
+      this.onProgressCallback
     );
   }
 

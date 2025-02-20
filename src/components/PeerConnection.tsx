@@ -5,6 +5,8 @@ import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { WebRTCError } from "@/types/webrtc-errors";
+import { Progress } from "@/components/ui/progress";
+import { TransferProgress } from "@/services/webrtc/FileTransferService";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -15,7 +17,15 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
+
+  const handleProgress = useCallback((progress: TransferProgress) => {
+    setTransferProgress(progress);
+    if (progress.currentChunk === progress.totalChunks) {
+      setTimeout(() => setTransferProgress(null), 1000);
+    }
+  }, []);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -68,13 +78,13 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive, handleError);
+    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
     };
-  }, [handleFileReceive, handleError]);
+  }, [handleFileReceive, handleError, handleProgress]);
 
   const copyToClipboard = async () => {
     try {
@@ -141,6 +151,19 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
       
+      {transferProgress && (
+        <div className="space-y-2 animate-fade-up">
+          <div className="flex justify-between text-sm">
+            <span className="truncate">{transferProgress.filename}</span>
+            <span>{Math.round((transferProgress.loaded / transferProgress.total) * 100)}%</span>
+          </div>
+          <Progress 
+            value={(transferProgress.currentChunk / transferProgress.totalChunks) * 100}
+            className="h-2 bg-dark-accent"
+          />
+        </div>
+      )}
+
       <div className="space-y-2">
         <label className="text-sm font-medium leading-none">Your Peer Code</label>
         <div className="flex space-x-2">

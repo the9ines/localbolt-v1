@@ -2,13 +2,22 @@
 import { TransferError } from '@/types/webrtc-errors';
 import { EncryptionService } from './EncryptionService';
 
+export interface TransferProgress {
+  filename: string;
+  currentChunk: number;
+  totalChunks: number;
+  loaded: number;
+  total: number;
+}
+
 export class FileTransferService {
   private chunksBuffer: { [key: string]: Blob[] } = {};
   
   constructor(
     private dataChannel: RTCDataChannel,
     private encryptionService: EncryptionService,
-    private onReceiveFile: (file: Blob, filename: string) => void
+    private onReceiveFile: (file: Blob, filename: string) => void,
+    private onProgress?: (progress: TransferProgress) => void
   ) {
     this.setupDataChannel();
   }
@@ -16,7 +25,7 @@ export class FileTransferService {
   private setupDataChannel() {
     this.dataChannel.onmessage = async (event) => {
       try {
-        const { type, filename, chunk, chunkIndex, totalChunks } = JSON.parse(event.data);
+        const { type, filename, chunk, chunkIndex, totalChunks, fileSize } = JSON.parse(event.data);
 
         if (type === 'file-chunk') {
           console.log(`[TRANSFER] Receiving chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
@@ -31,7 +40,19 @@ export class FileTransferService {
             const decryptedChunk = await this.encryptionService.decryptChunk(encryptedChunk);
             this.chunksBuffer[filename][chunkIndex] = new Blob([decryptedChunk]);
 
-            if (this.chunksBuffer[filename].filter(Boolean).length === totalChunks) {
+            // Calculate and emit progress
+            const received = this.chunksBuffer[filename].filter(Boolean).length;
+            if (this.onProgress) {
+              this.onProgress({
+                filename,
+                currentChunk: received,
+                totalChunks,
+                loaded: received * (fileSize / totalChunks),
+                total: fileSize
+              });
+            }
+
+            if (received === totalChunks) {
               console.log(`[TRANSFER] Completed transfer of ${filename}`);
               const file = new Blob(this.chunksBuffer[filename]);
               delete this.chunksBuffer[filename];
@@ -74,6 +95,7 @@ export class FileTransferService {
             chunk: base64,
             chunkIndex: i,
             totalChunks,
+            fileSize: file.size
           });
 
           if (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
@@ -88,6 +110,17 @@ export class FileTransferService {
 
           this.dataChannel.send(message);
           console.log(`[TRANSFER] Sent chunk ${i + 1}/${totalChunks}`);
+
+          // Emit upload progress
+          if (this.onProgress) {
+            this.onProgress({
+              filename: file.name,
+              currentChunk: i + 1,
+              totalChunks,
+              loaded: (i + 1) * CHUNK_SIZE,
+              total: file.size
+            });
+          }
         } catch (error) {
           throw new TransferError(
             "Failed to send file chunk",

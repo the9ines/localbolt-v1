@@ -4,6 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, File, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
+import { TransferProgress } from "@/services/webrtc/FileTransferService";
 
 interface FileUploadProps {
   webrtc?: WebRTCService;
@@ -12,7 +13,7 @@ interface FileUploadProps {
 export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState<TransferProgress | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -69,23 +70,9 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
       return;
     }
 
-    setProgress(0);
     for (const file of files) {
       try {
-        const fileSize = file.size;
-        const updateInterval = setInterval(() => {
-          setProgress((prev) => {
-            if (prev >= 100) {
-              clearInterval(updateInterval);
-              return 100;
-            }
-            return prev + 5;
-          });
-        }, 100);
-
         await webrtc.sendFile(file);
-        clearInterval(updateInterval);
-        setProgress(100);
 
         toast({
           title: "Transfer complete",
@@ -160,14 +147,23 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
             ))}
           </div>
 
-          {progress > 0 && progress < 100 && (
-            <Progress value={progress} className="h-2 bg-dark-accent" />
+          {progress && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="truncate">{progress.filename}</span>
+                <span>{Math.round((progress.loaded / progress.total) * 100)}%</span>
+              </div>
+              <Progress 
+                value={(progress.currentChunk / progress.totalChunks) * 100}
+                className="h-2 bg-dark-accent"
+              />
+            </div>
           )}
 
           <Button
             onClick={simulateUpload}
             className="w-full bg-neon text-black hover:bg-neon/90"
-            disabled={progress > 0 && progress < 100}
+            disabled={progress !== null}
           >
             Start Transfer
           </Button>
