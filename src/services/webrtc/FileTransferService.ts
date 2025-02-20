@@ -32,6 +32,15 @@ export class FileTransferService {
           if (cancelled) {
             console.log(`[TRANSFER] Transfer cancelled for ${filename}`);
             delete this.chunksBuffer[filename];
+            if (this.onProgress) {
+              this.onProgress({
+                filename,
+                currentChunk: 0,
+                totalChunks,
+                loaded: 0,
+                total: fileSize
+              });
+            }
             return;
           }
 
@@ -146,7 +155,7 @@ export class FileTransferService {
               filename: file.name,
               currentChunk: i + 1,
               totalChunks,
-              loaded: (i + 1) * CHUNK_SIZE,
+              loaded: end,
               total: file.size
             });
           }

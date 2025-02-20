@@ -1,7 +1,8 @@
+
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, File, X, StopCircle } from "lucide-react";
+import { Upload, File, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { TransferProgress } from "@/services/webrtc/FileTransferService";
@@ -83,22 +84,18 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     }
 
     try {
-      // Only transfer one file at a time
       const file = files[0];
       if (!file) return;
 
       console.log('Starting transfer for:', file.name);
-      
-      // Set initial progress
       setProgress({
         filename: file.name,
         currentChunk: 0,
-        totalChunks: 1, // Will be updated by the WebRTC service
+        totalChunks: 1,
         loaded: 0,
         total: file.size
       });
 
-      // Start the transfer
       await webrtc.sendFile(file);
       console.log('Transfer completed for:', file.name);
 
@@ -107,7 +104,6 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         description: `${file.name} has been sent successfully`,
       });
 
-      // Remove the transferred file from the queue
       setFiles(prevFiles => prevFiles.slice(1));
     } catch (error: any) {
       console.error('Transfer error:', error);
@@ -177,7 +173,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
                     variant="ghost"
                     size="icon"
                     onClick={() => removeFile(index)}
-                    className="text-white/50 hover:text-white"
+                    className="text-white/50 hover:text-neon"
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -201,9 +197,9 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
                   variant="ghost"
                   size="icon"
                   onClick={cancelTransfer}
-                  className="text-white/50 hover:text-white shrink-0"
+                  className="text-white/50 hover:text-neon"
                 >
-                  <StopCircle className="w-4 h-4" />
+                  <X className="w-4 h-4" />
                 </Button>
               </div>
             </div>
