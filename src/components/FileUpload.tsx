@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,6 @@ export const FileUpload = ({ webrtc }: { webrtc: WebRTCService }) => {
     const files = event.target.files;
     if (files && files.length > 0) {
       const file = files[0];
-      // Sanitize filename before processing
       const sanitizedFile = new File([file], sanitizeFilename(file.name), {
         type: file.type,
       });
@@ -45,9 +45,8 @@ export const FileUpload = ({ webrtc }: { webrtc: WebRTCService }) => {
     setUploadProgress(0);
 
     try {
-      await webrtc.sendFile(selectedFile, (progress: number) => {
-        setUploadProgress(progress);
-      });
+      // Pass just the file, not the progress callback since the method signature changed
+      await webrtc.sendFile(selectedFile);
       alert("File sent successfully!");
     } catch (error) {
       console.error("File transfer failed:", error);
