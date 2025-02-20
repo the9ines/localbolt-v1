@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { box, randomBytes } from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
@@ -21,6 +20,9 @@ class WebRTCService {
   private remotePeerPublicKey: Uint8Array | null = null;
   private iceCandidates: RTCIceCandidate[] = [];
   private isSettingRemoteDescription = false;
+  private retryCount = 0;
+  private maxRetries = 3;
+  private signalChannel: any = null;
 
   constructor(localPeerCode: string, onReceiveFile: (file: Blob, filename: string) => void) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
@@ -32,12 +34,30 @@ class WebRTCService {
 
   private async setupSignalingListener() {
     console.log('[SIGNALING] Setting up signal listener');
-    const channel = supabase.channel('signals')
-      .on('broadcast', { event: 'signal' }, ({ payload }) => {
-        console.log('[SIGNALING] Received signal:', payload.type);
-        this.handleSignal(payload as SignalData);
-      })
-      .subscribe();
+    try {
+      if (this.signalChannel) {
+        await this.signalChannel.unsubscribe();
+      }
+      
+      this.signalChannel = supabase.channel('signals')
+        .on('broadcast', { event: 'signal' }, ({ payload }) => {
+          console.log('[SIGNALING] Received signal:', payload.type);
+          this.handleSignal(payload as SignalData);
+        })
+        .subscribe((status: string) => {
+          console.log('[SIGNALING] Channel status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('[SIGNALING] Successfully subscribed to channel');
+          }
+        });
+    } catch (error) {
+      console.error('[SIGNALING] Error setting up listener:', error);
+      if (this.retryCount < this.maxRetries) {
+        this.retryCount++;
+        console.log(`[SIGNALING] Retrying setup (${this.retryCount}/${this.maxRetries})`);
+        setTimeout(() => this.setupSignalingListener(), 1000);
+      }
+    }
   }
 
   private async handleSignal(signal: SignalData) {
@@ -45,112 +65,82 @@ class WebRTCService {
 
     console.log(`[SIGNALING] Processing ${signal.type} from peer ${signal.from}`);
 
-    if (signal.type === 'offer') {
-      this.remotePeerCode = signal.from;
-      this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
-      await this.createPeerConnection();
-      this.isSettingRemoteDescription = true;
-      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
-      this.isSettingRemoteDescription = false;
-      
-      // Process any queued ICE candidates
-      while (this.iceCandidates.length > 0) {
-        const candidate = this.iceCandidates.shift();
-        await this.peerConnection!.addIceCandidate(candidate!);
-      }
-      
-      const answer = await this.peerConnection!.createAnswer();
-      await this.peerConnection!.setLocalDescription(answer);
-      console.log('[SIGNALING] Created and sent answer');
-      this.sendSignal('answer', {
-        answer,
-        publicKey: encodeBase64(this.keyPair.publicKey)
-      });
-    } else if (signal.type === 'answer') {
-      console.log('[SIGNALING] Processing answer from remote peer');
-      this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
-      this.isSettingRemoteDescription = true;
-      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
-      this.isSettingRemoteDescription = false;
-      
-      // Process any queued ICE candidates
-      while (this.iceCandidates.length > 0) {
-        const candidate = this.iceCandidates.shift();
-        await this.peerConnection!.addIceCandidate(candidate!);
-      }
-    } else if (signal.type === 'ice-candidate' && this.peerConnection) {
-      try {
-        const candidate = new RTCIceCandidate(signal.data);
-        if (this.isSettingRemoteDescription) {
-          // Queue the candidate if we're still setting remote description
-          this.iceCandidates.push(candidate);
-        } else {
-          await this.peerConnection.addIceCandidate(candidate);
-          console.log('[ICE] Added ICE candidate successfully');
+    try {
+      if (signal.type === 'offer') {
+        this.remotePeerCode = signal.from;
+        this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
+        await this.createPeerConnection();
+        this.isSettingRemoteDescription = true;
+        await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
+        this.isSettingRemoteDescription = false;
+        
+        while (this.iceCandidates.length > 0) {
+          const candidate = this.iceCandidates.shift();
+          if (this.peerConnection?.signalingState !== 'closed') {
+            await this.peerConnection!.addIceCandidate(candidate!);
+          }
         }
-      } catch (e) {
-        console.error('[ICE] Error adding ice candidate:', e);
+        
+        const answer = await this.peerConnection!.createAnswer();
+        await this.peerConnection!.setLocalDescription(answer);
+        console.log('[SIGNALING] Created and sent answer');
+        await this.sendSignal('answer', {
+          answer,
+          publicKey: encodeBase64(this.keyPair.publicKey)
+        });
+      } else if (signal.type === 'answer') {
+        console.log('[SIGNALING] Processing answer from remote peer');
+        this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
+        this.isSettingRemoteDescription = true;
+        await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
+        this.isSettingRemoteDescription = false;
+        
+        while (this.iceCandidates.length > 0) {
+          const candidate = this.iceCandidates.shift();
+          if (this.peerConnection?.signalingState !== 'closed') {
+            await this.peerConnection!.addIceCandidate(candidate!);
+          }
+        }
+      } else if (signal.type === 'ice-candidate' && this.peerConnection) {
+        try {
+          const candidate = new RTCIceCandidate(signal.data);
+          if (this.isSettingRemoteDescription) {
+            this.iceCandidates.push(candidate);
+          } else if (this.peerConnection.signalingState !== 'closed') {
+            await this.peerConnection.addIceCandidate(candidate);
+            console.log('[ICE] Added ICE candidate successfully');
+          }
+        } catch (e) {
+          console.error('[ICE] Error adding ice candidate:', e);
+        }
       }
+    } catch (error) {
+      console.error('[SIGNALING] Error handling signal:', error);
     }
   }
 
   private async sendSignal(type: SignalData['type'], data: any) {
     console.log(`[SIGNALING] Sending ${type} to peer ${this.remotePeerCode}`);
-    await supabase.channel('signals').send({
-      type: 'broadcast',
-      event: 'signal',
-      payload: {
-        type,
-        data,
-        from: this.localPeerCode,
-        to: this.remotePeerCode,
-      },
-    });
-  }
-
-  private async createPeerConnection() {
-    console.log('[WEBRTC] Creating peer connection');
-    this.peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
-      ],
-      iceTransportPolicy: 'all',
-    });
-
-    this.peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log('[ICE] New ICE candidate generated');
-        this.sendSignal('ice-candidate', event.candidate);
+    try {
+      if (!this.signalChannel) {
+        throw new Error('Signal channel not initialized');
       }
-    };
-
-    this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('[ICE] Connection state changed:', this.peerConnection?.iceConnectionState);
-      if (this.peerConnection?.iceConnectionState === 'failed') {
-        console.log('[ICE] Connection failed, restarting ICE');
-        this.peerConnection.restartIce();
-      }
-    };
-
-    this.peerConnection.onconnectionstatechange = () => {
-      console.log('[WEBRTC] Connection state changed:', this.peerConnection?.connectionState);
-      if (this.peerConnection?.connectionState === 'failed') {
-        console.log('[WEBRTC] Connection failed, attempting reconnect');
-        this.connect(this.remotePeerCode);
-      }
-    };
-
-    this.peerConnection.ondatachannel = (event) => {
-      console.log('[DATACHANNEL] Received data channel');
-      this.dataChannel = event.channel;
-      this.setupDataChannel();
-    };
-
-    return this.peerConnection;
+      
+      await this.signalChannel.send({
+        type: 'broadcast',
+        event: 'signal',
+        payload: {
+          type,
+          data,
+          from: this.localPeerCode,
+          to: this.remotePeerCode,
+        },
+      });
+      console.log(`[SIGNALING] Successfully sent ${type}`);
+    } catch (error) {
+      console.error('[SIGNALING] Error sending signal:', error);
+      throw error;
+    }
   }
 
   private async encryptChunk(chunk: Uint8Array): Promise<Uint8Array> {
@@ -192,6 +182,19 @@ class WebRTCService {
     if (!this.dataChannel) return;
 
     console.log('[DATACHANNEL] Setting up data channel');
+    
+    this.dataChannel.onopen = () => {
+      console.log('[DATACHANNEL] Channel opened');
+    };
+
+    this.dataChannel.onclose = () => {
+      console.log('[DATACHANNEL] Channel closed');
+    };
+
+    this.dataChannel.onerror = (error) => {
+      console.error('[DATACHANNEL] Error:', error);
+    };
+
     this.dataChannel.onmessage = async (event) => {
       try {
         const { type, filename, chunk, chunkIndex, totalChunks } = JSON.parse(event.data);
@@ -218,18 +221,6 @@ class WebRTCService {
       } catch (error) {
         console.error('[TRANSFER] Error processing message:', error);
       }
-    };
-
-    this.dataChannel.onerror = (error) => {
-      console.error('[DATACHANNEL] Error:', error);
-    };
-
-    this.dataChannel.onopen = () => {
-      console.log('[DATACHANNEL] Channel opened');
-    };
-
-    this.dataChannel.onclose = () => {
-      console.log('[DATACHANNEL] Channel closed');
     };
   }
 
