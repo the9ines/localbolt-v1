@@ -5,7 +5,7 @@ import { EncryptionService } from './EncryptionService';
 import { ConnectionManager } from './ConnectionManager';
 import { SignalingHandler } from './SignalingHandler';
 import { DataChannelManager } from './DataChannelManager';
-import type { TransferProgress } from './FileTransferService';
+import type { TransferProgress } from './types/transfer';
 
 class WebRTCService {
   private remotePeerCode: string = '';
@@ -14,6 +14,7 @@ class WebRTCService {
   private dataChannelManager: DataChannelManager;
   private encryptionService: EncryptionService;
   private signalingService: SignalingService;
+  private onProgressCallback?: (progress: TransferProgress) => void;
 
   constructor(
     private localPeerCode: string,
@@ -24,14 +25,15 @@ class WebRTCService {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     
     this.encryptionService = new EncryptionService();
+    this.onProgressCallback = onProgress;
     
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
       (progress) => {
         console.log('[TRANSFER] Progress update:', progress);
-        if (this.onProgress) {
-          this.onProgress(progress);
+        if (this.onProgressCallback) {
+          this.onProgressCallback(progress);
         }
       },
       this.onError
@@ -68,7 +70,12 @@ class WebRTCService {
         this.remotePeerCode = remotePeerCode;
         const peerConnection = await this.connectionManager.createPeerConnection();
         
-        const dataChannel = peerConnection.createDataChannel('fileTransfer');
+        // Create the data channel directly in WebRTCService
+        const dataChannel = peerConnection.createDataChannel('fileTransfer', {
+          ordered: true
+        });
+        
+        // Set up the data channel in the manager
         this.dataChannelManager.setupDataChannel(dataChannel);
         
         const offer = await peerConnection.createOffer();
@@ -107,6 +114,10 @@ class WebRTCService {
       this.disconnect();
       throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
     }
+  }
+
+  setProgressCallback(callback: (progress: TransferProgress) => void) {
+    this.onProgressCallback = callback;
   }
 
   async sendFile(file: File) {
