@@ -12,6 +12,15 @@ export interface FileChunkMessage {
   chunk: string;
   chunkIndex: number;
   totalChunks: number;
+  fileSize: number;
+}
+
+export interface TransferProgress {
+  filename: string;
+  bytesTransferred: number;
+  totalBytes: number;
+  percent: number;
+  type: 'upload' | 'download';
 }
 
 export class WebRTCError extends Error {

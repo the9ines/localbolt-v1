@@ -1,4 +1,3 @@
-
 import { box } from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import { SignalData, FileChunkMessage, WebRTCError, WebRTCErrorCode } from './types';
@@ -18,7 +17,8 @@ class WebRTCService {
   constructor(
     private localPeerCode: string,
     private onReceiveFile: (file: Blob, filename: string) => void,
-    private onError: (error: WebRTCError) => void
+    private onError: (error: WebRTCError) => void,
+    private onProgress?: (progress: TransferProgress) => void
   ) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     try {
@@ -186,6 +186,19 @@ class WebRTCService {
           const decryptedChunk = await this.encryptionService.decryptChunk(encryptedChunk);
           this.chunksBuffer[message.filename][message.chunkIndex] = new Blob([decryptedChunk]);
 
+          if (this.onProgress) {
+            const chunksReceived = this.chunksBuffer[message.filename].filter(Boolean).length;
+            const bytesTransferred = chunksReceived * 16384; // Approximate for progress
+            const progress: TransferProgress = {
+              filename: message.filename,
+              bytesTransferred: Math.min(bytesTransferred, message.fileSize),
+              totalBytes: message.fileSize,
+              percent: (chunksReceived / message.totalChunks) * 100,
+              type: 'download'
+            };
+            this.onProgress(progress);
+          }
+
           if (this.chunksBuffer[message.filename].filter(Boolean).length === message.totalChunks) {
             console.log(`[TRANSFER] Completed transfer of ${message.filename}`);
             const file = new Blob(this.chunksBuffer[message.filename]);
@@ -323,6 +336,7 @@ class WebRTCService {
           chunk: base64,
           chunkIndex: i,
           totalChunks,
+          fileSize: file.size
         };
 
         if (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
@@ -337,6 +351,17 @@ class WebRTCService {
 
         this.dataChannel.send(JSON.stringify(message));
         console.log(`[TRANSFER] Sent chunk ${i + 1}/${totalChunks}`);
+
+        if (this.onProgress) {
+          const progress: TransferProgress = {
+            filename: file.name,
+            bytesTransferred: Math.min((i + 1) * CHUNK_SIZE, file.size),
+            totalBytes: file.size,
+            percent: ((i + 1) / totalChunks) * 100,
+            type: 'upload'
+          };
+          this.onProgress(progress);
+        }
       }
       console.log(`[TRANSFER] Completed sending ${file.name}`);
     } catch (error) {

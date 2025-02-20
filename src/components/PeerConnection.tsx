@@ -1,11 +1,11 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Shield } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Copy, Check, Shield, Upload, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
-import { WebRTCError, WebRTCErrorCode } from "@/services/webrtc/types";
+import { WebRTCError, WebRTCErrorCode, TransferProgress } from "@/services/webrtc/types";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -16,6 +16,7 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
 
   const handleError = useCallback((error: WebRTCError) => {
@@ -62,6 +63,10 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     });
   }, [toast, onConnectionChange]);
 
+  const handleProgress = useCallback((progress: TransferProgress) => {
+    setTransferProgress(progress);
+  }, []);
+
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
     const a = document.createElement('a');
@@ -72,6 +77,7 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
+    setTransferProgress(null);
     toast({
       title: "File received",
       description: `Successfully received ${filename}`,
@@ -81,13 +87,13 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive, handleError);
+    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
     };
-  }, [handleFileReceive, handleError]);
+  }, [handleFileReceive, handleError, handleProgress]);
 
   const copyToClipboard = async () => {
     try {
@@ -144,6 +150,28 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         <Shield className="w-5 h-5" aria-hidden="true" />
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
+      
+      {transferProgress && (
+        <div className="space-y-2 p-4 bg-dark-accent/30 rounded-lg">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center space-x-2">
+              {transferProgress.type === 'upload' ? (
+                <Upload className="w-4 h-4 text-neon" />
+              ) : (
+                <Download className="w-4 h-4 text-neon" />
+              )}
+              <span className="font-medium">
+                {transferProgress.type === 'upload' ? 'Sending' : 'Receiving'}: {transferProgress.filename}
+              </span>
+            </div>
+            <span className="text-neon">{Math.round(transferProgress.percent)}%</span>
+          </div>
+          <Progress value={transferProgress.percent} className="h-2" />
+          <div className="text-xs text-gray-400 text-right">
+            {Math.round(transferProgress.bytesTransferred / 1024)} KB / {Math.round(transferProgress.totalBytes / 1024)} KB
+          </div>
+        </div>
+      )}
       
       <div className="space-y-2">
         <label htmlFor="your-peer-code" className="text-sm font-medium leading-none">
