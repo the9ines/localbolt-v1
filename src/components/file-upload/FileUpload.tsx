@@ -20,10 +20,10 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
   useEffect(() => {
     if (webrtc) {
-      webrtc.onProgress = (transferProgress: TransferProgress) => {
+      webrtc.setProgressCallback((transferProgress: TransferProgress) => {
         console.log('[TRANSFER] Progress update in UI:', transferProgress);
         setProgress(transferProgress);
-      };
+      });
     }
   }, [webrtc]);
 
