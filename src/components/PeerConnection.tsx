@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,7 @@ import WebRTCService from "@/services/webrtc/WebRTCService";
 import { WebRTCError } from "@/types/webrtc-errors";
 import { Progress } from "@/components/ui/progress";
 import { TransferProgress } from "@/services/webrtc/FileTransferService";
+import { TransferProgressBar } from "./file-upload/TransferProgress";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -22,10 +24,47 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   const handleProgress = useCallback((progress: TransferProgress) => {
     setTransferProgress(progress);
-    if (progress.currentChunk === progress.totalChunks) {
-      setTimeout(() => setTransferProgress(null), 1000);
+    
+    // Show appropriate toast messages based on transfer status
+    if (progress.status) {
+      switch (progress.status) {
+        case 'canceled_by_sender':
+          toast({
+            title: "Transfer Canceled",
+            description: "The sender has canceled the transfer",
+          });
+          break;
+        case 'canceled_by_receiver':
+          toast({
+            title: "Transfer Canceled",
+            description: "You have canceled the transfer",
+          });
+          break;
+        case 'error':
+          toast({
+            title: "Transfer Error",
+            description: "The transfer was terminated due to an error",
+            variant: "destructive",
+          });
+          break;
+      }
     }
-  }, []);
+
+    // Clear progress after delay if transfer is complete or canceled
+    if (progress.status && progress.status !== 'transferring') {
+      setTimeout(() => setTransferProgress(null), 3000);
+    }
+  }, [toast]);
+
+  const handleCancelReceiving = useCallback(() => {
+    if (webrtc && transferProgress) {
+      webrtc.cancelTransfer(transferProgress.filename, true);
+      toast({
+        title: "Transfer Canceled",
+        description: "You have canceled the file transfer",
+      });
+    }
+  }, [webrtc, transferProgress, toast]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -41,6 +80,9 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       title: "File received",
       description: `Successfully received ${filename}`,
     });
+
+    // Clear progress after successful download
+    setTransferProgress(null);
   }, [toast]);
 
   const handleError = useCallback((error: WebRTCError) => {
@@ -153,13 +195,9 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       
       {transferProgress && (
         <div className="space-y-2 animate-fade-up">
-          <div className="flex justify-between text-sm">
-            <span className="truncate">{transferProgress.filename}</span>
-            <span>{Math.round((transferProgress.loaded / transferProgress.total) * 100)}%</span>
-          </div>
-          <Progress 
-            value={(transferProgress.currentChunk / transferProgress.totalChunks) * 100}
-            className="h-2 bg-dark-accent"
+          <TransferProgressBar 
+            progress={transferProgress}
+            onCancel={handleCancelReceiving}
           />
         </div>
       )}
