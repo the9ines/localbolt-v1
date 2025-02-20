@@ -2,11 +2,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Copy, Check, Shield, Upload, Download, X } from "lucide-react";
+import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
-import { WebRTCError, WebRTCErrorCode, TransferProgress } from "@/services/webrtc/types";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -17,61 +15,7 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
-  const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
-
-  const handleError = useCallback((error: WebRTCError) => {
-    console.error('WebRTC Error:', error);
-    let title = 'Connection Error';
-    let description = 'An unexpected error occurred';
-
-    switch (error.code) {
-      case WebRTCErrorCode.CONNECTION_FAILED:
-        title = 'Connection Failed';
-        description = 'Failed to establish connection with peer. Please try again.';
-        break;
-      case WebRTCErrorCode.ENCRYPTION_FAILED:
-        title = 'Encryption Error';
-        description = 'Failed to establish secure connection. Please try again.';
-        break;
-      case WebRTCErrorCode.DECRYPTION_FAILED:
-        title = 'Decryption Error';
-        description = 'Failed to decrypt received data. The connection may be compromised.';
-        break;
-      case WebRTCErrorCode.TRANSFER_FAILED:
-        title = 'Transfer Failed';
-        description = 'File transfer failed. Please try again.';
-        break;
-      case WebRTCErrorCode.NETWORK_ERROR:
-        title = 'Network Error';
-        description = 'Network connection issues detected. Check your internet connection.';
-        break;
-      case WebRTCErrorCode.PEER_DISCONNECTED:
-        title = 'Peer Disconnected';
-        description = 'The connection with your peer was lost.';
-        onConnectionChange(false);
-        break;
-      case WebRTCErrorCode.SIGNALING_FAILED:
-        title = 'Signaling Error';
-        description = 'Failed to establish initial connection. Please try again.';
-        break;
-      case WebRTCErrorCode.TRANSFER_CANCELLED:
-        title = 'Transfer Cancelled';
-        description = 'File transfer was cancelled.';
-        setTransferProgress(null);
-        break;
-    }
-
-    toast({
-      title,
-      description,
-      variant: "destructive",
-    });
-  }, [toast, onConnectionChange]);
-
-  const handleProgress = useCallback((progress: TransferProgress) => {
-    setTransferProgress(progress);
-  }, []);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -83,30 +27,22 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    setTransferProgress(null);
     toast({
       title: "File received",
       description: `Successfully received ${filename}`,
     });
   }, [toast]);
 
-  const handleCancelTransfer = useCallback(() => {
-    if (webrtc && transferProgress) {
-      webrtc.cancelTransfer(transferProgress.filename);
-      setTransferProgress(null);
-    }
-  }, [webrtc, transferProgress]);
-
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+    const rtcService = new WebRTCService(code, handleFileReceive);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
     };
-  }, [handleFileReceive, handleError, handleProgress]);
+  }, [handleFileReceive]);
 
   const copyToClipboard = async () => {
     try {
@@ -152,6 +88,11 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Secure connection established",
       });
     } catch (error) {
+      toast({
+        title: "Connection failed",
+        description: "Failed to establish connection",
+        variant: "destructive",
+      });
       onConnectionChange(false);
     }
   };
@@ -162,39 +103,6 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         <Shield className="w-5 h-5" aria-hidden="true" />
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
-      
-      {transferProgress && (
-        <div className="space-y-2 p-4 bg-dark-accent/30 rounded-lg">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center space-x-2">
-              {transferProgress.type === 'upload' ? (
-                <Upload className="w-4 h-4 text-neon" />
-              ) : (
-                <Download className="w-4 h-4 text-neon" />
-              )}
-              <span className="font-medium">
-                {transferProgress.type === 'upload' ? 'Sending' : 'Receiving'}: {transferProgress.filename}
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-neon">{Math.round(transferProgress.percent)}%</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleCancelTransfer}
-                className="h-6 w-6"
-                aria-label="Cancel transfer"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-          <Progress value={transferProgress.percent} className="h-2" />
-          <div className="text-xs text-gray-400 text-right">
-            {Math.round(transferProgress.bytesTransferred / 1024)} KB / {Math.round(transferProgress.totalBytes / 1024)} KB
-          </div>
-        </div>
-      )}
       
       <div className="space-y-2">
         <label htmlFor="your-peer-code" className="text-sm font-medium leading-none">
