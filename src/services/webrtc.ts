@@ -19,8 +19,6 @@ class WebRTCService {
   private chunksBuffer: { [key: string]: Blob[] } = {};
   private keyPair: { publicKey: Uint8Array; secretKey: Uint8Array };
   private remotePeerPublicKey: Uint8Array | null = null;
-  private pendingCandidates: RTCIceCandidate[] = [];
-  private isSettingRemoteDescription: boolean = false;
 
   constructor(localPeerCode: string, onReceiveFile: (file: Blob, filename: string) => void) {
     this.localPeerCode = localPeerCode;
@@ -44,20 +42,7 @@ class WebRTCService {
       this.remotePeerCode = signal.from;
       this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
       await this.createPeerConnection();
-      this.isSettingRemoteDescription = true;
       await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
-      this.isSettingRemoteDescription = false;
-      
-      // Add any pending candidates
-      for (const candidate of this.pendingCandidates) {
-        try {
-          await this.peerConnection!.addIceCandidate(candidate);
-        } catch (e) {
-          console.error('Error adding pending ice candidate:', e);
-        }
-      }
-      this.pendingCandidates = [];
-
       const answer = await this.peerConnection!.createAnswer();
       await this.peerConnection!.setLocalDescription(answer);
       this.sendSignal('answer', {
@@ -66,33 +51,12 @@ class WebRTCService {
       });
     } else if (signal.type === 'answer') {
       this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
-      this.isSettingRemoteDescription = true;
       await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
-      this.isSettingRemoteDescription = false;
-      
-      // Add any pending candidates
-      for (const candidate of this.pendingCandidates) {
-        try {
-          await this.peerConnection!.addIceCandidate(candidate);
-        } catch (e) {
-          console.error('Error adding pending ice candidate:', e);
-        }
-      }
-      this.pendingCandidates = [];
     } else if (signal.type === 'ice-candidate' && this.peerConnection) {
-      const candidate = new RTCIceCandidate(signal.data);
-      
-      if (this.isSettingRemoteDescription) {
-        // If we're in the process of setting remote description, queue the candidate
-        this.pendingCandidates.push(candidate);
-      } else {
-        try {
-          await this.peerConnection.addIceCandidate(candidate);
-        } catch (e) {
-          console.error('Error adding ice candidate:', e);
-          // Queue the candidate if it failed
-          this.pendingCandidates.push(candidate);
-        }
+      try {
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
+      } catch (e) {
+        console.error('Error adding ice candidate:', e);
       }
     }
   }
@@ -111,15 +75,12 @@ class WebRTCService {
   }
 
   private async createPeerConnection() {
-    const config = {
+    this.peerConnection = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
       ],
-      iceCandidatePoolSize: 10
-    };
-
-    this.peerConnection = new RTCPeerConnection(config);
+    });
 
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
@@ -164,28 +125,25 @@ class WebRTCService {
   private setupDataChannel() {
     if (!this.dataChannel) return;
 
-    this.dataChannel.bufferedAmountLowThreshold = 65535;
     this.dataChannel.onmessage = async (event) => {
-      try {
-        const { type, filename, chunk, chunkIndex, totalChunks } = JSON.parse(event.data);
+      const { type, filename, chunk, chunkIndex, totalChunks } = JSON.parse(event.data);
 
-        if (type === 'file-chunk') {
-          if (!this.chunksBuffer[filename]) {
-            this.chunksBuffer[filename] = [];
-          }
-
-          const encryptedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
-          const decryptedChunk = await this.decryptChunk(encryptedChunk);
-          this.chunksBuffer[filename][chunkIndex] = new Blob([decryptedChunk]);
-
-          if (this.chunksBuffer[filename].filter(Boolean).length === totalChunks) {
-            const file = new Blob(this.chunksBuffer[filename]);
-            delete this.chunksBuffer[filename];
-            this.onReceiveFile(file, filename);
-          }
+      if (type === 'file-chunk') {
+        if (!this.chunksBuffer[filename]) {
+          this.chunksBuffer[filename] = [];
         }
-      } catch (error) {
-        console.error('Error processing message:', error);
+
+        // Decrypt the chunk
+        const encryptedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+        const decryptedChunk = await this.decryptChunk(encryptedChunk);
+        this.chunksBuffer[filename][chunkIndex] = new Blob([decryptedChunk]);
+
+        // Check if we have all chunks
+        if (this.chunksBuffer[filename].length === totalChunks) {
+          const file = new Blob(this.chunksBuffer[filename]);
+          delete this.chunksBuffer[filename];
+          this.onReceiveFile(file, filename);
+        }
       }
     };
   }
@@ -194,9 +152,7 @@ class WebRTCService {
     this.remotePeerCode = remotePeerCode;
     await this.createPeerConnection();
 
-    this.dataChannel = this.peerConnection!.createDataChannel('fileTransfer', {
-      ordered: true
-    });
+    this.dataChannel = this.peerConnection!.createDataChannel('fileTransfer');
     this.setupDataChannel();
 
     const offer = await this.peerConnection!.createOffer();
@@ -220,10 +176,14 @@ class WebRTCService {
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
       
+      // Convert chunk to Uint8Array for encryption
       const arrayBuffer = await chunk.arrayBuffer();
       const chunkArray = new Uint8Array(arrayBuffer);
       
+      // Encrypt the chunk
       const encryptedChunk = await this.encryptChunk(chunkArray);
+      
+      // Convert encrypted chunk to base64
       const base64 = btoa(String.fromCharCode(...encryptedChunk));
 
       const message = JSON.stringify({
@@ -234,8 +194,14 @@ class WebRTCService {
         totalChunks,
       });
 
-      while (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for the channel to be ready to send more data
+      if (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
+        await new Promise(resolve => {
+          this.dataChannel!.onbufferedamountlow = () => {
+            this.dataChannel!.onbufferedamountlow = null;
+            resolve(null);
+          };
+        });
       }
 
       this.dataChannel.send(message);
@@ -252,7 +218,6 @@ class WebRTCService {
     this.dataChannel = null;
     this.peerConnection = null;
     this.remotePeerPublicKey = null;
-    this.pendingCandidates = [];
   }
 }
 
