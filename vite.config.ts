@@ -31,9 +31,20 @@ export default defineConfig(({ mode }) => ({
             '@radix-ui/react-popover',
             'lucide-react'
           ]
-        }
+        },
+        // Add cache busting hashes to file names
+        assetFileNames: 'assets/[name].[hash].[ext]',
+        chunkFileNames: 'assets/[name].[hash].js',
+        entryFileNames: 'assets/[name].[hash].js',
       }
     },
-    chunkSizeWarningLimit: 1000
+    // Increase chunk size warning limit
+    chunkSizeWarningLimit: 1000,
+    // Enable asset optimization
+    assetsInlineLimit: 4096, // 4kb
+    // Enable source maps for production
+    sourcemap: true,
+    // Write manifest file for asset management
+    manifest: true,
   }
 }));
