@@ -31,7 +31,20 @@ export class FileTransferService {
         if (type === 'file-chunk') {
           if (cancelled) {
             console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
+            this.cancelTransfer = true;
             this.transferManager.handleCleanup(filename, cancelledBy === 'receiver');
+            
+            // Notify progress for sender side when receiver cancels
+            if (cancelledBy === 'receiver' && this.onProgress) {
+              this.onProgress({
+                filename,
+                currentChunk: 0,
+                totalChunks: 0,
+                loaded: 0,
+                total: fileSize || 0,
+                status: 'canceled_by_receiver'
+              });
+            }
             return;
           }
 
