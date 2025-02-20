@@ -13,9 +13,9 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
   const getStatusText = () => {
     switch (progress.status) {
       case 'canceled_by_sender':
-        return 'Transfer canceled by sender';
+        return 'The sender has canceled the transfer';
       case 'canceled_by_receiver':
-        return 'Transfer canceled by receiver';
+        return 'The receiver has canceled the transfer';
       case 'error':
         return 'Transfer terminated due to an error';
       default:
