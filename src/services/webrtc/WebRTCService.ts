@@ -60,15 +60,6 @@ class WebRTCService {
     );
   }
 
-  // Add public method to set progress callback
-  setProgressCallback(callback: (progress: TransferProgress) => void) {
-    this.onProgress = callback;
-  }
-
-  private handleSignal = async (signal: SignalData) => {
-    await this.signalingHandler.handleSignal(signal);
-  };
-
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
@@ -77,7 +68,8 @@ class WebRTCService {
         this.remotePeerCode = remotePeerCode;
         const peerConnection = await this.connectionManager.createPeerConnection();
         
-        this.dataChannelManager.createDataChannel(peerConnection, 'fileTransfer');
+        const dataChannel = peerConnection.createDataChannel('fileTransfer');
+        this.dataChannelManager.setupDataChannel(dataChannel);
         
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
@@ -134,6 +126,10 @@ class WebRTCService {
     this.encryptionService.reset();
     this.remotePeerCode = '';
   }
+
+  private handleSignal = async (signal: SignalData) => {
+    await this.signalingHandler.handleSignal(signal);
+  };
 }
 
 export default WebRTCService;
