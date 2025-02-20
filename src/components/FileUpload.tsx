@@ -1,37 +1,83 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { FileText, Upload, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { sanitizeFilename } from "@/utils/sanitizer";
 import WebRTCService from "@/services/webrtc";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 interface FileUploadProps {
   webrtc: WebRTCService;
 }
 
+const FREE_SIZE_LIMIT = 2 * 1024 * 1024 * 1024; // 2GB in bytes
+
 const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    checkSubscription();
+  }, []);
+
+  const checkSubscription = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data: subscription } = await supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("user_id", session.user.id)
+        .single();
+      
+      setIsPremium(subscription?.status === "active");
+    }
+  };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
+      
+      if (!isPremium && file.size > FREE_SIZE_LIMIT) {
+        toast({
+          title: "File too large",
+          description: "Free users are limited to 2GB per transfer. Upgrade to premium for unlimited transfers!",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const sanitizedFile = new File([file], sanitizeFilename(file.name), {
         type: file.type,
       });
       setSelectedFile(sanitizedFile);
     }
-  }, []);
+  }, [isPremium, toast]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, multiple: false });
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
+    onDrop,
+    maxSize: isPremium ? undefined : FREE_SIZE_LIMIT 
+  });
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
       const file = files[0];
+      
+      if (!isPremium && file.size > FREE_SIZE_LIMIT) {
+        toast({
+          title: "File too large",
+          description: "Free users are limited to 2GB per transfer. Upgrade to premium for unlimited transfers!",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const sanitizedFile = new File([file], sanitizeFilename(file.name), {
         type: file.type,
       });
@@ -41,7 +87,11 @@ const FileUpload = ({ webrtc }: FileUploadProps) => {
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      alert("Please select a file to upload.");
+      toast({
+        title: "No file selected",
+        description: "Please select a file to upload.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -50,10 +100,17 @@ const FileUpload = ({ webrtc }: FileUploadProps) => {
 
     try {
       await webrtc.sendFile(selectedFile);
-      alert("File sent successfully!");
+      toast({
+        title: "Success",
+        description: "File sent successfully!",
+      });
     } catch (error) {
       console.error("File transfer failed:", error);
-      alert("File transfer failed. Please try again.");
+      toast({
+        title: "Error",
+        description: "File transfer failed. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
       setUploadProgress(0);

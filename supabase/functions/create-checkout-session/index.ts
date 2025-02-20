@@ -21,22 +21,31 @@ serve(async (req) => {
   try {
     const { userId, email } = await req.json();
 
-    // Create or retrieve Stripe customer
-    const { data: existingCustomers } = await stripe.customers.search({
-      query: `email:'${email}'`,
-    });
+    // Get or create Stripe customer
+    const { data: subscription } = await supabase
+      .from("subscriptions")
+      .select("stripe_customer_id")
+      .eq("user_id", userId)
+      .single();
 
-    let customerId;
-    if (existingCustomers.length > 0) {
-      customerId = existingCustomers[0].id;
-    } else {
+    let customerId = subscription?.stripe_customer_id;
+
+    if (!customerId) {
       const customer = await stripe.customers.create({
         email,
         metadata: {
-          userId,
+          supabaseUserId: userId,
         },
       });
       customerId = customer.id;
+
+      // Save customer ID
+      await supabase
+        .from("subscriptions")
+        .insert({
+          user_id: userId,
+          stripe_customer_id: customerId,
+        });
     }
 
     // Create Stripe Checkout session
@@ -44,17 +53,7 @@ serve(async (req) => {
       customer: customerId,
       line_items: [
         {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: "Annual Subscription",
-              description: "Unlimited secure file sharing for one year",
-            },
-            unit_amount: 2500, // $25.00
-            recurring: {
-              interval: "year",
-            },
-          },
+          price: Deno.env.get("STRIPE_PRICE_ID"),
           quantity: 1,
         },
       ],
