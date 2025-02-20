@@ -50,7 +50,7 @@ serve(async (req) => {
               name: "Annual Subscription",
               description: "Unlimited secure file sharing for one year",
             },
-            unit_amount: 500, // $5.00
+            unit_amount: 2500, // $25.00
             recurring: {
               interval: "year",
             },

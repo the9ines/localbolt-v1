@@ -3,16 +3,15 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { Shield } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isLogin, setIsLogin] = useState(true);
+  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -21,24 +20,18 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        navigate("/");
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-        if (error) throw error;
-        toast({
-          title: "Check your email",
-          description: "We've sent you a verification link",
-        });
-      }
+      const { error } = isSignUp 
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) throw error;
+
+      toast({
+        title: isSignUp ? "Account created!" : "Welcome back!",
+        description: isSignUp ? "Please check your email to verify your account." : "You've been successfully logged in.",
+      });
+
+      if (!isSignUp) navigate("/subscribe");
     } catch (error: any) {
       toast({
         title: "Error",
@@ -56,14 +49,13 @@ const Auth = () => {
       
       <Card className="w-full max-w-md p-8 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-6 relative z-10">
         <div className="text-center space-y-2">
-          <Shield className="w-12 h-12 text-neon mx-auto" />
           <h1 className="text-2xl font-bold">
-            {isLogin ? "Welcome Back" : "Create Account"}
+            {isSignUp ? "Create an Account" : "Welcome Back"}
           </h1>
           <p className="text-gray-400">
-            {isLogin 
-              ? "Sign in to access your secure file sharing" 
-              : "Sign up for secure, private file sharing"}
+            {isSignUp 
+              ? "Sign up to start sharing files securely" 
+              : "Sign in to your account to continue"}
           </p>
         </div>
 
@@ -77,8 +69,8 @@ const Auth = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-dark-accent/50 border-white/10 text-white"
               required
+              className="bg-dark-accent/30"
             />
           </div>
 
@@ -91,28 +83,33 @@ const Auth = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-dark-accent/50 border-white/10 text-white"
               required
+              className="bg-dark-accent/30"
             />
           </div>
 
-          <Button
-            type="submit"
+          <Button 
+            type="submit" 
             className="w-full bg-neon hover:bg-neon/90 text-dark font-medium"
             disabled={loading}
           >
-            {loading ? "Loading..." : (isLogin ? "Sign In" : "Sign Up")}
+            {loading 
+              ? "Loading..." 
+              : isSignUp 
+                ? "Create Account" 
+                : "Sign In"
+            }
           </Button>
         </form>
 
         <div className="text-center">
           <button
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-sm text-gray-400 hover:text-neon"
+            onClick={() => setIsSignUp(!isSignUp)}
+            className="text-sm text-gray-400 hover:text-neon transition-colors"
           >
-            {isLogin 
-              ? "Don't have an account? Sign up" 
-              : "Already have an account? Sign in"}
+            {isSignUp 
+              ? "Already have an account? Sign in" 
+              : "Don't have an account? Sign up"}
           </button>
         </div>
       </Card>

@@ -4,13 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { Shield, Calendar, CheckCircle2, XCircle } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { Shield } from "lucide-react";
 
 const Subscribe = () => {
   const [loading, setLoading] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
-  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -27,13 +26,12 @@ const Subscribe = () => {
 
     const { data: subscription } = await supabase
       .from("subscriptions")
-      .select("status, current_period_end")
+      .select("status")
       .eq("user_id", session.user.id)
       .single();
 
     if (subscription) {
       setSubscriptionStatus(subscription.status);
-      setPeriodEnd(subscription.current_period_end);
     }
   };
 
@@ -43,6 +41,7 @@ const Subscribe = () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated");
 
+      // Create Stripe Checkout session
       const response = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: {
@@ -68,95 +67,23 @@ const Subscribe = () => {
     }
   };
 
-  const handleManageSubscription = async () => {
-    setLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Not authenticated");
-
-      const response = await fetch("/api/create-portal-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          userId: session.user.id,
-        }),
-      });
-
-      const { url } = await response.json();
-      window.location.href = url;
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (subscriptionStatus === "active") {
     return (
       <div className="min-h-screen bg-dark text-white flex items-center justify-center">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(57,255,20,0.1),rgba(0,0,0,0))]" />
         
-        <Card className="w-full max-w-md p-8 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-6 relative z-10">
-          <div className="text-center space-y-2">
-            <CheckCircle2 className="w-12 h-12 text-neon mx-auto" />
-            <h1 className="text-2xl font-bold">Premium Active</h1>
-            <p className="text-gray-400">
-              You have access to all premium features
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-lg bg-dark-accent/30 border border-white/5">
-              <div className="flex items-center gap-3">
-                <Calendar className="w-5 h-5 text-neon" />
-                <div>
-                  <p className="text-sm font-medium">Next Payment</p>
-                  <p className="text-xs text-gray-400">
-                    {periodEnd ? new Date(periodEnd).toLocaleDateString() : 'Loading...'}
-                  </p>
-                </div>
-              </div>
-              <span className="text-sm text-neon">$5/year</span>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-neon" />
-                <span>Unlimited file transfers</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-neon" />
-                <span>Custom peer IDs</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-neon" />
-                <span>Persistent device pairing</span>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Button
-                onClick={handleManageSubscription}
-                className="w-full bg-dark-accent hover:bg-dark-accent/80 border border-neon/20"
-                disabled={loading}
-              >
-                Manage Subscription
-              </Button>
-              <Button
-                onClick={() => navigate("/")}
-                className="w-full bg-neon hover:bg-neon/90 text-dark font-medium"
-              >
-                Return to Dashboard
-              </Button>
-            </div>
-          </div>
+        <Card className="w-full max-w-md p-8 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-6 relative z-10 text-center">
+          <Shield className="w-12 h-12 text-neon mx-auto" />
+          <h1 className="text-2xl font-bold">You're Subscribed!</h1>
+          <p className="text-gray-400">
+            You have an active subscription. Enjoy secure file sharing!
+          </p>
+          <Button
+            onClick={() => navigate("/")}
+            className="bg-neon hover:bg-neon/90 text-dark font-medium"
+          >
+            Go to Dashboard
+          </Button>
         </Card>
       </div>
     );
@@ -171,23 +98,23 @@ const Subscribe = () => {
           <Shield className="w-12 h-12 text-neon mx-auto" />
           <h1 className="text-2xl font-bold">Upgrade to Pro</h1>
           <p className="text-gray-400">
-            Get unlimited secure file sharing for just $5/year
+            Get unlimited secure file sharing for just $25/year
           </p>
         </div>
 
         <div className="space-y-4">
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-neon" />
               <span>Unlimited file transfers</span>
             </div>
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-neon" />
-              <span>Custom peer IDs</span>
+              <span>End-to-end encryption</span>
             </div>
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-neon" />
-              <span>Persistent device pairing</span>
+              <span>Priority support</span>
             </div>
           </div>
 
@@ -196,7 +123,7 @@ const Subscribe = () => {
             className="w-full bg-neon hover:bg-neon/90 text-dark font-medium"
             disabled={loading}
           >
-            {loading ? "Loading..." : "Subscribe Now - $5/year"}
+            {loading ? "Loading..." : "Subscribe Now - $25/year"}
           </Button>
         </div>
 
