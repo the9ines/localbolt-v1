@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { lazy, Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Shield, Wifi, Database, Zap } from "lucide-react";
 import { sanitizeString } from "@/utils/sanitizer";
 import WebRTCService from "@/services/webrtc";
