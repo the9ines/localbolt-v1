@@ -183,7 +183,11 @@ class WebRTCService {
       this.remotePeerCode = remotePeerCode;
       const peerConnection = await this.ensurePeerConnection();
 
-      const dataChannel = peerConnection.createDataChannel('fileTransfer');
+      const dataChannel = peerConnection.createDataChannel('fileTransfer', {
+        ordered: true,
+        maxRetransmits: 3
+      });
+      
       this.dataChannelService.setupDataChannel(dataChannel);
 
       const connectionPromise = new Promise<void>(async (resolve, reject) => {
@@ -203,6 +207,20 @@ class WebRTCService {
             offer,
             publicKey: encodeBase64(this.encryptionService.getPublicKey())
           }, remotePeerCode);
+
+          // Wait for data channel to open
+          if (dataChannel.readyState !== 'open') {
+            await new Promise<void>((res, rej) => {
+              const openTimeout = setTimeout(() => {
+                rej(new WebRTCError('Data channel failed to open', WebRTCErrorCode.CONNECTION_FAILED));
+              }, 10000);
+              
+              dataChannel.onopen = () => {
+                clearTimeout(openTimeout);
+                res();
+              };
+            });
+          }
 
           clearTimeout(timeoutId);
           resolve();

@@ -14,6 +14,10 @@ export class DataChannelService {
     this.dataChannel = dataChannel;
     console.log('[DATACHANNEL] Setting up data channel');
 
+    this.dataChannel.onopen = () => {
+      console.log('[DATACHANNEL] Channel opened');
+    };
+
     this.dataChannel.onmessage = async (event) => {
       await this.transferService.handleReceivedMessage(this.dataChannel!, event);
     };
