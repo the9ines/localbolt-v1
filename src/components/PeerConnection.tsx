@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
+import { WebRTCError } from "@/types/webrtc-errors";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -33,16 +34,48 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     });
   }, [toast]);
 
+  const handleError = useCallback((error: WebRTCError) => {
+    console.error(`[${error.name}]`, error.message, error.details);
+    
+    let title = "Connection Error";
+    let description = "Failed to establish connection";
+
+    switch (error.name) {
+      case 'ConnectionError':
+        title = "Connection Failed";
+        description = "Unable to connect to peer. Please try again.";
+        break;
+      case 'SignalingError':
+        title = "Signaling Error";
+        description = "Failed to establish initial connection. Please check your peer code.";
+        break;
+      case 'TransferError':
+        title = "Transfer Failed";
+        description = "File transfer failed. Please try again.";
+        break;
+      case 'EncryptionError':
+        title = "Security Error";
+        description = "Failed to encrypt/decrypt data. Please reconnect.";
+        break;
+    }
+
+    toast({
+      title,
+      description,
+      variant: "destructive",
+    });
+  }, [toast]);
+
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive);
+    const rtcService = new WebRTCService(code, handleFileReceive, handleError);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
     };
-  }, [handleFileReceive]);
+  }, [handleFileReceive, handleError]);
 
   const copyToClipboard = async () => {
     try {
@@ -88,11 +121,16 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Secure connection established",
       });
     } catch (error) {
-      toast({
-        title: "Connection failed",
-        description: "Failed to establish connection",
-        variant: "destructive",
-      });
+      if (error instanceof WebRTCError) {
+        handleError(error);
+      } else {
+        console.error('[UNEXPECTED]', error);
+        toast({
+          title: "Unexpected Error",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        });
+      }
       onConnectionChange(false);
     }
   };
