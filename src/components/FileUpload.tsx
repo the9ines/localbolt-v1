@@ -63,6 +63,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
   const cancelTransfer = () => {
     if (webrtc && progress) {
+      console.log('Cancelling transfer for:', progress.filename);
       webrtc.cancelTransfer(progress.filename);
       setProgress(null);
       toast({
@@ -72,7 +73,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     }
   };
 
-  const simulateUpload = async () => {
+  const startTransfer = async () => {
     if (!webrtc) {
       toast({
         title: "Connection error",
@@ -84,13 +85,16 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
     for (const file of files) {
       try {
+        console.log('Starting transfer for:', file.name);
         await webrtc.sendFile(file);
+        console.log('Transfer completed for:', file.name);
 
         toast({
           title: "Transfer complete",
           description: `${file.name} has been sent successfully`,
         });
       } catch (error: any) {
+        console.error('Transfer error:', error);
         if (error.message === "Transfer cancelled by user") {
           // Already handled by cancelTransfer
           break;
@@ -103,6 +107,8 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         }
       }
     }
+    setProgress(null);
+    setFiles([]);
   };
 
   return (
@@ -188,7 +194,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
           )}
 
           <Button
-            onClick={simulateUpload}
+            onClick={startTransfer}
             className="w-full bg-neon text-black hover:bg-neon/90"
             disabled={progress !== null}
           >

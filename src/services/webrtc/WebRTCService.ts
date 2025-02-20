@@ -19,7 +19,7 @@ class WebRTCService {
     private localPeerCode: string,
     private onReceiveFile: (file: Blob, filename: string) => void,
     private onError: (error: WebRTCError) => void,
-    onProgress?: (progress: TransferProgress) => void
+    private onProgress?: (progress: TransferProgress) => void
   ) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     
@@ -28,7 +28,12 @@ class WebRTCService {
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
-      onProgress,
+      (progress) => {
+        console.log('[TRANSFER] Progress update:', progress);
+        if (this.onProgress) {
+          this.onProgress(progress);
+        }
+      },
       this.onError
     );
 
@@ -112,6 +117,7 @@ class WebRTCService {
   }
 
   cancelTransfer(filename: string) {
+    console.log('[WEBRTC] Cancelling transfer:', filename);
     this.dataChannelManager.cancelTransfer(filename);
   }
 
