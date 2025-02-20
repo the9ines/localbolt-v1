@@ -62,29 +62,37 @@ export class SignalingHandler {
 
   private async processPendingCandidates() {
     console.log('[ICE] Processing pending candidates:', this.pendingCandidates.length);
+    const peerConnection = this.connectionManager.getPeerConnection();
+    if (!peerConnection) return;
+
     while (this.pendingCandidates.length > 0) {
       const candidate = this.pendingCandidates.shift();
       if (candidate) {
-        await this.connectionManager.addIceCandidate(candidate);
-        console.log('[ICE] Added pending candidate');
+        try {
+          await this.connectionManager.addIceCandidate(candidate);
+          console.log('[ICE] Added pending candidate');
+        } catch (error) {
+          console.error('[ICE] Failed to add pending candidate:', error);
+        }
       }
     }
   }
 
   private async handleIceCandidate(signal: SignalData) {
     const peerConnection = this.connectionManager.getPeerConnection();
-    if (!peerConnection) {
-      console.log('[ICE] No peer connection, queuing candidate');
+    
+    // Always queue the candidate if there's no connection or remote description isn't set
+    if (!peerConnection || !peerConnection.remoteDescription) {
+      console.log('[ICE] Queuing candidate - no connection or remote description');
       this.pendingCandidates.push(signal.data);
       return;
     }
 
-    const signalingState = peerConnection.signalingState;
-    if (signalingState === 'stable' || signalingState === 'have-remote-offer' || signalingState === 'have-local-offer') {
+    try {
       await this.connectionManager.addIceCandidate(signal.data);
-      console.log('[ICE] Added ICE candidate in state:', signalingState);
-    } else {
-      console.log('[ICE] Queuing candidate due to signaling state:', signalingState);
+      console.log('[ICE] Added ICE candidate in state:', peerConnection.signalingState);
+    } catch (error) {
+      console.log('[ICE] Failed to add candidate, queuing:', error);
       this.pendingCandidates.push(signal.data);
     }
   }
