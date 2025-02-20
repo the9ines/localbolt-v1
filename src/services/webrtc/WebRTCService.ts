@@ -1,6 +1,6 @@
 
 import { ConnectionError, WebRTCError } from '@/types/webrtc-errors';
-import { SignalingService } from './SignalingService';
+import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
 import { ConnectionManager } from './ConnectionManager';
 import { SignalingHandler } from './SignalingHandler';
