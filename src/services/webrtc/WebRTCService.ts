@@ -5,7 +5,7 @@ import { EncryptionService } from './EncryptionService';
 import { ConnectionManager } from './ConnectionManager';
 import { SignalingHandler } from './SignalingHandler';
 import { DataChannelManager } from './DataChannelManager';
-import type { TransferProgress } from './types/transfer';
+import type { TransferProgress } from './FileTransferService';
 
 class WebRTCService {
   private remotePeerCode: string = '';
@@ -14,7 +14,6 @@ class WebRTCService {
   private dataChannelManager: DataChannelManager;
   private encryptionService: EncryptionService;
   private signalingService: SignalingService;
-  private onProgressCallback?: (progress: TransferProgress) => void;
 
   constructor(
     private localPeerCode: string,
@@ -25,15 +24,14 @@ class WebRTCService {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     
     this.encryptionService = new EncryptionService();
-    this.onProgressCallback = onProgress;
     
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
       (progress) => {
         console.log('[TRANSFER] Progress update:', progress);
-        if (this.onProgressCallback) {
-          this.onProgressCallback(progress);
+        if (this.onProgress) {
+          this.onProgress(progress);
         }
       },
       this.onError
@@ -62,6 +60,10 @@ class WebRTCService {
     );
   }
 
+  private handleSignal = async (signal: SignalData) => {
+    await this.signalingHandler.handleSignal(signal);
+  };
+
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
@@ -70,13 +72,7 @@ class WebRTCService {
         this.remotePeerCode = remotePeerCode;
         const peerConnection = await this.connectionManager.createPeerConnection();
         
-        // Create the data channel directly in WebRTCService
-        const dataChannel = peerConnection.createDataChannel('fileTransfer', {
-          ordered: true
-        });
-        
-        // Set up the data channel in the manager
-        this.dataChannelManager.setupDataChannel(dataChannel);
+        this.dataChannelManager.createDataChannel(peerConnection, 'fileTransfer');
         
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
@@ -116,18 +112,14 @@ class WebRTCService {
     }
   }
 
-  setProgressCallback(callback: (progress: TransferProgress) => void) {
-    this.onProgressCallback = callback;
-  }
-
   async sendFile(file: File) {
     console.log('[WEBRTC] Starting file transfer:', file.name);
     await this.dataChannelManager.sendFile(file);
   }
 
-  cancelTransfer(filename: string, isReceiver: boolean = false) {
+  cancelTransfer(filename: string) {
     console.log('[WEBRTC] Cancelling transfer:', filename);
-    this.dataChannelManager.cancelTransfer(filename, isReceiver);
+    this.dataChannelManager.cancelTransfer(filename);
   }
 
   disconnect() {
@@ -137,10 +129,6 @@ class WebRTCService {
     this.encryptionService.reset();
     this.remotePeerCode = '';
   }
-
-  private handleSignal = async (signal: SignalData) => {
-    await this.signalingHandler.handleSignal(signal);
-  };
 }
 
 export default WebRTCService;

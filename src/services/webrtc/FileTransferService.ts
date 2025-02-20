@@ -1,16 +1,18 @@
 
 import { TransferError } from '@/types/webrtc-errors';
 import { EncryptionService } from './EncryptionService';
-import { ChunkProcessor } from './transfer/ChunkProcessor';
-import { TransferManager } from './transfer/TransferManager';
-import type { TransferProgress } from './types/transfer';
 
-export type { TransferProgress };
+export interface TransferProgress {
+  filename: string;
+  currentChunk: number;
+  totalChunks: number;
+  loaded: number;
+  total: number;
+}
 
 export class FileTransferService {
+  private chunksBuffer: { [key: string]: Blob[] } = {};
   private cancelTransfer: boolean = false;
-  private transferManager: TransferManager;
-  private chunkProcessor: ChunkProcessor;
   
   constructor(
     private dataChannel: RTCDataChannel,
@@ -18,56 +20,62 @@ export class FileTransferService {
     private onReceiveFile: (file: Blob, filename: string) => void,
     private onProgress?: (progress: TransferProgress) => void
   ) {
-    this.chunkProcessor = new ChunkProcessor(encryptionService);
-    this.transferManager = new TransferManager(dataChannel, this.chunkProcessor, onProgress);
     this.setupDataChannel();
   }
 
   private setupDataChannel() {
     this.dataChannel.onmessage = async (event) => {
       try {
-        const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled, cancelledBy } = JSON.parse(event.data);
+        const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled } = JSON.parse(event.data);
 
         if (type === 'file-chunk') {
           if (cancelled) {
-            console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
-            this.cancelTransfer = true;
-            
-            // Immediately notify both sides about cancellation
+            console.log(`[TRANSFER] Transfer cancelled for ${filename}`);
+            delete this.chunksBuffer[filename];
             if (this.onProgress) {
-              const status = cancelledBy === 'receiver' ? 'canceled_by_receiver' : 'canceled_by_sender';
               this.onProgress({
                 filename,
                 currentChunk: 0,
                 totalChunks,
                 loaded: 0,
-                total: fileSize || 0,
-                status
+                total: fileSize
               });
             }
-            
-            this.transferManager.handleCleanup(filename, cancelledBy === 'receiver');
-            return;
-          }
-
-          if (!this.transferManager.isTransferActive(filename) && chunkIndex !== 0) {
-            console.log(`[TRANSFER] Ignoring chunk for cancelled transfer: ${filename}`);
             return;
           }
 
           console.log(`[TRANSFER] Receiving chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
           
-          const completeFile = await this.transferManager.processReceivedChunk(
-            filename,
-            chunk,
-            chunkIndex,
-            totalChunks,
-            fileSize
-          );
+          if (!this.chunksBuffer[filename]) {
+            console.log(`[TRANSFER] Starting new transfer for ${filename}`);
+            this.chunksBuffer[filename] = [];
+          }
 
-          if (completeFile) {
-            console.log(`[TRANSFER] Completed transfer of ${filename}`);
-            this.onReceiveFile(completeFile, filename);
+          try {
+            const encryptedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+            const decryptedChunk = await this.encryptionService.decryptChunk(encryptedChunk);
+            this.chunksBuffer[filename][chunkIndex] = new Blob([decryptedChunk]);
+
+            const received = this.chunksBuffer[filename].filter(Boolean).length;
+            if (this.onProgress) {
+              this.onProgress({
+                filename,
+                currentChunk: received,
+                totalChunks,
+                loaded: received * (fileSize / totalChunks),
+                total: fileSize
+              });
+            }
+
+            if (received === totalChunks) {
+              console.log(`[TRANSFER] Completed transfer of ${filename}`);
+              const file = new Blob(this.chunksBuffer[filename]);
+              delete this.chunksBuffer[filename];
+              this.onReceiveFile(file, filename);
+            }
+          } catch (error) {
+            delete this.chunksBuffer[filename];
+            throw error;
           }
         }
       } catch (error) {
@@ -77,24 +85,22 @@ export class FileTransferService {
     };
   }
 
-  cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
-    console.log(`[TRANSFER] Cancelling transfer of ${filename} by ${isReceiver ? 'receiver' : 'sender'}`);
+  cancelCurrentTransfer(filename: string) {
+    console.log(`[TRANSFER] Cancelling transfer of ${filename}`);
     this.cancelTransfer = true;
-
-    // Immediately update the local progress status
-    if (this.onProgress) {
-      this.onProgress({
-        filename,
-        currentChunk: 0,
-        totalChunks: 0,
-        loaded: 0,
-        total: 0,
-        status: isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender'
-      });
+    
+    // Notify peer about cancellation
+    const message = JSON.stringify({
+      type: 'file-chunk',
+      filename,
+      cancelled: true
+    });
+    this.dataChannel.send(message);
+    
+    // Clean up local buffer
+    if (this.chunksBuffer[filename]) {
+      delete this.chunksBuffer[filename];
     }
-
-    // Then notify the other peer
-    this.transferManager.cancelTransfer(filename, isReceiver);
   }
 
   async sendFile(file: File) {
@@ -119,7 +125,8 @@ export class FileTransferService {
         const chunkArray = new Uint8Array(arrayBuffer);
         
         try {
-          const base64 = await this.chunkProcessor.encryptChunk(chunkArray);
+          const encryptedChunk = await this.encryptionService.encryptChunk(chunkArray);
+          const base64 = btoa(String.fromCharCode(...encryptedChunk));
 
           const message = JSON.stringify({
             type: 'file-chunk',
@@ -149,8 +156,7 @@ export class FileTransferService {
               currentChunk: i + 1,
               totalChunks,
               loaded: end,
-              total: file.size,
-              status: 'transferring'
+              total: file.size
             });
           }
         } catch (error) {

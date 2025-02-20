@@ -1,12 +1,11 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Upload, File, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
-import type { TransferProgress } from "@/services/webrtc/FileTransferService";
-import { DragDropArea } from "./DragDropArea";
-import { FileList } from "./FileList";
-import { TransferProgressBar } from "./TransferProgress";
+import { TransferProgress } from "@/services/webrtc/FileTransferService";
 
 interface FileUploadProps {
   webrtc?: WebRTCService;
@@ -16,6 +15,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleDrag = (e: React.DragEvent) => {
@@ -39,6 +39,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+
     const droppedFiles = Array.from(e.dataTransfer.files);
     handleFiles(droppedFiles);
   };
@@ -122,28 +123,86 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
   return (
     <div className="space-y-4">
-      <DragDropArea
-        isDragging={isDragging}
-        onDragIn={handleDragIn}
-        onDragOut={handleDragOut}
-        onDrag={handleDrag}
+      <div
+        className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${
+          isDragging ? "border-neon bg-neon/5" : "border-white/10 hover:border-white/20"
+        }`}
+        onDragEnter={handleDragIn}
+        onDragLeave={handleDragOut}
+        onDragOver={handleDrag}
         onDrop={handleDrop}
-        onFileSelect={handleFileInput}
-      />
+      >
+        <input
+          type="file"
+          multiple
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleFileInput}
+        />
+        
+        <div className="space-y-4">
+          <Upload className="w-12 h-12 mx-auto text-white/50" />
+          <div>
+            <p className="text-lg font-medium">Drop files here</p>
+            <p className="text-sm text-white/50">or click to select files</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-dark-accent"
+          >
+            Select Files
+          </Button>
+        </div>
+      </div>
 
       {files.length > 0 && (
         <div className="space-y-4 animate-fade-up">
-          <FileList 
-            files={files} 
-            onRemove={removeFile}
-            disabled={progress !== null}
-          />
+          <div className="space-y-2">
+            {files.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-dark-accent rounded-lg"
+              >
+                <div className="flex items-center space-x-3">
+                  <File className="w-5 h-5 text-white/50" />
+                  <span className="text-sm truncate">{file.name}</span>
+                </div>
+                {!progress && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeFile(index)}
+                    className="text-white/50 hover:text-neon"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
 
           {progress && (
-            <TransferProgressBar
-              progress={progress}
-              onCancel={cancelTransfer}
-            />
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="truncate">{progress.filename}</span>
+                <span>{Math.round((progress.loaded / progress.total) * 100)}%</span>
+              </div>
+              <div className="flex space-x-2">
+                <Progress 
+                  value={(progress.currentChunk / progress.totalChunks) * 100}
+                  className="h-2 bg-dark-accent flex-1"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={cancelTransfer}
+                  className="text-white/50 hover:text-neon"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
           )}
 
           <Button

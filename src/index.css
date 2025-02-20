@@ -52,10 +52,10 @@
     @apply content-[''] absolute -top-[150%] -left-[150%] w-[300%] h-[300%];
     background: conic-gradient(
       from 90deg at 40% 40%,
-      #14FF6A 0deg,
+      #39FF14 0deg,
       transparent 70deg,
       transparent 180deg,
-      #14FF6A 180deg,
+      #39FF14 180deg,
       transparent 250deg,
       transparent 360deg
     );
@@ -84,12 +84,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #14FF6A;
+  background: #39FF14;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #14FF6A;
+  background: #39FF14;
 }
 
 /* Drag and drop styles */
@@ -102,7 +102,7 @@
   width: 48px;
   height: 48px;
   border: 5px solid #121212;
-  border-bottom-color: #14FF6A;
+  border-bottom-color: #39FF14;
   border-radius: 50%;
   display: inline-block;
   box-sizing: border-box;

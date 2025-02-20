@@ -10,56 +10,25 @@ interface TransferProgressProps {
 }
 
 export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProps) => {
-  const getStatusText = () => {
-    switch (progress.status) {
-      case 'canceled_by_sender':
-        return 'The sender has canceled the transfer';
-      case 'canceled_by_receiver':
-        return 'The receiver has canceled the transfer';
-      case 'error':
-        return 'Transfer terminated due to an error';
-      default:
-        return `${Math.round((progress.loaded / progress.total) * 100)}%`;
-    }
-  };
-
-  const getProgressBarColor = () => {
-    if (progress.status === 'error') return 'bg-red-500/20';
-    if (progress.status?.includes('canceled')) return 'bg-neon/20';
-    return 'bg-dark-accent';
-  };
-
-  const getStatusColor = () => {
-    if (progress.status === 'error') return 'text-red-500';
-    if (progress.status?.includes('canceled')) return 'text-neon';
-    return '';
-  };
-
-  const showCancelButton = progress.status === 'transferring';
-
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
         <span className="truncate">{progress.filename}</span>
-        <span className={getStatusColor()}>
-          {getStatusText()}
-        </span>
+        <span>{Math.round((progress.loaded / progress.total) * 100)}%</span>
       </div>
       <div className="flex space-x-2">
         <Progress 
           value={(progress.currentChunk / progress.totalChunks) * 100}
-          className={`h-2 flex-1 ${getProgressBarColor()}`}
+          className="h-2 bg-dark-accent flex-1"
         />
-        {showCancelButton && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onCancel}
-            className="text-white/50 hover:text-neon transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onCancel}
+          className="text-white/50 hover:text-neon"
+        >
+          <X className="w-4 h-4" />
+        </Button>
       </div>
     </div>
   );
