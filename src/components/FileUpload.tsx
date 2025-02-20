@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -99,16 +98,8 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         total: file.size
       });
 
-      // Pass progress callback to webrtc service
-      const transferPromise = webrtc.sendFile(file);
-      
-      // Update progress during transfer
-      webrtc.onProgress = (currentProgress) => {
-        console.log('Progress update:', currentProgress);
-        setProgress(currentProgress);
-      };
-
-      await transferPromise;
+      // Start the transfer
+      await webrtc.sendFile(file);
       console.log('Transfer completed for:', file.name);
 
       toast({

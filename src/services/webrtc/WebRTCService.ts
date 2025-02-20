@@ -113,6 +113,7 @@ class WebRTCService {
   }
 
   async sendFile(file: File) {
+    console.log('[WEBRTC] Starting file transfer:', file.name);
     await this.dataChannelManager.sendFile(file);
   }
 
