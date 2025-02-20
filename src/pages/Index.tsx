@@ -1,11 +1,13 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { lazy, Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Shield, Wifi, Database, Zap } from "lucide-react";
 import { sanitizeString } from "@/utils/sanitizer";
 import WebRTCService from "@/services/webrtc";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 const FileUpload = lazy(() => import("@/components/FileUpload"));
 const PeerConnection = lazy(() => import("@/components/PeerConnection"));
@@ -13,6 +15,22 @@ const PeerConnection = lazy(() => import("@/components/PeerConnection"));
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [session, setSession] = useState<any>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
     setIsConnected(connected);
@@ -86,26 +104,45 @@ const Index = () => {
             </Card>
           </div>
 
-          <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6">
-            <div className="space-y-2 text-center">
-              <h2 className="text-2xl font-semibold tracking-tight">
-                {renderSafeContent("Fast, Private File Transfer")}
-              </h2>
-              <p className="text-muted-foreground">
-                {renderSafeContent("Share files securely on your local network without uploading to the cloud")}
-              </p>
-            </div>
+          {session ? (
+            <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6">
+              <div className="space-y-2 text-center">
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  {renderSafeContent("Fast, Private File Transfer")}
+                </h2>
+                <p className="text-muted-foreground">
+                  {renderSafeContent("Share files securely on your local network without uploading to the cloud")}
+                </p>
+              </div>
 
-            <Suspense fallback={<div>Loading connection...</div>}>
-              <PeerConnection onConnectionChange={handleConnectionChange} />
-            </Suspense>
-            
-            {isConnected && webrtc && (
-              <Suspense fallback={<div>Loading file upload...</div>}>
-                <FileUpload webrtc={webrtc} />
+              <Suspense fallback={<div>Loading connection...</div>}>
+                <PeerConnection onConnectionChange={handleConnectionChange} />
               </Suspense>
-            )}
-          </Card>
+              
+              {isConnected && webrtc && (
+                <Suspense fallback={<div>Loading file upload...</div>}>
+                  <FileUpload webrtc={webrtc} />
+                </Suspense>
+              )}
+            </Card>
+          ) : (
+            <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6">
+              <div className="space-y-4 text-center">
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  {renderSafeContent("Get Started")}
+                </h2>
+                <p className="text-muted-foreground">
+                  {renderSafeContent("Sign in or create an account to start sharing files securely")}
+                </p>
+                <Button
+                  className="bg-neon hover:bg-neon/90 text-dark font-medium"
+                  onClick={() => navigate("/auth")}
+                >
+                  Sign In / Sign Up
+                </Button>
+              </div>
+            </Card>
+          )}
 
           <div className="text-center space-y-3 text-gray-400 max-w-2xl mx-auto animate-fade-up">
             <h3 className="text-xl font-semibold text-white">
