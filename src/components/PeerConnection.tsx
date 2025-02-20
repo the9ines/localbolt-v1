@@ -1,8 +1,7 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Shield, History } from "lucide-react";
+import { Copy, Check, Shield, History, Edit2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +24,7 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [isPremium, setIsPremium] = useState(false);
   const [deviceName, setDeviceName] = useState("");
   const [savedDevices, setSavedDevices] = useState<DevicePair[]>([]);
+  const [isEditingCode, setIsEditingCode] = useState(false);
   const { toast } = useToast();
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
@@ -44,13 +44,15 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   }, [toast]);
 
   useEffect(() => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive);
+    const defaultCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const savedCode = localStorage.getItem('customPeerCode');
+    const initialCode = savedCode || defaultCode;
+    
+    setPeerCode(initialCode);
+    const rtcService = new WebRTCService(initialCode, handleFileReceive);
     setWebrtc(rtcService);
     
-    // Get device name from localStorage or generate a new one
-    const savedName = localStorage.getItem('deviceName') || `Device-${code.substring(0, 4)}`;
+    const savedName = localStorage.getItem('deviceName') || `Device-${initialCode.substring(0, 4)}`;
     setDeviceName(savedName);
     localStorage.setItem('deviceName', savedName);
 
@@ -102,6 +104,42 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   };
 
+  const validatePeerCode = (code: string) => {
+    return /^[A-Z0-9]{6}$/.test(code);
+  };
+
+  const handlePeerCodeChange = (newCode: string) => {
+    const formattedCode = newCode.toUpperCase();
+    if (formattedCode.length <= 6) {
+      setPeerCode(formattedCode);
+    }
+  };
+
+  const handlePeerCodeSave = () => {
+    if (!validatePeerCode(peerCode)) {
+      toast({
+        title: "Invalid peer code",
+        description: "Peer code must be 6 characters (A-Z, 0-9)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    localStorage.setItem('customPeerCode', peerCode);
+    setIsEditingCode(false);
+    
+    if (webrtc) {
+      webrtc.disconnect();
+    }
+    const newService = new WebRTCService(peerCode, handleFileReceive);
+    setWebrtc(newService);
+
+    toast({
+      title: "Peer code updated",
+      description: "Your custom peer code has been saved",
+    });
+  };
+
   const handleConnect = async () => {
     if (!webrtc) return;
     
@@ -123,14 +161,13 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       await webrtc.connect(targetPeerCode);
       onConnectionChange(true, webrtc);
       
-      // Save device pair if premium
       if (isPremium) {
         await saveDevicePair({
           peer_code: targetPeerCode,
           device_name: deviceName,
           network_id: peerCode,
         });
-        loadSavedDevices(); // Refresh the list
+        loadSavedDevices();
       }
       
       toast({
@@ -181,10 +218,33 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           <Input
             id="your-peer-code"
             value={peerCode}
-            readOnly
+            onChange={(e) => handlePeerCodeChange(e.target.value)}
+            readOnly={!isPremium || !isEditingCode}
             className="font-mono bg-dark-accent text-neon"
+            maxLength={6}
             aria-label="Your peer code"
           />
+          {isPremium && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                if (isEditingCode) {
+                  handlePeerCodeSave();
+                } else {
+                  setIsEditingCode(true);
+                }
+              }}
+              className="shrink-0"
+              aria-label={isEditingCode ? "Save peer code" : "Edit peer code"}
+            >
+              {isEditingCode ? (
+                <Check className="h-4 w-4 text-neon" aria-hidden="true" />
+              ) : (
+                <Edit2 className="h-4 w-4" aria-hidden="true" />
+              )}
+            </Button>
+          )}
           <Button
             variant="outline"
             size="icon"
