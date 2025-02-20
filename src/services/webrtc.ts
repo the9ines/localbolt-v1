@@ -19,6 +19,8 @@ class WebRTCService {
   private chunksBuffer: { [key: string]: Blob[] } = {};
   private keyPair: { publicKey: Uint8Array; secretKey: Uint8Array };
   private remotePeerPublicKey: Uint8Array | null = null;
+  private iceCandidates: RTCIceCandidate[] = [];
+  private isSettingRemoteDescription = false;
 
   constructor(localPeerCode: string, onReceiveFile: (file: Blob, filename: string) => void) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
@@ -47,7 +49,16 @@ class WebRTCService {
       this.remotePeerCode = signal.from;
       this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
       await this.createPeerConnection();
+      this.isSettingRemoteDescription = true;
       await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
+      this.isSettingRemoteDescription = false;
+      
+      // Process any queued ICE candidates
+      while (this.iceCandidates.length > 0) {
+        const candidate = this.iceCandidates.shift();
+        await this.peerConnection!.addIceCandidate(candidate!);
+      }
+      
       const answer = await this.peerConnection!.createAnswer();
       await this.peerConnection!.setLocalDescription(answer);
       console.log('[SIGNALING] Created and sent answer');
@@ -58,11 +69,25 @@ class WebRTCService {
     } else if (signal.type === 'answer') {
       console.log('[SIGNALING] Processing answer from remote peer');
       this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
+      this.isSettingRemoteDescription = true;
       await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
+      this.isSettingRemoteDescription = false;
+      
+      // Process any queued ICE candidates
+      while (this.iceCandidates.length > 0) {
+        const candidate = this.iceCandidates.shift();
+        await this.peerConnection!.addIceCandidate(candidate!);
+      }
     } else if (signal.type === 'ice-candidate' && this.peerConnection) {
       try {
-        console.log('[ICE] Adding ICE candidate');
-        await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
+        const candidate = new RTCIceCandidate(signal.data);
+        if (this.isSettingRemoteDescription) {
+          // Queue the candidate if we're still setting remote description
+          this.iceCandidates.push(candidate);
+        } else {
+          await this.peerConnection.addIceCandidate(candidate);
+          console.log('[ICE] Added ICE candidate successfully');
+        }
       } catch (e) {
         console.error('[ICE] Error adding ice candidate:', e);
       }
@@ -89,7 +114,11 @@ class WebRTCService {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
       ],
+      iceTransportPolicy: 'all',
     });
 
     this.peerConnection.onicecandidate = (event) => {
@@ -101,10 +130,18 @@ class WebRTCService {
 
     this.peerConnection.oniceconnectionstatechange = () => {
       console.log('[ICE] Connection state changed:', this.peerConnection?.iceConnectionState);
+      if (this.peerConnection?.iceConnectionState === 'failed') {
+        console.log('[ICE] Connection failed, restarting ICE');
+        this.peerConnection.restartIce();
+      }
     };
 
     this.peerConnection.onconnectionstatechange = () => {
       console.log('[WEBRTC] Connection state changed:', this.peerConnection?.connectionState);
+      if (this.peerConnection?.connectionState === 'failed') {
+        console.log('[WEBRTC] Connection failed, attempting reconnect');
+        this.connect(this.remotePeerCode);
+      }
     };
 
     this.peerConnection.ondatachannel = (event) => {
@@ -201,10 +238,17 @@ class WebRTCService {
     this.remotePeerCode = remotePeerCode;
     await this.createPeerConnection();
 
-    this.dataChannel = this.peerConnection!.createDataChannel('fileTransfer');
+    this.dataChannel = this.peerConnection!.createDataChannel('fileTransfer', {
+      ordered: true,
+      maxRetransmits: 3
+    });
     this.setupDataChannel();
 
-    const offer = await this.peerConnection!.createOffer();
+    const offer = await this.peerConnection!.createOffer({
+      offerToReceiveAudio: false,
+      offerToReceiveVideo: false,
+      iceRestart: true
+    });
     await this.peerConnection!.setLocalDescription(offer);
     console.log('[SIGNALING] Created and sent offer');
     this.sendSignal('offer', {
