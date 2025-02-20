@@ -1,8 +1,9 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Copy, Check, Shield, Upload, Download } from "lucide-react";
+import { Copy, Check, Shield, Upload, Download, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
 import { WebRTCError, WebRTCErrorCode, TransferProgress } from "@/services/webrtc/types";
@@ -54,6 +55,11 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         title = 'Signaling Error';
         description = 'Failed to establish initial connection. Please try again.';
         break;
+      case WebRTCErrorCode.TRANSFER_CANCELLED:
+        title = 'Transfer Cancelled';
+        description = 'File transfer was cancelled.';
+        setTransferProgress(null);
+        break;
     }
 
     toast({
@@ -83,6 +89,13 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       description: `Successfully received ${filename}`,
     });
   }, [toast]);
+
+  const handleCancelTransfer = useCallback(() => {
+    if (webrtc && transferProgress) {
+      webrtc.cancelTransfer(transferProgress.filename);
+      setTransferProgress(null);
+    }
+  }, [webrtc, transferProgress]);
 
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -139,7 +152,6 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Secure connection established",
       });
     } catch (error) {
-      // The error will be handled by the error handler passed to WebRTCService
       onConnectionChange(false);
     }
   };
@@ -164,7 +176,18 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
                 {transferProgress.type === 'upload' ? 'Sending' : 'Receiving'}: {transferProgress.filename}
               </span>
             </div>
-            <span className="text-neon">{Math.round(transferProgress.percent)}%</span>
+            <div className="flex items-center space-x-2">
+              <span className="text-neon">{Math.round(transferProgress.percent)}%</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleCancelTransfer}
+                className="h-6 w-6"
+                aria-label="Cancel transfer"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <Progress value={transferProgress.percent} className="h-2" />
           <div className="text-xs text-gray-400 text-right">

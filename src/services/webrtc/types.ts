@@ -23,6 +23,11 @@ export interface TransferProgress {
   type: 'upload' | 'download';
 }
 
+export interface CancelTransferMessage {
+  type: 'cancel-transfer';
+  filename: string;
+}
+
 export class WebRTCError extends Error {
   constructor(
     message: string,
@@ -42,5 +47,6 @@ export enum WebRTCErrorCode {
   INVALID_STATE = 'INVALID_STATE',
   NETWORK_ERROR = 'NETWORK_ERROR',
   PEER_DISCONNECTED = 'PEER_DISCONNECTED',
-  SIGNALING_FAILED = 'SIGNALING_FAILED'
+  SIGNALING_FAILED = 'SIGNALING_FAILED',
+  TRANSFER_CANCELLED = 'TRANSFER_CANCELLED'
 }
