@@ -2,9 +2,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Shield } from "lucide-react";
+import { Copy, Check, Shield, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
+import { supabase } from "@/integrations/supabase/client";
+import { getDevicePairs, saveDevicePair, DevicePair, updateDeviceLastSeen } from "@/services/webrtc/devicePairing";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -15,6 +22,9 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [deviceName, setDeviceName] = useState("");
+  const [savedDevices, setSavedDevices] = useState<DevicePair[]>([]);
   const { toast } = useToast();
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
@@ -38,11 +48,41 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     setPeerCode(code);
     const rtcService = new WebRTCService(code, handleFileReceive);
     setWebrtc(rtcService);
+    
+    // Get device name from localStorage or generate a new one
+    const savedName = localStorage.getItem('deviceName') || `Device-${code.substring(0, 4)}`;
+    setDeviceName(savedName);
+    localStorage.setItem('deviceName', savedName);
+
+    checkSubscription();
+    loadSavedDevices();
 
     return () => {
       rtcService.disconnect();
     };
   }, [handleFileReceive]);
+
+  const checkSubscription = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data: subscription } = await supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("user_id", session.user.id)
+        .single();
+      
+      setIsPremium(subscription?.status === "active");
+    }
+  };
+
+  const loadSavedDevices = async () => {
+    try {
+      const devices = await getDevicePairs();
+      setSavedDevices(devices);
+    } catch (error) {
+      console.error("Failed to load saved devices:", error);
+    }
+  };
 
   const copyToClipboard = async () => {
     try {
@@ -83,6 +123,16 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       await webrtc.connect(targetPeerCode);
       onConnectionChange(true, webrtc);
       
+      // Save device pair if premium
+      if (isPremium) {
+        await saveDevicePair({
+          peer_code: targetPeerCode,
+          device_name: deviceName,
+          network_id: peerCode,
+        });
+        loadSavedDevices(); // Refresh the list
+      }
+      
       toast({
         title: "Connected!",
         description: "Secure connection established",
@@ -97,6 +147,12 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   };
 
+  const connectToSavedDevice = async (device: DevicePair) => {
+    setTargetPeerCode(device.peer_code);
+    await updateDeviceLastSeen(device.peer_code);
+    handleConnect();
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
@@ -105,9 +161,22 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       </div>
       
       <div className="space-y-2">
-        <label htmlFor="your-peer-code" className="text-sm font-medium leading-none">
-          Your Peer Code
-        </label>
+        <div className="flex items-center justify-between">
+          <label htmlFor="your-peer-code" className="text-sm font-medium leading-none">
+            Your Peer Code
+          </label>
+          {isPremium && (
+            <Input
+              value={deviceName}
+              onChange={(e) => {
+                setDeviceName(e.target.value);
+                localStorage.setItem('deviceName', e.target.value);
+              }}
+              className="w-40 h-7 text-xs bg-dark-accent/50"
+              placeholder="Device Name"
+            />
+          )}
+        </div>
         <div className="flex space-x-2">
           <Input
             id="your-peer-code"
@@ -146,6 +215,29 @@ const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
             maxLength={6}
             aria-label="Enter target peer code"
           />
+          {isPremium && savedDevices.length > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="shrink-0">
+                  <History className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-60 p-2 bg-dark-accent/95 backdrop-blur-lg border-white/10">
+                <div className="space-y-1">
+                  {savedDevices.map((device) => (
+                    <button
+                      key={device.peer_code}
+                      onClick={() => connectToSavedDevice(device)}
+                      className="w-full text-left px-2 py-1.5 rounded hover:bg-white/5 transition-colors"
+                    >
+                      <div className="text-sm font-medium">{device.device_name}</div>
+                      <div className="text-xs text-gray-400">{device.peer_code}</div>
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
           <Button 
             onClick={handleConnect} 
             className="shrink-0 bg-neon text-black hover:bg-neon/90"
