@@ -60,6 +60,11 @@ class WebRTCService {
     );
   }
 
+  // Add public method to set progress callback
+  setProgressCallback(callback: (progress: TransferProgress) => void) {
+    this.onProgress = callback;
+  }
+
   private handleSignal = async (signal: SignalData) => {
     await this.signalingHandler.handleSignal(signal);
   };

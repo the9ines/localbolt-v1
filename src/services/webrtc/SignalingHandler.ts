@@ -5,6 +5,8 @@ import { ConnectionManager } from './ConnectionManager';
 import { EncryptionService } from './EncryptionService';
 
 export class SignalingHandler {
+  private pendingCandidates: RTCIceCandidateInit[] = [];
+
   constructor(
     private connectionManager: ConnectionManager,
     private encryptionService: EncryptionService,
@@ -31,7 +33,8 @@ export class SignalingHandler {
       publicKey: this.encryptionService.getPublicKey()
     }, signal.from);
 
-    await this.connectionManager.processPendingCandidates();
+    // Process any pending candidates after setting descriptions
+    await this.processPendingCandidates();
   }
 
   private async handleAnswer(signal: SignalData) {
@@ -46,12 +49,51 @@ export class SignalingHandler {
     if (peerConnection.signalingState === 'have-local-offer') {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
       console.log('[SIGNALING] Set remote description (answer)');
-      await this.connectionManager.processPendingCandidates();
+      
+      // Process any pending candidates after setting descriptions
+      await this.processPendingCandidates();
     } else {
       throw new ConnectionError(
         "Received answer in invalid state",
         { state: peerConnection.signalingState }
       );
+    }
+  }
+
+  private async processPendingCandidates() {
+    console.log('[ICE] Processing pending candidates:', this.pendingCandidates.length);
+    const peerConnection = this.connectionManager.getPeerConnection();
+    if (!peerConnection) return;
+
+    while (this.pendingCandidates.length > 0) {
+      const candidate = this.pendingCandidates.shift();
+      if (candidate) {
+        try {
+          await this.connectionManager.addIceCandidate(candidate);
+          console.log('[ICE] Added pending candidate');
+        } catch (error) {
+          console.error('[ICE] Failed to add pending candidate:', error);
+        }
+      }
+    }
+  }
+
+  private async handleIceCandidate(signal: SignalData) {
+    const peerConnection = this.connectionManager.getPeerConnection();
+    
+    // Always queue the candidate if there's no connection or remote description isn't set
+    if (!peerConnection || !peerConnection.remoteDescription) {
+      console.log('[ICE] Queuing candidate - no connection or remote description');
+      this.pendingCandidates.push(signal.data);
+      return;
+    }
+
+    try {
+      await this.connectionManager.addIceCandidate(signal.data);
+      console.log('[ICE] Added ICE candidate in state:', peerConnection.signalingState);
+    } catch (error) {
+      console.log('[ICE] Failed to add candidate, queuing:', error);
+      this.pendingCandidates.push(signal.data);
     }
   }
 
@@ -68,7 +110,7 @@ export class SignalingHandler {
           await this.handleAnswer(signal);
           break;
         case 'ice-candidate':
-          await this.connectionManager.addIceCandidate(signal.data);
+          await this.handleIceCandidate(signal);
           break;
       }
     } catch (error) {

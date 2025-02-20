@@ -87,12 +87,23 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
       if (!file) return;
 
       console.log('Starting transfer for:', file.name);
+      
+      // Calculate initial progress state
+      const CHUNK_SIZE = 16384; // Must match the chunk size in FileTransferService
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      
       setProgress({
         filename: file.name,
         currentChunk: 0,
-        totalChunks: 1,
+        totalChunks,
         loaded: 0,
         total: file.size
+      });
+
+      // Set up progress callback before starting transfer
+      webrtc.setProgressCallback((transferProgress: TransferProgress) => {
+        console.log('[TRANSFER] Progress update in UI:', transferProgress);
+        setProgress(transferProgress);
       });
 
       await webrtc.sendFile(file);
