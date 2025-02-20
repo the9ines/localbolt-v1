@@ -4,9 +4,13 @@ import { Button } from "@/components/ui/button";
 import { FileText, Upload, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { sanitizeFilename } from "@/utils/sanitizer";
-import type WebRTCService from "@/services/webrtc";
+import WebRTCService from "@/services/webrtc";
 
-const FileUpload = ({ webrtc }: { webrtc: WebRTCService }) => {
+interface FileUploadProps {
+  webrtc: WebRTCService;
+}
+
+const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
