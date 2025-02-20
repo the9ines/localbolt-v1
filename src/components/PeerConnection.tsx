@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc";
-import { DeviceDiscovery } from "./DeviceDiscovery";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -63,10 +62,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   };
 
-  const handleConnect = async (code: string = targetPeerCode) => {
+  const handleConnect = async () => {
     if (!webrtc) return;
     
-    if (code.length < 6) {
+    if (targetPeerCode.length < 6) {
       toast({
         title: "Invalid peer code",
         description: "Please enter a valid peer code",
@@ -81,7 +80,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Establishing secure connection",
       });
       
-      await webrtc.connect(code);
+      await webrtc.connect(targetPeerCode);
       onConnectionChange(true, webrtc);
       
       toast({
@@ -99,7 +98,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
         <Shield className="w-5 h-5" />
         <span className="text-sm">End-to-End Encrypted</span>
@@ -140,20 +139,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
             className="font-mono bg-dark-accent placeholder:text-white/20"
             maxLength={6}
           />
-          <Button onClick={() => handleConnect()} className="shrink-0 bg-neon text-black hover:bg-neon/90">
+          <Button onClick={handleConnect} className="shrink-0 bg-neon text-black hover:bg-neon/90">
             Connect
           </Button>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium leading-none">
-          Nearby Devices
-        </label>
-        <DeviceDiscovery 
-          localPeerCode={peerCode} 
-          onDeviceSelect={handleConnect}
-        />
       </div>
     </div>
   );
