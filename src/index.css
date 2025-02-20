@@ -1,33 +1,9 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 142 84.2% 53.1%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 142 84.2% 53.1%;
-    --radius: 0.75rem;
-  }
-
-  .dark {
     --background: 0 0% 7%;
     --foreground: 0 0% 98%;
     --card: 0 0% 10%;
@@ -47,6 +23,7 @@
     --border: 0 0% 15%;
     --input: 0 0% 15%;
     --ring: 142 100% 54%;
+    --radius: 0.75rem;
   }
 }
 
@@ -55,7 +32,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground transition-colors duration-300;
+    @apply bg-dark text-foreground font-inter antialiased;
   }
 }
 
@@ -100,28 +77,29 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-background;
+  background: #121212;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-primary rounded;
+  background: #39FF14;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-primary/80;
+  background: #2bff00;
 }
 
 /* Drag and drop styles */
 .drag-active {
-  @apply border-primary scale-[1.01] transition-all duration-200;
+  @apply border-neon scale-[1.01] transition-all duration-200;
 }
 
 /* Loader animation */
 .loader {
   width: 48px;
   height: 48px;
-  border: 5px solid var(--background);
-  border-bottom-color: var(--primary);
+  border: 5px solid #121212;
+  border-bottom-color: #39FF14;
   border-radius: 50%;
   display: inline-block;
   box-sizing: border-box;
@@ -139,5 +117,5 @@
 
 /* Glass card effect */
 .glass-card {
-  @apply bg-card/30 backdrop-blur-lg border border-border shadow-xl;
+  @apply bg-dark-lighter/30 backdrop-blur-lg border border-white/10 shadow-xl;
 }
