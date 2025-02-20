@@ -1,34 +1,18 @@
+
 import { useState } from "react";
 import { lazy, Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
-import { Shield, Wifi, Database, Zap, Smartphone, Laptop, Monitor, Copy, Check } from "lucide-react";
+import { Shield, Wifi, Database, Zap } from "lucide-react";
 import { sanitizeString } from "@/utils/sanitizer";
 import WebRTCService from "@/services/webrtc";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
 
 const FileUpload = lazy(() => import("@/components/FileUpload"));
 const PeerConnection = lazy(() => import("@/components/PeerConnection"));
 
-interface NetworkDevice {
-  id: string;
-  name: string;
-  type: 'smartphone' | 'laptop' | 'desktop';
-  peerCode: string;
-}
-
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const { toast } = useToast();
-
-  const networkDevices: NetworkDevice[] = [
-    { id: '1', name: 'iPhone 13', type: 'smartphone', peerCode: 'ABC123' },
-    { id: '2', name: 'MacBook Pro', type: 'laptop', peerCode: 'DEF456' },
-    { id: '3', name: 'Desktop PC', type: 'desktop', peerCode: 'GHI789' },
-  ];
 
   const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
     setIsConnected(connected);
@@ -39,35 +23,6 @@ const Index = () => {
 
   const renderSafeContent = (content: string) => {
     return sanitizeString(content);
-  };
-
-  const getDeviceIcon = (type: NetworkDevice['type']) => {
-    switch (type) {
-      case 'smartphone':
-        return <Smartphone className="w-5 h-5 text-neon" />;
-      case 'laptop':
-        return <Laptop className="w-5 h-5 text-neon" />;
-      case 'desktop':
-        return <Monitor className="w-5 h-5 text-neon" />;
-    }
-  };
-
-  const copyPeerCode = async (code: string) => {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopiedCode(code);
-      toast({
-        title: "Peer code copied",
-        description: "Ready to connect to this device",
-      });
-      setTimeout(() => setCopiedCode(null), 2000);
-    } catch (err) {
-      toast({
-        title: "Failed to copy",
-        description: "Please try again",
-        variant: "destructive",
-      });
-    }
   };
 
   return (
@@ -150,48 +105,6 @@ const Index = () => {
                 <FileUpload webrtc={webrtc} />
               </Suspense>
             )}
-          </Card>
-
-          <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6">
-            <div className="space-y-2 text-center">
-              <h2 className="text-2xl font-semibold tracking-tight">
-                {renderSafeContent("Available Devices")}
-              </h2>
-              <p className="text-muted-foreground">
-                {renderSafeContent("Devices discovered on your network")}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {networkDevices.map((device) => (
-                <div
-                  key={device.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-dark-accent/50 border border-white/10 hover:border-neon/30 transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-dark-lighter border border-white/10 flex items-center justify-center group-hover:border-neon/30 transition-colors">
-                      {getDeviceIcon(device.type)}
-                    </div>
-                    <div>
-                      <p className="font-medium">{device.name}</p>
-                      <p className="text-sm text-white/60">{device.peerCode}</p>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => copyPeerCode(device.peerCode)}
-                    className="text-white/60 hover:text-neon"
-                  >
-                    {copiedCode === device.peerCode ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              ))}
-            </div>
           </Card>
 
           <div className="text-center space-y-3 text-gray-400 max-w-2xl mx-auto animate-fade-up">
