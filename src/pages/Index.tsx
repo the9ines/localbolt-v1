@@ -1,14 +1,32 @@
 
-import { useState } from "react";
-import { lazy, Suspense } from "react";
+import { useState, Suspense } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Shield, Wifi, Database, Zap } from "lucide-react";
 import { sanitizeString } from "@/utils/sanitizer";
 import WebRTCService from "@/services/webrtc";
+import FileUpload from "@/components/FileUpload";
+import PeerConnection from "@/components/PeerConnection";
+import { ErrorBoundary } from "react-error-boundary";
 
-const FileUpload = lazy(() => import("@/components/FileUpload"));
-const PeerConnection = lazy(() => import("@/components/PeerConnection"));
+const LoadingFallback = () => (
+  <div className="p-4 text-center">
+    <div className="animate-pulse text-neon">Loading...</div>
+  </div>
+);
+
+const ErrorFallback = ({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) => (
+  <div className="p-4 text-center text-red-500">
+    <p>Something went wrong:</p>
+    <pre className="text-sm">{error.message}</pre>
+    <button
+      onClick={resetErrorBoundary}
+      className="mt-4 px-4 py-2 bg-neon text-dark rounded hover:bg-neon/90"
+    >
+      Try again
+    </button>
+  </div>
+);
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -96,14 +114,18 @@ const Index = () => {
               </p>
             </div>
 
-            <Suspense fallback={<div>Loading connection...</div>}>
-              <PeerConnection onConnectionChange={handleConnectionChange} />
-            </Suspense>
+            <ErrorBoundary FallbackComponent={ErrorFallback}>
+              <Suspense fallback={<LoadingFallback />}>
+                <PeerConnection onConnectionChange={handleConnectionChange} />
+              </Suspense>
+            </ErrorBoundary>
             
             {isConnected && webrtc && (
-              <Suspense fallback={<div>Loading file upload...</div>}>
-                <FileUpload webrtc={webrtc} />
-              </Suspense>
+              <ErrorBoundary FallbackComponent={ErrorFallback}>
+                <Suspense fallback={<LoadingFallback />}>
+                  <FileUpload webrtc={webrtc} />
+                </Suspense>
+              </ErrorBoundary>
             )}
           </Card>
 
