@@ -111,9 +111,21 @@ export class FileTransferService {
     });
     this.dataChannel.send(message);
     
-    // Clean up local buffer
+    // Clean up local buffer and update UI
     if (this.chunksBuffer[filename]) {
+      const totalChunks = this.chunksBuffer[filename].length;
       delete this.chunksBuffer[filename];
+      
+      if (this.onProgress) {
+        this.onProgress({
+          filename,
+          currentChunk: 0,
+          totalChunks,
+          loaded: 0,
+          total: 0,
+          status: isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender'
+        });
+      }
     }
   }
 

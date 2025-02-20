@@ -52,7 +52,7 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
             variant="ghost"
             size="icon"
             onClick={onCancel}
-            className="text-white/50 hover:text-red-500"
+            className="text-white/50 hover:text-neon transition-colors"
           >
             <X className="w-4 h-4" />
           </Button>
