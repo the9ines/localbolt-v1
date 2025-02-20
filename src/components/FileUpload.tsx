@@ -83,32 +83,55 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
       return;
     }
 
-    for (const file of files) {
-      try {
-        console.log('Starting transfer for:', file.name);
-        await webrtc.sendFile(file);
-        console.log('Transfer completed for:', file.name);
+    try {
+      // Only transfer one file at a time
+      const file = files[0];
+      if (!file) return;
 
+      console.log('Starting transfer for:', file.name);
+      
+      // Set initial progress
+      setProgress({
+        filename: file.name,
+        currentChunk: 0,
+        totalChunks: 1, // Will be updated by the WebRTC service
+        loaded: 0,
+        total: file.size
+      });
+
+      // Pass progress callback to webrtc service
+      const transferPromise = webrtc.sendFile(file);
+      
+      // Update progress during transfer
+      webrtc.onProgress = (currentProgress) => {
+        console.log('Progress update:', currentProgress);
+        setProgress(currentProgress);
+      };
+
+      await transferPromise;
+      console.log('Transfer completed for:', file.name);
+
+      toast({
+        title: "Transfer complete",
+        description: `${file.name} has been sent successfully`,
+      });
+
+      // Remove the transferred file from the queue
+      setFiles(prevFiles => prevFiles.slice(1));
+    } catch (error: any) {
+      console.error('Transfer error:', error);
+      if (error.message === "Transfer cancelled by user") {
+        // Already handled by cancelTransfer
+      } else {
         toast({
-          title: "Transfer complete",
-          description: `${file.name} has been sent successfully`,
+          title: "Transfer failed",
+          description: `Failed to send file`,
+          variant: "destructive",
         });
-      } catch (error: any) {
-        console.error('Transfer error:', error);
-        if (error.message === "Transfer cancelled by user") {
-          // Already handled by cancelTransfer
-          break;
-        } else {
-          toast({
-            title: "Transfer failed",
-            description: `Failed to send ${file.name}`,
-            variant: "destructive",
-          });
-        }
       }
+    } finally {
+      setProgress(null);
     }
-    setProgress(null);
-    setFiles([]);
   };
 
   return (
@@ -158,14 +181,16 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
                   <File className="w-5 h-5 text-white/50" />
                   <span className="text-sm truncate">{file.name}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeFile(index)}
-                  className="text-white/50 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
+                {!progress && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeFile(index)}
+                    className="text-white/50 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             ))}
           </div>
