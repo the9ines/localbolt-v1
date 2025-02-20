@@ -42,7 +42,8 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
   const handleCancelReceiving = useCallback(() => {
     if (webrtc && transferProgress) {
-      webrtc.cancelTransfer(transferProgress.filename);
+      // Pass true to indicate this is a receiver cancellation
+      webrtc.cancelTransfer(transferProgress.filename, true);
       toast({
         title: "Transfer Canceled",
         description: "You have canceled the file transfer",

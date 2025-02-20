@@ -1,4 +1,3 @@
-
 import { TransferError } from '@/types/webrtc-errors';
 import { EncryptionService } from './EncryptionService';
 
@@ -14,6 +13,7 @@ export interface TransferProgress {
 export class FileTransferService {
   private chunksBuffer: { [key: string]: Blob[] } = {};
   private cancelTransfer: boolean = false;
+  private activeTransfers: Set<string> = new Set();
   
   constructor(
     private dataChannel: RTCDataChannel,
@@ -32,7 +32,9 @@ export class FileTransferService {
         if (type === 'file-chunk') {
           if (cancelled) {
             console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
+            this.activeTransfers.delete(filename);
             delete this.chunksBuffer[filename];
+            
             if (this.onProgress) {
               this.onProgress({
                 filename,
@@ -46,11 +48,18 @@ export class FileTransferService {
             return;
           }
 
+          // If transfer was already cancelled by receiver, ignore incoming chunks
+          if (!this.activeTransfers.has(filename)) {
+            console.log(`[TRANSFER] Ignoring chunk for cancelled transfer: ${filename}`);
+            return;
+          }
+
           console.log(`[TRANSFER] Receiving chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
           
           if (!this.chunksBuffer[filename]) {
             console.log(`[TRANSFER] Starting new transfer for ${filename}`);
             this.chunksBuffer[filename] = [];
+            this.activeTransfers.add(filename);
           }
 
           try {
@@ -73,10 +82,12 @@ export class FileTransferService {
             if (received === totalChunks) {
               console.log(`[TRANSFER] Completed transfer of ${filename}`);
               const file = new Blob(this.chunksBuffer[filename]);
+              this.activeTransfers.delete(filename);
               delete this.chunksBuffer[filename];
               this.onReceiveFile(file, filename);
             }
           } catch (error) {
+            this.activeTransfers.delete(filename);
             delete this.chunksBuffer[filename];
             if (this.onProgress) {
               this.onProgress({
@@ -101,6 +112,7 @@ export class FileTransferService {
   cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
     console.log(`[TRANSFER] Cancelling transfer of ${filename} by ${isReceiver ? 'receiver' : 'sender'}`);
     this.cancelTransfer = true;
+    this.activeTransfers.delete(filename);
     
     // Notify peer about cancellation
     const message = JSON.stringify({
