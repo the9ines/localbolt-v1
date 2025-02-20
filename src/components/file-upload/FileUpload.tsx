@@ -57,11 +57,13 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const cancelTransfer = () => {
     if (webrtc && progress) {
       console.log('Cancelling transfer for:', progress.filename);
-      webrtc.cancelTransfer(progress.filename);
-      setProgress({
-        ...progress,
+      // Set local progress state immediately for instant UI feedback
+      setProgress(prev => prev ? {
+        ...prev,
         status: 'canceled_by_sender'
-      });
+      } : null);
+      // Then notify the peer
+      webrtc.cancelTransfer(progress.filename);
     }
   };
 
@@ -106,7 +108,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     } catch (error: any) {
       console.error('Transfer error:', error);
       if (error.message === "Transfer cancelled by user") {
-        // Already handled by the progress callback
+        // Progress state is already handled by the progress callback
       } else {
         setProgress(prev => prev ? {
           ...prev,

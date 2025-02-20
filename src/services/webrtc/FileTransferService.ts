@@ -32,19 +32,21 @@ export class FileTransferService {
           if (cancelled) {
             console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
             this.cancelTransfer = true;
-            this.transferManager.handleCleanup(filename, cancelledBy === 'receiver');
             
-            // Notify progress for sender side when receiver cancels
-            if (cancelledBy === 'receiver' && this.onProgress) {
+            // Immediately notify both sides about cancellation
+            if (this.onProgress) {
+              const status = cancelledBy === 'receiver' ? 'canceled_by_receiver' : 'canceled_by_sender';
               this.onProgress({
                 filename,
                 currentChunk: 0,
-                totalChunks: 0,
+                totalChunks,
                 loaded: 0,
                 total: fileSize || 0,
-                status: 'canceled_by_receiver'
+                status
               });
             }
+            
+            this.transferManager.handleCleanup(filename, cancelledBy === 'receiver');
             return;
           }
 
@@ -78,6 +80,20 @@ export class FileTransferService {
   cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
     console.log(`[TRANSFER] Cancelling transfer of ${filename} by ${isReceiver ? 'receiver' : 'sender'}`);
     this.cancelTransfer = true;
+
+    // Immediately update the local progress status
+    if (this.onProgress) {
+      this.onProgress({
+        filename,
+        currentChunk: 0,
+        totalChunks: 0,
+        loaded: 0,
+        total: 0,
+        status: isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender'
+      });
+    }
+
+    // Then notify the other peer
     this.transferManager.cancelTransfer(filename, isReceiver);
   }
 
