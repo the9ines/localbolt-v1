@@ -20,9 +20,11 @@ export class WebRTCEventManager {
     this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
       console.log('[CONNECTION] State changed:', state);
       
-      if ((state === 'disconnected' || state === 'failed' || state === 'closed') && !this.isDisconnecting) {
+      // If we're disconnecting or already in a disconnected state, ensure we notify the UI
+      if ((state === 'disconnected' || state === 'failed' || state === 'closed')) {
         console.log('[CONNECTION] Peer disconnected, cleaning up connection state');
         this.handleDisconnect();
+        return; // Don't process further state changes during disconnect
       }
       
       if (this.connectionStateListener && !this.isDisconnecting) {
@@ -32,7 +34,7 @@ export class WebRTCEventManager {
 
     this.dataChannelManager.setStateChangeHandler((state: RTCDataChannelState) => {
       console.log('[DATACHANNEL] State changed:', state);
-      if (state === 'closed' && !this.isDisconnecting) {
+      if (state === 'closed') {
         console.log('[DATACHANNEL] Channel closed, initiating disconnect');
         this.handleDisconnect();
       }
@@ -49,10 +51,13 @@ export class WebRTCEventManager {
     
     try {
       if (this.connectionStateListener) {
+        // Always notify UI of disconnection
         this.connectionStateListener('disconnected');
       }
     } finally {
-      this.isDisconnecting = false;
+      setTimeout(() => {
+        this.isDisconnecting = false;
+      }, 100); // Small delay to ensure all disconnect events are processed
     }
   }
 }

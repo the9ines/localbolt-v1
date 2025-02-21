@@ -28,7 +28,7 @@ export const TargetPeerInput = ({
         <Input
           value={targetPeerCode}
           onChange={(e) => onTargetPeerCodeChange(e.target.value.toUpperCase())}
-          placeholder={remotePeerCode || "Enter peer code"}
+          placeholder={remotePeerCode || "Enter Peer Code"}
           className="font-mono bg-dark-accent placeholder:text-white/20"
           maxLength={6}
           disabled={isConnected}
