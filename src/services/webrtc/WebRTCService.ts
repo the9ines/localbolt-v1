@@ -1,3 +1,4 @@
+
 import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -17,7 +18,6 @@ class WebRTCService {
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
   private connectionStateListener?: (state: RTCPeerConnectionState) => void;
-  private dataChannelHandler?: () => void;
 
   constructor(
     private localPeerCode: string,
@@ -51,12 +51,7 @@ class WebRTCService {
           });
       },
       this.handleError.bind(this),
-      (channel) => {
-        this.dataChannelManager.setupDataChannel(channel);
-        if (this.dataChannelHandler) {
-          this.dataChannelHandler();
-        }
-      }
+      (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
     this.signalingService = new SignalingService(localPeerCode, this.handleSignal.bind(this));
@@ -66,12 +61,7 @@ class WebRTCService {
       this.encryptionService,
       this.signalingService,
       localPeerCode,
-      (channel) => {
-        this.dataChannelManager.setupDataChannel(channel);
-        if (this.dataChannelHandler) {
-          this.dataChannelHandler();
-        }
-      }
+      (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
     // Set up initial connection state handler
@@ -110,12 +100,6 @@ class WebRTCService {
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
     console.log('[WEBRTC] Setting connection state handler');
     this.connectionStateListener = handler;
-    this.connectionManager.setConnectionStateChangeHandler(handler);
-  }
-
-  setDataChannelHandler(handler: () => void) {
-    console.log('[WEBRTC] Setting data channel handler');
-    this.dataChannelHandler = handler;
   }
 
   async connect(remotePeerCode: string): Promise<void> {

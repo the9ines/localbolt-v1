@@ -15,7 +15,6 @@ interface PeerConnectionProps {
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
-  const [remotePeerCode, setRemotePeerCode] = useState<string>("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
@@ -26,23 +25,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const handleConnectionStateChange = useCallback((state: RTCPeerConnectionState) => {
     console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
-    
     setIsConnected(connected);
-    
-    if (connected) {
-      console.log('[UI] Connection established, notifying with WebRTC instance');
-      onConnectionChange(true, webrtc);
-    } else {
-      console.log('[UI] Connection ended, notifying disconnection');
-      onConnectionChange(false);
-      setRemotePeerCode("");
-    }
-  }, [onConnectionChange, webrtc]);
-
-  const handleDataChannel = useCallback(() => {
-    console.log('[UI] Data channel established, notifying connection');
-    setIsConnected(true);
-    onConnectionChange(true, webrtc);
+    onConnectionChange(connected, webrtc || undefined);
   }, [onConnectionChange, webrtc]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
@@ -101,7 +85,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       setIsConnected(false);
       onConnectionChange(false);
       setTargetPeerCode("");
-      setRemotePeerCode("");
       toast({
         title: "Disconnected",
         description: "Connection closed successfully",
@@ -114,14 +97,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
       console.log('[WEBRTC] Creating new service with code:', code);
-      const rtcService = new WebRTCService(
-        code,
-        handleFileReceive,
-        handleError,
-        handleProgress
-      );
+      const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
-      rtcService.setDataChannelHandler(handleDataChannel);
       setWebrtc(rtcService);
 
       return () => {
@@ -131,7 +108,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         onConnectionChange(false);
       };
     }
-  }, [handleFileReceive, handleError, handleProgress, handleConnectionStateChange, handleDataChannel, setPeerCode]);
+  }, []); // Empty dependency array since we only want this to run once
 
   const handleConnect = async () => {
     if (!webrtc) return;
@@ -148,7 +125,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     try {
       setIsConnected(false);
       onConnectionChange(false);
-      setRemotePeerCode(targetPeerCode);
       
       toast({
         title: "Connecting...",
@@ -157,13 +133,15 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       
       await webrtc.connect(targetPeerCode);
       
+      setIsConnected(true);
+      onConnectionChange(true, webrtc);
+      
       toast({
-        title: "Connection initiated",
-        description: "Waiting for secure connection to be established",
+        title: "Connected!",
+        description: "Secure connection established",
       });
     } catch (error) {
       setIsConnected(false);
-      setRemotePeerCode("");
       if (error instanceof WebRTCError) {
         handleError(error);
       } else {
@@ -202,7 +180,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           isConnected={isConnected}
-          remotePeerCode={remotePeerCode}
         />
       </div>
 
