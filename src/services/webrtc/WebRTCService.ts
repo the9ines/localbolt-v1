@@ -17,6 +17,7 @@ class WebRTCService {
   private connectionStateManager: ConnectionStateManager;
   private signalingManager: SignalingManager;
   private onProgressCallback?: (progress: TransferProgress) => void;
+  private stateChangeCallback?: (state: RTCPeerConnectionState) => void;
 
   constructor(
     private localPeerCode: string,
@@ -29,6 +30,7 @@ class WebRTCService {
     
     this.encryptionService = new EncryptionService();
     this.onProgressCallback = onProgress;
+    this.stateChangeCallback = onConnectionStateChange;
     
     this.connectionManager = new ConnectionManager(
       (candidate) => {
@@ -59,7 +61,11 @@ class WebRTCService {
     this.connectionStateManager = new ConnectionStateManager(
       this.connectionManager,
       this.onError,
-      onConnectionStateChange || (() => {})
+      (state) => {
+        if (this.stateChangeCallback) {
+          this.stateChangeCallback(state);
+        }
+      }
     );
 
     this.signalingManager = new SignalingManager(
@@ -79,7 +85,11 @@ class WebRTCService {
     const shouldDisconnect = await this.signalingManager.handleSignal(
       signal,
       this.remotePeerCode,
-      this.onConnectionStateChange
+      (state) => {
+        if (this.stateChangeCallback) {
+          this.stateChangeCallback(state);
+        }
+      }
     );
 
     if (shouldDisconnect) {

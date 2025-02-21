@@ -6,6 +6,7 @@ import type { TransferProgress } from '../types/transfer';
 export class ConnectionStateManager {
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
+  private retryCallback?: () => Promise<void>;
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -15,6 +16,7 @@ export class ConnectionStateManager {
 
   async retryConnection(connect: () => Promise<void>) {
     console.log('[WEBRTC] Retrying connection, attempt:', this.connectionAttempts);
+    this.retryCallback = connect; // Store the callback for retries
     await new Promise(resolve => setTimeout(resolve, 1000));
     try {
       await connect();
@@ -29,7 +31,9 @@ export class ConnectionStateManager {
     if (error instanceof ConnectionError && this.connectionAttempts < this.maxConnectionAttempts) {
       console.log('[WEBRTC] Connection failed, attempting retry...');
       this.connectionAttempts++;
-      this.retryConnection(this.connect);
+      if (this.retryCallback) {
+        this.retryConnection(this.retryCallback);
+      }
     } else {
       this.onError(error);
     }
@@ -37,6 +41,7 @@ export class ConnectionStateManager {
 
   resetConnectionAttempts() {
     this.connectionAttempts = 0;
+    this.retryCallback = undefined;
   }
 
   getConnectionAttempts() {
