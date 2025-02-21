@@ -23,6 +23,16 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
 
+  const handleDisconnect = useCallback(() => {
+    setIsConnected(false);
+    onConnectionChange(false);
+    
+    toast({
+      title: "Disconnected",
+      duration: 2000, // 2 seconds
+    });
+  }, [toast, onConnectionChange]);
+
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
     const a = document.createElement('a');
@@ -48,9 +58,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
     switch (error.name) {
       case 'ConnectionError':
-        title = "Connection Failed";
-        description = "Unable to connect to peer. Please try again.";
-        break;
+        handleDisconnect();
+        return;
       case 'SignalingError':
         title = "Signaling Error";
         description = "Failed to establish initial connection. Please check your peer code.";
@@ -70,19 +79,29 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       description,
       variant: "destructive",
     });
-  }, [toast]);
+  }, [toast, handleDisconnect]);
 
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
     const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+    
+    // Set up connection state monitoring
+    rtcService.connectionManager.onConnectionStateChange = (state) => {
+      if (state === 'connected') {
+        setIsConnected(true);
+      } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        handleDisconnect();
+      }
+    };
+    
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
       setIsConnected(false);
     };
-  }, [handleFileReceive, handleError, handleProgress, setPeerCode]);
+  }, [handleFileReceive, handleError, handleProgress, handleDisconnect, setPeerCode]);
 
   const handleConnect = async () => {
     if (!webrtc) return;
