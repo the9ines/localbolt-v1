@@ -167,6 +167,14 @@ class WebRTCService {
     this.retryHandler.resetAttempts();
   }
 
+  public pauseTransfer(filename: string) {
+    console.log('[WEBRTC] Pausing transfer for:', filename);
+  }
+
+  public resumeTransfer(filename: string) {
+    console.log('[WEBRTC] Resuming transfer for:', filename);
+  }
+
   private handleSignal = async (signal: SignalData) => {
     await this.signalingHandler.handleSignal(signal);
   };

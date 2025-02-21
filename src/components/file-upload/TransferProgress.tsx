@@ -57,13 +57,6 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
     }
   };
 
-  const getProgressBarColor = () => {
-    if (progress.status === 'error') return 'bg-red-500/20';
-    if (progress.status?.includes('canceled')) return 'bg-neon/20';
-    if (progress.status === 'paused') return 'bg-yellow-500/20';
-    return 'bg-dark-accent';
-  };
-
   const showControls = progress.status === 'transferring' || progress.status === 'paused';
   const isPaused = progress.status === 'paused';
 
@@ -71,19 +64,13 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
         <span className="truncate flex-1">{progress.filename}</span>
-        <span className={
-          progress.status === 'error' ? 'text-red-500' : 
-          progress.status?.includes('canceled') ? 'text-neon' :
-          progress.status === 'paused' ? 'text-yellow-500' : ''
-        }>
-          {getStatusText()}
-        </span>
+        <span>{getStatusText()}</span>
       </div>
       
       <div className="flex space-x-2">
         <Progress 
           value={(progress.currentChunk / progress.totalChunks) * 100}
-          className={`h-2 flex-1 ${getProgressBarColor()}`}
+          className="h-2 flex-1 bg-neon/20"
         />
         <div className="flex space-x-1">
           {showControls && onPause && onResume && (
