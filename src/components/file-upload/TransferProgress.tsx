@@ -57,7 +57,8 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
     }
   };
 
-  const showControls = progress.status === 'transferring' || progress.status === 'paused';
+  // Show controls during transfer and when paused
+  const showControls = ['transferring', 'paused'].includes(progress.status || '');
   const isPaused = progress.status === 'paused';
 
   return (
@@ -72,14 +73,13 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
           value={(progress.currentChunk / progress.totalChunks) * 100}
           className="h-2 flex-1 bg-neon/20"
         />
-        <div className="flex items-center space-x-1 min-w-[80px] justify-end">
+        <div className="flex items-center gap-2">
           {showControls && onPause && onResume && (
             <Button
               variant="ghost"
               size="sm"
               onClick={isPaused ? onResume : onPause}
-              className="h-8 w-8 p-0 flex items-center justify-center text-white/50 hover:text-neon transition-colors touch-manipulation"
-              aria-label={isPaused ? "Resume transfer" : "Pause transfer"}
+              className="h-9 w-9 p-0"
             >
               {isPaused ? (
                 <Play className="h-4 w-4" />
@@ -93,8 +93,7 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
               variant="ghost"
               size="sm"
               onClick={onCancel}
-              className="h-8 w-8 p-0 flex items-center justify-center text-white/50 hover:text-red-500 transition-colors touch-manipulation"
-              aria-label="Cancel transfer"
+              className="h-9 w-9 p-0"
             >
               <X className="h-4 w-4" />
             </Button>
