@@ -31,7 +31,21 @@ export class FileTransferService {
         if (type === 'file-chunk') {
           if (cancelled) {
             console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
+            // Set cancelTransfer flag to true when receiving cancellation message
+            this.cancelTransfer = true;
             this.transferManager.handleCleanup(filename);
+            
+            // Update progress to show cancellation
+            if (this.onProgress) {
+              this.onProgress({
+                filename,
+                currentChunk: 0,
+                totalChunks: 0,
+                loaded: 0,
+                total: 0,
+                status: cancelledBy === 'receiver' ? 'canceled_by_receiver' : 'canceled_by_sender'
+              });
+            }
             return;
           }
 
@@ -109,6 +123,11 @@ export class FileTransferService {
                 resolve(null);
               };
             });
+          }
+
+          if (this.cancelTransfer) {
+            console.log(`[TRANSFER] Transfer cancelled during send at chunk ${i + 1}/${totalChunks}`);
+            throw new TransferError("Transfer cancelled by user");
           }
 
           this.dataChannel.send(message);
