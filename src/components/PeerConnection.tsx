@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -16,10 +17,18 @@ interface PeerConnectionProps {
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
   
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
+
+  const handleConnectionStateChange = useCallback((state: RTCPeerConnectionState) => {
+    console.log('[UI] Connection state changed:', state);
+    const connected = state === 'connected';
+    setIsConnected(connected);
+    onConnectionChange(connected, webrtc || undefined);
+  }, [onConnectionChange, webrtc]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -39,6 +48,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   const handleError = useCallback((error: WebRTCError) => {
     console.error(`[${error.name}]`, error.message, error.details);
+    setIsConnected(false);
+    onConnectionChange(false);
     
     let title = "Connection Error";
     let description = "Failed to establish connection";
@@ -67,18 +78,25 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       description,
       variant: "destructive",
     });
-  }, [toast]);
+  }, [toast, onConnectionChange]);
 
   useEffect(() => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
-    setWebrtc(rtcService);
+    if (!webrtc) {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setPeerCode(code);
+      console.log('[WEBRTC] Creating new service with code:', code);
+      const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+      rtcService.setConnectionStateHandler(handleConnectionStateChange);
+      setWebrtc(rtcService);
 
-    return () => {
-      rtcService.disconnect();
-    };
-  }, [handleFileReceive, handleError, handleProgress, setPeerCode]);
+      return () => {
+        console.log('[WEBRTC] Cleaning up service');
+        rtcService.disconnect();
+        setIsConnected(false);
+        onConnectionChange(false);
+      };
+    }
+  }, []); // Empty dependency array since we only want this to run once
 
   const handleConnect = async () => {
     if (!webrtc) return;
@@ -93,12 +111,17 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
     
     try {
+      setIsConnected(false);
+      onConnectionChange(false);
+      
       toast({
         title: "Connecting...",
         description: "Establishing secure connection",
       });
       
       await webrtc.connect(targetPeerCode);
+      
+      setIsConnected(true);
       onConnectionChange(true, webrtc);
       
       toast({
@@ -106,6 +129,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Secure connection established",
       });
     } catch (error) {
+      setIsConnected(false);
       if (error instanceof WebRTCError) {
         handleError(error);
       } else {
@@ -123,7 +147,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
-        <Shield className="w-5 h-5" />
+        <Shield 
+          className={`w-5 h-5 transition-colors duration-300 ${
+            isConnected ? "fill-neon text-neon" : "text-neon"
+          }`} 
+        />
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
       
