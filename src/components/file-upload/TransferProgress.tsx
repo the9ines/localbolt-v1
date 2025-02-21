@@ -1,15 +1,15 @@
-
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { X } from "lucide-react";
+import { X, Pause, Play } from "lucide-react";
 import type { TransferProgress as TransferProgressType } from "@/services/webrtc/FileTransferService";
 
 interface TransferProgressProps {
   progress: TransferProgressType;
   onCancel: () => void;
+  onPauseResume?: () => void;
 }
 
-export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProps) => {
+export const TransferProgressBar = ({ progress, onCancel, onPauseResume }: TransferProgressProps) => {
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -69,7 +69,7 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
     return 'bg-dark-accent';
   };
 
-  const showCancelButton = progress.status === 'transferring' || progress.status === 'initializing';
+  const showControls = progress.status === 'transferring' || progress.status === 'initializing' || progress.status === 'paused';
 
   return (
     <div className="space-y-3 bg-dark-accent/20 p-4 rounded-lg border border-white/10">
@@ -79,25 +79,42 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
           <p className={`text-sm ${
             progress.status === 'error' ? 'text-red-500' : 
             progress.status?.includes('canceled') ? 'text-neon' : 
+            progress.status === 'paused' ? 'text-yellow-500' :
             'text-white/70'
           }`}>
             {getStatusText()}
           </p>
         </div>
-        {showCancelButton && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onCancel}
-            className="text-white/50 hover:text-neon transition-colors shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+        {showControls && (
+          <div className="flex gap-2">
+            {onPauseResume && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onPauseResume}
+                className="text-white/50 hover:text-neon transition-colors shrink-0"
+              >
+                {progress.status === 'paused' ? (
+                  <Play className="w-4 h-4" />
+                ) : (
+                  <Pause className="w-4 h-4" />
+                )}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onCancel}
+              className="text-white/50 hover:text-neon transition-colors shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         )}
       </div>
 
       <Progress 
-        value={(progress.currentChunk / progress.totalChunks) * 100}
+        value={(progress.loaded / progress.total) * 100}
         className={`h-2 ${getProgressBarColor()}`}
       />
 

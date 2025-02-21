@@ -15,6 +15,7 @@ export interface TransferStats {
   estimatedTimeRemaining: number; // seconds
   pauseDuration: number;  // total time spent paused
   retryCount: number;     // number of retry attempts
+  lastPausedAt?: number;  // timestamp of last pause
 }
 
 export interface TransferProgress {
@@ -41,6 +42,8 @@ export interface FileChunkMessage {
   fileSize?: number;
   cancelled?: boolean;
   cancelledBy?: 'sender' | 'receiver';
+  paused?: boolean;
+  resumed?: boolean;
   timestamp?: number;    // for calculating transfer speed
   retryCount?: number;   // for tracking retries
 }
