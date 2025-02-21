@@ -98,7 +98,7 @@ class WebRTCService {
         this.onConnectionStateChange('connecting');
       }
 
-      if (signal.type === 'disconnect') {
+      if (signal.type && signal.type === 'disconnect') {
         this.disconnect();
         return;
       }

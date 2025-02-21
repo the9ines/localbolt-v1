@@ -27,7 +27,9 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
     setIsConnected(connected);
-    onConnectionChange(connected, webrtc);
+    if (webrtc) {
+      onConnectionChange(connected, webrtc);
+    }
   }, [onConnectionChange, webrtc]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
@@ -79,21 +81,31 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   }, [toast]);
 
   useEffect(() => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setPeerCode(code);
-    const rtcService = new WebRTCService(
-      code, 
-      handleFileReceive, 
-      handleError, 
-      handleProgress, 
-      (state) => handleConnectionStateChange(state)
-    );
-    setWebrtc(rtcService);
+    // Only create WebRTCService if we don't have one and if peerCode exists
+    if (!webrtc && peerCode) {
+      console.log('[INIT] Creating WebRTC service with code:', peerCode);
+      const rtcService = new WebRTCService(
+        peerCode, 
+        handleFileReceive, 
+        handleError, 
+        handleProgress, 
+        handleConnectionStateChange
+      );
+      setWebrtc(rtcService);
 
-    return () => {
-      rtcService.disconnect();
-    };
-  }, [handleFileReceive, handleError, handleProgress, setPeerCode, handleConnectionStateChange]);
+      return () => {
+        rtcService.disconnect();
+      };
+    }
+  }, [peerCode, handleFileReceive, handleError, handleProgress, handleConnectionStateChange]);
+
+  // Generate peer code only once when component mounts
+  useEffect(() => {
+    if (!peerCode) {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setPeerCode(code);
+    }
+  }, []); // Empty dependency array ensures this runs only once
 
   const handleConnect = async () => {
     if (!webrtc) return;
