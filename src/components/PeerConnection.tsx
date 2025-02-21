@@ -26,16 +26,23 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const handleConnectionStateChange = useCallback((state: RTCPeerConnectionState) => {
     console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
+    
     setIsConnected(connected);
     
     if (connected) {
-      console.log('[UI] Triggering connection change with webrtc instance');
+      console.log('[UI] Connection established, notifying with WebRTC instance');
       onConnectionChange(true, webrtc);
     } else {
-      console.log('[UI] Triggering disconnection');
+      console.log('[UI] Connection ended, notifying disconnection');
       onConnectionChange(false);
       setRemotePeerCode("");
     }
+  }, [onConnectionChange, webrtc]);
+
+  const handleDataChannel = useCallback(() => {
+    console.log('[UI] Data channel established, notifying connection');
+    setIsConnected(true);
+    onConnectionChange(true, webrtc);
   }, [onConnectionChange, webrtc]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
@@ -114,6 +121,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         handleProgress
       );
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
+      rtcService.setDataChannelHandler(handleDataChannel);
       setWebrtc(rtcService);
 
       return () => {
@@ -123,7 +131,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         onConnectionChange(false);
       };
     }
-  }, [handleFileReceive, handleError, handleProgress, handleConnectionStateChange, setPeerCode]);
+  }, [handleFileReceive, handleError, handleProgress, handleConnectionStateChange, handleDataChannel, setPeerCode]);
 
   const handleConnect = async () => {
     if (!webrtc) return;
@@ -149,12 +157,9 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       
       await webrtc.connect(targetPeerCode);
       
-      setIsConnected(true);
-      onConnectionChange(true, webrtc);
-      
       toast({
-        title: "Connected!",
-        description: "Secure connection established",
+        title: "Connection initiated",
+        description: "Waiting for secure connection to be established",
       });
     } catch (error) {
       setIsConnected(false);
