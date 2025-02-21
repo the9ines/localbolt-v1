@@ -8,6 +8,7 @@ interface TargetPeerInputProps {
   onConnect: () => void;
   onDisconnect?: () => void;
   isConnected: boolean;
+  remotePeerCode?: string;
 }
 
 export const TargetPeerInput = ({
@@ -15,7 +16,8 @@ export const TargetPeerInput = ({
   onTargetPeerCodeChange,
   onConnect,
   onDisconnect,
-  isConnected
+  isConnected,
+  remotePeerCode
 }: TargetPeerInputProps) => {
   return (
     <div className="space-y-2">
@@ -26,7 +28,7 @@ export const TargetPeerInput = ({
         <Input
           value={targetPeerCode}
           onChange={(e) => onTargetPeerCodeChange(e.target.value.toUpperCase())}
-          placeholder="Enter peer code"
+          placeholder={remotePeerCode || "Enter peer code"}
           className="font-mono bg-dark-accent placeholder:text-white/20"
           maxLength={6}
           disabled={isConnected}
