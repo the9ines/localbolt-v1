@@ -1,3 +1,4 @@
+
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -167,12 +168,18 @@ class WebRTCService {
     this.retryHandler.resetAttempts();
   }
 
-  public pauseTransfer(filename: string) {
+  public pauseTransfer(filename: string): void {
     console.log('[WEBRTC] Pausing transfer for:', filename);
+    if (this.dataChannelManager) {
+      this.dataChannelManager.pauseTransfer(filename);
+    }
   }
 
-  public resumeTransfer(filename: string) {
+  public resumeTransfer(filename: string): void {
     console.log('[WEBRTC] Resuming transfer for:', filename);
+    if (this.dataChannelManager) {
+      this.dataChannelManager.resumeTransfer(filename);
+    }
   }
 
   private handleSignal = async (signal: SignalData) => {
