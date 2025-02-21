@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
@@ -6,6 +7,7 @@ import type { TransferProgress } from "@/services/webrtc/FileTransferService";
 import { DragDropArea } from "./DragDropArea";
 import { FileList } from "./FileList";
 import { TransferProgressBar } from "./TransferProgress";
+import { Camera, Image } from "lucide-react";
 
 interface FileUploadProps {
   webrtc?: WebRTCService;
@@ -15,7 +17,40 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
+  const [hasMediaPermissions, setHasMediaPermissions] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    checkMediaPermissions();
+  }, []);
+
+  const checkMediaPermissions = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+      setHasMediaPermissions(true);
+    } catch (error) {
+      console.log('Media permissions not granted:', error);
+      setHasMediaPermissions(false);
+    }
+  };
+
+  const requestMediaAccess = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      toast({
+        title: "Access granted",
+        description: "You can now upload media from your device",
+      });
+      setHasMediaPermissions(true);
+    } catch (error) {
+      toast({
+        title: "Permission denied",
+        description: "Please allow access to your camera to upload media",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -45,6 +80,26 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     handleFiles(selectedFiles);
+  };
+
+  const handleCameraCapture = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const videoTrack = stream.getVideoTracks()[0];
+      const imageCapture = new ImageCapture(videoTrack);
+      
+      const blob = await imageCapture.takePhoto();
+      const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      handleFiles([file]);
+      
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      toast({
+        title: "Camera error",
+        description: "Failed to capture image from camera",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleFiles = (newFiles: File[]) => {
@@ -129,6 +184,22 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
   return (
     <div className="space-y-4">
+      {!hasMediaPermissions && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mb-4">
+          <p className="text-sm text-yellow-500 mb-2">
+            Allow access to your camera and files to enable media sharing
+          </p>
+          <Button
+            onClick={requestMediaAccess}
+            variant="outline"
+            className="bg-yellow-500/20 hover:bg-yellow-500/30 border-yellow-500/30"
+          >
+            <Camera className="w-4 h-4 mr-2" />
+            Allow Access
+          </Button>
+        </div>
+      )}
+
       <DragDropArea
         isDragging={isDragging}
         onDragIn={handleDragIn}
@@ -137,6 +208,35 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         onDrop={handleDrop}
         onFileSelect={handleFileInput}
       />
+
+      {hasMediaPermissions && (
+        <div className="flex gap-2">
+          <Button
+            onClick={handleCameraCapture}
+            variant="outline"
+            className="flex-1"
+          >
+            <Camera className="w-4 h-4 mr-2" />
+            Capture Photo
+          </Button>
+          <Button
+            onClick={() => document.getElementById('gallery-input')?.click()}
+            variant="outline"
+            className="flex-1"
+          >
+            <Image className="w-4 h-4 mr-2" />
+            Choose from Gallery
+          </Button>
+          <input
+            type="file"
+            id="gallery-input"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleFileInput}
+          />
+        </div>
+      )}
 
       {files.length > 0 && (
         <div className="space-y-4 animate-fade-up">
