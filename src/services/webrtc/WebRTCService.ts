@@ -114,6 +114,9 @@ class WebRTCService {
           break;
         case 'answer':
           await this.signalingHandler.handleSignal(signal);
+          if (this.connectionStateListener) {
+            this.connectionStateListener('connected');
+          }
           break;
         case 'ice-candidate':
           await this.signalingHandler.handleSignal(signal);
@@ -184,9 +187,14 @@ class WebRTCService {
 
         peerConnection.onconnectionstatechange = () => {
           const state = peerConnection.connectionState;
+          console.log('[WEBRTC] Connection state changed:', state);
+          
           if (state === 'connected') {
             console.log('[WEBRTC] Connection established successfully');
             this.connectionAttempts = 0;
+            if (this.connectionStateListener) {
+              this.connectionStateListener('connected');
+            }
             resolve();
           } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
             reject(new ConnectionError("Connection failed"));
