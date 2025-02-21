@@ -17,6 +17,7 @@ export const usePeerConnection = (
     console.error(`[${error.name}]`, error.message, error.details);
     setIsConnected(false);
     setTargetPeerCode(""); 
+    setRemotePeerCode("");  // Clear remote peer code on error
     onConnectionChange(false);
     
     let title = "Connection Error";
@@ -72,7 +73,7 @@ export const usePeerConnection = (
       await webrtc.connect(targetPeerCode);
       
       setIsConnected(true);
-      setRemotePeerCode(targetPeerCode);
+      setRemotePeerCode(targetPeerCode); // Store the remote peer code
       onConnectionChange(true, webrtc);
       
       toast({
@@ -81,7 +82,7 @@ export const usePeerConnection = (
       });
     } catch (error) {
       setIsConnected(false);
-      setRemotePeerCode("");
+      setRemotePeerCode(""); // Clear remote peer code on error
       if (error instanceof WebRTCError) {
         handleConnectionError(error);
       } else {
@@ -101,6 +102,7 @@ export const usePeerConnection = (
       webrtc.disconnect();
       setIsConnected(false);
       setTargetPeerCode("");
+      setRemotePeerCode(""); // Clear remote peer code on disconnect
       onConnectionChange(false);
       toast({
         title: "Disconnected",
@@ -113,6 +115,7 @@ export const usePeerConnection = (
     targetPeerCode,
     setTargetPeerCode,
     remotePeerCode,
+    setRemotePeerCode, // Export setRemotePeerCode
     webrtc,
     setWebrtc,
     isConnected,
