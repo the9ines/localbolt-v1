@@ -1,4 +1,3 @@
-
 import { useEffect } from "react";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { TransferProgressBar } from "./file-upload/TransferProgress";
@@ -28,9 +27,14 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   } = usePeerConnection(onConnectionChange);
 
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
-  const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
+  const { 
+    transferProgress, 
+    handleProgress, 
+    handleCancelReceiving,
+    handlePauseTransfer,
+    handleResumeTransfer 
+  } = useTransferProgress(webrtc);
 
-  // Update connected peer code whenever connection state changes
   useEffect(() => {
     if (webrtc && isConnected) {
       const remotePeer = webrtc.getRemotePeerCode();
@@ -62,7 +66,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     setIsConnected(connected);
     onConnectionChange(connected, webrtc || undefined);
     
-    // Update connected peer code when connection state changes
     if (connected && webrtc) {
       const remotePeerCode = webrtc.getRemotePeerCode();
       console.log('[UI] Setting connected peer code:', remotePeerCode);
@@ -108,6 +111,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           <TransferProgressBar 
             progress={transferProgress}
             onCancel={handleCancelReceiving}
+            onPause={handlePauseTransfer}
+            onResume={handleResumeTransfer}
           />
         </div>
       )}

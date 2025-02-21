@@ -10,7 +10,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
   useEffect(() => {
     // Clear progress after a delay when transfer is complete or canceled
-    if (transferProgress?.status && transferProgress.status !== 'transferring') {
+    if (transferProgress?.status && transferProgress.status !== 'transferring' && transferProgress.status !== 'paused') {
       const timer = setTimeout(() => {
         setTransferProgress(null);
       }, 3000);
@@ -57,9 +57,23 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     }
   }, [webrtc, transferProgress, toast]);
 
+  const handlePauseTransfer = useCallback(() => {
+    if (webrtc && transferProgress) {
+      webrtc.pauseTransfer(transferProgress.filename);
+    }
+  }, [webrtc, transferProgress]);
+
+  const handleResumeTransfer = useCallback(() => {
+    if (webrtc && transferProgress) {
+      webrtc.resumeTransfer(transferProgress.filename);
+    }
+  }, [webrtc, transferProgress]);
+
   return {
     transferProgress,
     handleProgress,
-    handleCancelReceiving
+    handleCancelReceiving,
+    handlePauseTransfer,
+    handleResumeTransfer
   };
 };
