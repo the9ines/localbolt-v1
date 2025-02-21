@@ -19,9 +19,9 @@ export const TargetPeerInput = ({
   isConnected,
   remotePeerCode
 }: TargetPeerInputProps) => {
-  // When connected, show the remote peer's code
+  // When connected, show the remote peer's code (with fallback to target code)
   // When not connected, show the input value for connecting
-  const displayValue = isConnected ? remotePeerCode : targetPeerCode;
+  const displayValue = isConnected ? (remotePeerCode || targetPeerCode) : targetPeerCode;
   
   return (
     <div className="space-y-2">
@@ -30,7 +30,7 @@ export const TargetPeerInput = ({
       </label>
       <div className="flex space-x-2">
         <Input
-          value={displayValue}
+          value={displayValue || ""}
           onChange={(e) => !isConnected && onTargetPeerCodeChange(e.target.value.toUpperCase())}
           placeholder="Enter Peer Code"
           className="font-mono bg-dark-accent placeholder:text-white/20"
