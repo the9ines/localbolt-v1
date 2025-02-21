@@ -8,7 +8,6 @@ export interface TransferProgress {
   totalChunks: number;
   loaded: number;
   total: number;
-  status?: 'transferring' | 'canceled_by_sender' | 'canceled_by_receiver' | 'error';
 }
 
 export class FileTransferService {
@@ -27,11 +26,11 @@ export class FileTransferService {
   private setupDataChannel() {
     this.dataChannel.onmessage = async (event) => {
       try {
-        const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled, cancelledBy } = JSON.parse(event.data);
+        const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled } = JSON.parse(event.data);
 
         if (type === 'file-chunk') {
           if (cancelled) {
-            console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
+            console.log(`[TRANSFER] Transfer cancelled for ${filename}`);
             delete this.chunksBuffer[filename];
             if (this.onProgress) {
               this.onProgress({
@@ -39,8 +38,7 @@ export class FileTransferService {
                 currentChunk: 0,
                 totalChunks,
                 loaded: 0,
-                total: fileSize,
-                status: cancelledBy === 'sender' ? 'canceled_by_sender' : 'canceled_by_receiver'
+                total: fileSize
               });
             }
             return;
@@ -65,8 +63,7 @@ export class FileTransferService {
                 currentChunk: received,
                 totalChunks,
                 loaded: received * (fileSize / totalChunks),
-                total: fileSize,
-                status: 'transferring'
+                total: fileSize
               });
             }
 
@@ -78,16 +75,6 @@ export class FileTransferService {
             }
           } catch (error) {
             delete this.chunksBuffer[filename];
-            if (this.onProgress) {
-              this.onProgress({
-                filename,
-                currentChunk: 0,
-                totalChunks,
-                loaded: 0,
-                total: fileSize,
-                status: 'error'
-              });
-            }
             throw error;
           }
         }
@@ -98,16 +85,15 @@ export class FileTransferService {
     };
   }
 
-  cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
-    console.log(`[TRANSFER] Cancelling transfer of ${filename} by ${isReceiver ? 'receiver' : 'sender'}`);
+  cancelCurrentTransfer(filename: string) {
+    console.log(`[TRANSFER] Cancelling transfer of ${filename}`);
     this.cancelTransfer = true;
     
     // Notify peer about cancellation
     const message = JSON.stringify({
       type: 'file-chunk',
       filename,
-      cancelled: true,
-      cancelledBy: isReceiver ? 'receiver' : 'sender'
+      cancelled: true
     });
     this.dataChannel.send(message);
     
@@ -170,8 +156,7 @@ export class FileTransferService {
               currentChunk: i + 1,
               totalChunks,
               loaded: end,
-              total: file.size,
-              status: 'transferring'
+              total: file.size
             });
           }
         } catch (error) {
