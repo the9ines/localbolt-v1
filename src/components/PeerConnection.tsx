@@ -8,6 +8,7 @@ import { ConnectionStatus } from "./peer-connection/ConnectionStatus";
 import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 import { useWebRTCConnection } from "@/hooks/use-webrtc-connection";
+import { FileUpload } from "./file-upload/FileUpload";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -15,7 +16,6 @@ interface PeerConnectionProps {
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
-  const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(null);
   
   const {
     targetPeerCode,
@@ -26,8 +26,14 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     handleConnect
   } = useWebRTCConnection({
     onConnectionChange,
-    onProgress: handleProgress
+    onProgress: (progress) => {
+      if (webrtc) {
+        handleProgress(progress);
+      }
+    }
   });
+
+  const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
 
   useEffect(() => {
     if (!peerCode) {
@@ -61,6 +67,12 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           isConnected={isConnected}
         />
       </div>
+
+      {isConnected && webrtc && (
+        <div className="animate-fade-up">
+          <FileUpload webrtc={webrtc} />
+        </div>
+      )}
 
       {transferProgress && (
         <div className="space-y-2 animate-fade-up">
