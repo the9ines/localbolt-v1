@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { FileUpload } from "@/components/file-upload/FileUpload";
 import { PeerConnection } from "@/components/PeerConnection";
@@ -39,32 +38,32 @@ const Index = () => {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-4xl mx-auto animate-fade-up">
-            <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-xl shadow-black/20">
+            <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-2xl shadow-black/30">
               <Shield className="w-8 h-8 text-neon mx-auto" />
               <h2 className="text-base md:text-lg font-semibold text-center">End-to-End Encrypted</h2>
               <p className="text-xs md:text-sm text-gray-400 text-center">Your files never touch any servers</p>
             </Card>
 
-            <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-xl shadow-black/20">
+            <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-2xl shadow-black/30">
               <Wifi className="w-8 h-8 text-neon mx-auto" />
               <h2 className="text-base md:text-lg font-semibold text-center">Direct P2P Transfer</h2>
               <p className="text-xs md:text-sm text-gray-400 text-center">Secure device-to-device sharing</p>
             </Card>
 
-            <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-xl shadow-black/20">
+            <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-2xl shadow-black/30">
               <Database className="w-8 h-8 text-neon mx-auto" />
               <h2 className="text-base md:text-lg font-semibold text-center">No Storage Limits</h2>
               <p className="text-xs md:text-sm text-gray-400 text-center">Share files of any size</p>
             </Card>
 
-            <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-xl shadow-black/20">
+            <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-2xl shadow-black/30">
               <Zap className="w-8 h-8 text-neon mx-auto" />
               <h2 className="text-base md:text-lg font-semibold text-center">Cross Platform</h2>
               <p className="text-xs md:text-sm text-gray-400 text-center">Works on all devices & browsers</p>
             </Card>
           </div>
 
-          <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6 shadow-2xl shadow-black/20">
+          <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6 shadow-2xl shadow-black/40">
             <div className="space-y-2 text-center">
               <h2 className="text-2xl font-semibold tracking-tight">
                 Fast, Private File Transfer
