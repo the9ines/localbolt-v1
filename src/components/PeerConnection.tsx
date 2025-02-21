@@ -1,6 +1,5 @@
-
 import { useState, useEffect, useCallback } from "react";
-import { Shield, Gamepad } from "lucide-react";
+import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { WebRTCError } from "@/types/webrtc-errors";
@@ -126,8 +125,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
         <Shield className="w-5 h-5" />
         <span className="text-sm">End-to-End Encrypted</span>
-        <Gamepad className="w-5 h-5 ml-2" />
-        <span className="text-sm">Steam Deck Ready</span>
       </div>
       
       <div className="space-y-4 touch-manipulation">
