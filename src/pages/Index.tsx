@@ -10,11 +10,16 @@ import { Shield, Wifi, Database, Zap } from "lucide-react";
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [isSender, setIsSender] = useState(false);
 
   const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
     setIsConnected(connected);
     if (service) {
       setWebrtc(service);
+      // Set as sender only if we initiated the connection
+      setIsSender(true);
+    } else if (!connected) {
+      setIsSender(false);
     }
   };
 
@@ -73,7 +78,7 @@ const Index = () => {
 
             <PeerConnection onConnectionChange={handleConnectionChange} />
             
-            {isConnected && webrtc && (
+            {isConnected && webrtc && isSender && (
               <div className="animate-fade-in">
                 <FileUpload webrtc={webrtc} />
               </div>
