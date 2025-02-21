@@ -1,4 +1,3 @@
-
 import { ConnectionError } from '@/types/webrtc-errors';
 
 export class ConnectionManager {
@@ -37,11 +36,6 @@ export class ConnectionManager {
           credential: 'openrelayproject',
         }
       ],
-      iceCandidatePoolSize: 10,
-      iceTransportPolicy: 'all',
-      bundlePolicy: 'max-bundle',
-      rtcpMuxPolicy: 'require',
-      // Added additional configuration for mobile compatibility
       iceTransportPolicy: 'all',
       iceCandidatePoolSize: 10,
       bundlePolicy: 'max-bundle',
