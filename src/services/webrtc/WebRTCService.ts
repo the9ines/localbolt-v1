@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -97,7 +96,7 @@ class WebRTCService {
         this.remotePeerCode = remotePeerCode;
         const peerConnection = await this.connectionManager.createPeerConnection();
         
-        // Create data channel
+        // Create data channel with only maxRetransmits
         const dataChannel = peerConnection.createDataChannel('fileTransfer', {
           ordered: true,
           maxRetransmits: 3
