@@ -83,24 +83,41 @@ class WebRTCService {
     this.connectionStateHandler.handleConnectionStateChange(state, this.remotePeerCode);
   }
 
-  private async handleSignal(signal: SignalData) {
-    if (signal.to !== this.localPeerCode) return;
-
+  async connect(remotePeerCode: string): Promise<void> {
     try {
-      if (signal.from && !this.remotePeerCode) {
-        this.remotePeerCode = signal.from;
-        this.connectionStateHandler.handleConnectionStateChange('connecting', signal.from);
-      }
+      this.remotePeerCode = remotePeerCode;
+      const peerConnection = await this.connectionManager.createPeerConnection();
+      
+      const dataChannel = peerConnection.createDataChannel('fileTransfer', {
+        ordered: true,
+        maxRetransmits: 3
+      });
+      
+      this.dataChannelManager.setupDataChannel(dataChannel);
+      
+      peerConnection.ondatachannel = (event) => {
+        console.log('[WEBRTC] Received data channel');
+        this.dataChannelManager.setupDataChannel(event.channel);
+      };
 
-      if (signal.type === 'disconnect') {
-        this.handleDisconnection();
-        return;
-      }
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      console.log('[SIGNALING] Created and set local description (offer)');
+      
+      await this.signalingService.sendSignal('offer', {
+        offer,
+        publicKey: this.encryptionService.getPublicKey()
+      }, remotePeerCode);
 
-      await this.signalingHandler.handleSignal(signal);
+      peerConnection.onconnectionstatechange = () => {
+        const state = peerConnection.connectionState;
+        console.log('[WEBRTC] Connection state changed:', state);
+        this.handleConnectionStateChange(state);
+      };
+
     } catch (error) {
-      console.error('[SIGNALING] Handler error:', error);
-      throw error;
+      this.handleDisconnection();
+      throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
     }
   }
 
@@ -134,58 +151,6 @@ class WebRTCService {
 
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
     this.connectionStateHandler.setConnectionStateHandler(handler);
-  }
-
-  async connect(remotePeerCode: string): Promise<void> {
-    try {
-      this.remotePeerCode = remotePeerCode;
-      const peerConnection = await this.connectionManager.createPeerConnection();
-      
-      const dataChannel = peerConnection.createDataChannel('fileTransfer', {
-        ordered: true,
-        maxRetransmits: 3
-      });
-      
-      this.dataChannelManager.setupDataChannel(dataChannel);
-      
-      peerConnection.ondatachannel = (event) => {
-        console.log('[WEBRTC] Received data channel');
-        this.dataChannelManager.setupDataChannel(event.channel);
-      };
-
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      console.log('[SIGNALING] Created and set local description (offer)');
-      
-      await this.signalingService.sendSignal('offer', {
-        offer,
-        publicKey: this.encryptionService.getPublicKey()
-      }, remotePeerCode);
-
-      peerConnection.onconnectionstatechange = () => {
-        const state = peerConnection.connectionState;
-        console.log('[WEBRTC] Connection state changed:', state);
-        
-        if (state === 'connected') {
-          console.log('[WEBRTC] Connection established successfully');
-          this.connectionAttempts = 0;
-          if (this.connectionStateListener) {
-            this.connectionStateListener('connected');
-          }
-        } else if (state === 'failed' || state === 'closed') {
-          console.error('[WEBRTC] Connection failed:', state);
-          throw new ConnectionError("WebRTC connection failed", { state });
-        }
-      };
-
-    } catch (error) {
-      this.handleDisconnection();
-      throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
-    }
-  }
-
-  setProgressCallback(callback: (progress: TransferProgress) => void) {
-    this.onProgressCallback = callback;
   }
 
   async sendFile(file: File) {

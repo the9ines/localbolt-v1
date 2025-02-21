@@ -1,3 +1,4 @@
+
 import { ConnectionError } from '@/types/webrtc-errors';
 
 export class ConnectionManager {
@@ -147,7 +148,7 @@ export class ConnectionManager {
     return this.peerConnection;
   }
 
-  getConnectionTimeout(): number {
-    return this.connectionTimeout;
+  setConnectionStateChangeCallback(callback: (state: RTCPeerConnectionState) => void) {
+    this.connectionStateChangeCallback = callback;
   }
 }
