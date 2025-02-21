@@ -68,11 +68,14 @@ class WebRTCService {
 
     this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
       console.log('[CONNECTION] State changed:', state);
+      if (state === 'connected') {
+        console.log('[CONNECTION] Connected, updating remote peer code:', this.remotePeerCode);
+        if (this.onRemotePeerCodeUpdate) {
+          this.onRemotePeerCodeUpdate(this.remotePeerCode);
+        }
+      }
       if (this.connectionStateListener) {
         this.connectionStateListener(state);
-      }
-      if (state === 'connected' && this.onRemotePeerCodeUpdate) {
-        this.onRemotePeerCodeUpdate(this.remotePeerCode);
       }
     });
   }
@@ -180,10 +183,20 @@ class WebRTCService {
     this.encryptionService.reset();
     this.remotePeerCode = '';
     this.connectionAttempts = 0;
+    if (this.onRemotePeerCodeUpdate) {
+      this.onRemotePeerCodeUpdate('');
+    }
     this.connectionStateListener = undefined;
   }
 
   private handleSignal = async (signal: SignalData) => {
+    if (signal.from && !this.remotePeerCode) {
+      console.log('[SIGNALING] Setting remote peer code from signal:', signal.from);
+      this.remotePeerCode = signal.from;
+      if (this.onRemotePeerCodeUpdate) {
+        this.onRemotePeerCodeUpdate(signal.from);
+      }
+    }
     await this.signalingHandler.handleSignal(signal);
   };
 

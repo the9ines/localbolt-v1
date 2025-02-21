@@ -28,13 +28,24 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     const connected = state === 'connected';
     setIsConnected(connected);
     onConnectionChange(connected, webrtc || undefined);
+
+    if (!connected) {
+      setRemotePeerCode("");
+      setTargetPeerCode("");
+    }
   }, [onConnectionChange, webrtc]);
 
   const handleRemotePeerCode = useCallback((code: string) => {
     console.log('[UI] Remote peer code updated:', code);
-    setRemotePeerCode(code);
-    setTargetPeerCode(code);
-  }, []);
+    if (code) {
+      setRemotePeerCode(code);
+      setTargetPeerCode(code);
+      setIsConnected(true);
+      if (webrtc) {
+        onConnectionChange(true, webrtc);
+      }
+    }
+  }, [webrtc, onConnectionChange]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
