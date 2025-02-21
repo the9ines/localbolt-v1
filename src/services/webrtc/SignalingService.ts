@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SignalingError } from "@/types/webrtc-errors";
 
 export interface SignalData {
-  type: 'offer' | 'answer' | 'ice-candidate' | 'disconnect';
+  type: 'offer' | 'answer' | 'ice-candidate';
   data: any;
   from: string;
   to: string;

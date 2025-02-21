@@ -8,7 +8,7 @@ import { FileList } from "./FileList";
 import { TransferProgressBar } from "./TransferProgress";
 
 interface FileUploadProps {
-  webrtc?: WebRTCService;
+  webrtc?: typeof WebRTCService;
 }
 
 export const FileUpload = ({ webrtc }: FileUploadProps) => {
@@ -61,6 +61,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
   const cancelTransfer = () => {
     if (webrtc && progress) {
+      console.log('Cancelling transfer for:', progress.filename);
       webrtc.cancelTransfer(progress.filename);
       setProgress(null);
       toast({
@@ -86,7 +87,8 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
       console.log('Starting transfer for:', file.name);
       
-      const CHUNK_SIZE = 16384;
+      // Calculate initial progress state
+      const CHUNK_SIZE = 16384; // Must match the chunk size in FileTransferService
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       
       setProgress({
@@ -97,6 +99,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         total: file.size
       });
 
+      // Set up progress callback before starting transfer
       webrtc.setProgressCallback((transferProgress: TransferProgress) => {
         console.log('[TRANSFER] Progress update in UI:', transferProgress);
         setProgress(transferProgress);
@@ -111,7 +114,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
       });
 
       setFiles(prevFiles => prevFiles.slice(1));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Transfer error:', error);
       if (error.message === "Transfer cancelled by user") {
         // Already handled by cancelTransfer

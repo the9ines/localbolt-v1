@@ -4,7 +4,7 @@ import { ConnectionError } from '@/types/webrtc-errors';
 export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
-  private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
+  private readonly connectionTimeout: number = 30000; // 30 seconds timeout
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
@@ -16,6 +16,7 @@ export class ConnectionManager {
     console.log('[WEBRTC] Creating peer connection');
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
+        // Improved STUN/TURN server configuration for better connectivity
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
@@ -38,6 +39,7 @@ export class ConnectionManager {
         }
       ],
       iceCandidatePoolSize: 10,
+      // Optimize for reliability over speed for Steam Deck's varying network conditions
       iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require'
@@ -65,7 +67,7 @@ export class ConnectionManager {
         console.log('[ICE] Negotiating connection...');
       } else if (state === 'connected' || state === 'completed') {
         console.log('[ICE] Connection established');
-      } else if (state === 'failed') {
+      } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
         console.error('[ICE] Connection failed:', state);
         this.onError(new ConnectionError("ICE connection failed", { state }));
       }
@@ -75,8 +77,13 @@ export class ConnectionManager {
       const state = this.peerConnection?.connectionState;
       console.log('[WEBRTC] Connection state:', state);
       
-      if (state && this.connectionStateChangeCallback) {
-        this.connectionStateChangeCallback(state);
+      if (state === 'connecting') {
+        console.log('[WEBRTC] Establishing connection...');
+      } else if (state === 'connected') {
+        console.log('[WEBRTC] Connection established successfully');
+      } else if (state === 'failed' || state === 'closed') {
+        console.error('[WEBRTC] Connection failed:', state);
+        this.onError(new ConnectionError("WebRTC connection failed", { state }));
       }
     };
 
@@ -148,7 +155,7 @@ export class ConnectionManager {
     return this.peerConnection;
   }
 
-  setConnectionStateChangeCallback(callback: (state: RTCPeerConnectionState) => void) {
-    this.connectionStateChangeCallback = callback;
+  getConnectionTimeout(): number {
+    return this.connectionTimeout;
   }
 }

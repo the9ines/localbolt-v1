@@ -20,13 +20,6 @@ export class SignalingHandler {
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
     
     const peerConnection = await this.connectionManager.createPeerConnection();
-    
-    // Set up data channel handler for the receiving peer
-    peerConnection.ondatachannel = (event) => {
-      console.log('[SIGNALING] Received data channel in offer handler');
-      this.onDataChannel(event.channel);
-    };
-    
     const offerDesc = new RTCSessionDescription(signal.data.offer);
     await peerConnection.setRemoteDescription(offerDesc);
     console.log('[SIGNALING] Set remote description (offer)');
@@ -88,6 +81,7 @@ export class SignalingHandler {
   private async handleIceCandidate(signal: SignalData) {
     const peerConnection = this.connectionManager.getPeerConnection();
     
+    // Always queue the candidate if there's no connection or remote description isn't set
     if (!peerConnection || !peerConnection.remoteDescription) {
       console.log('[ICE] Queuing candidate - no connection or remote description');
       this.pendingCandidates.push(signal.data);

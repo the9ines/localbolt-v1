@@ -6,16 +6,12 @@ interface TargetPeerInputProps {
   targetPeerCode: string;
   onTargetPeerCodeChange: (value: string) => void;
   onConnect: () => void;
-  onDisconnect?: () => void;
-  isConnected: boolean;
 }
 
 export const TargetPeerInput = ({
   targetPeerCode,
   onTargetPeerCodeChange,
-  onConnect,
-  onDisconnect,
-  isConnected
+  onConnect
 }: TargetPeerInputProps) => {
   return (
     <div className="space-y-2">
@@ -29,14 +25,9 @@ export const TargetPeerInput = ({
           placeholder="Enter peer code"
           className="font-mono bg-dark-accent placeholder:text-white/20"
           maxLength={6}
-          disabled={isConnected}
         />
-        <Button 
-          variant="outline"
-          onClick={isConnected ? onDisconnect : onConnect} 
-          className="shrink-0 hover:bg-neon hover:text-black transition-colors"
-        >
-          {isConnected ? 'Disconnect' : 'Connect'}
+        <Button onClick={onConnect} className="shrink-0 bg-neon text-black hover:bg-neon/90">
+          Connect
         </Button>
       </div>
     </div>

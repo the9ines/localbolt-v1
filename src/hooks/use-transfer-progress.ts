@@ -1,10 +1,9 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { TransferProgress } from '@/services/webrtc/FileTransferService';
 import WebRTCService from '@/services/webrtc/WebRTCService';
 
-export const useTransferProgress = (webrtc: WebRTCService | null) => {
+export const useTransferProgress = (webrtc: typeof WebRTCService | null) => {
   const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
 
