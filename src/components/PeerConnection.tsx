@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -6,6 +7,7 @@ import { WebRTCError } from "@/types/webrtc-errors";
 import { TransferProgressBar } from "./file-upload/TransferProgress";
 import { PeerCodeInput } from "./peer-connection/PeerCodeInput";
 import { TargetPeerInput } from "./peer-connection/TargetPeerInput";
+import { DeviceStatusIndicator } from "./peer-connection/DeviceStatusIndicator";
 import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 
@@ -16,10 +18,26 @@ interface PeerConnectionProps {
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [deviceType, setDeviceType] = useState<"phone" | "laptop" | "pc" | "steamdeck">("pc");
   const { toast } = useToast();
   
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
+
+  useEffect(() => {
+    // Device type detection
+    const ua = navigator.userAgent.toLowerCase();
+    if (/mobile|android|iphone|ipad|ipod/.test(ua)) {
+      setDeviceType("phone");
+    } else if (/macintosh|mac os x/.test(ua)) {
+      setDeviceType("laptop");
+    } else if (/steamdeck/.test(ua)) {
+      setDeviceType("steamdeck");
+    } else {
+      setDeviceType("pc");
+    }
+  }, []);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -39,6 +57,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   const handleError = useCallback((error: WebRTCError) => {
     console.error(`[${error.name}]`, error.message, error.details);
+    setIsConnected(false);
     
     let title = "Connection Error";
     let description = "Failed to establish connection";
@@ -77,6 +96,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
     return () => {
       rtcService.disconnect();
+      setIsConnected(false);
     };
   }, [handleFileReceive, handleError, handleProgress, setPeerCode]);
 
@@ -99,6 +119,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
       
       await webrtc.connect(targetPeerCode);
+      setIsConnected(true);
       onConnectionChange(true, webrtc);
       
       toast({
@@ -106,6 +127,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Secure connection established",
       });
     } catch (error) {
+      setIsConnected(false);
       if (error instanceof WebRTCError) {
         handleError(error);
       } else {
@@ -132,7 +154,12 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           peerCode={peerCode}
           copied={copied}
           onCopy={copyToClipboard}
-        />
+        >
+          <DeviceStatusIndicator
+            deviceType={deviceType}
+            isConnected={isConnected}
+          />
+        </PeerCodeInput>
 
         <TargetPeerInput
           targetPeerCode={targetPeerCode}
