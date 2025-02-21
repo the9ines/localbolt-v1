@@ -165,10 +165,19 @@ export const useWebRTCConnection = (
         handleRemotePeerCode
       );
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
+
+      // Listen for disconnect signals from the other peer
+      const handleBeforeUnload = () => {
+        console.log('[WEBRTC] Page unloading, cleaning up...');
+        rtcService.disconnect();
+      };
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
       setWebrtc(rtcService);
 
       return () => {
         console.log('[WEBRTC] Cleaning up service');
+        window.removeEventListener('beforeunload', handleBeforeUnload);
         rtcService.disconnect();
         setIsConnected(false);
         onConnectionChange(false);

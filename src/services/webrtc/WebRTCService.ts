@@ -80,6 +80,40 @@ class WebRTCService {
     });
   }
 
+  private async handleSignal(signal: SignalData) {
+    if (signal.to !== this.localPeerCode) return;
+    console.log('[SIGNALING] Processing signal:', signal.type, 'from:', signal.from);
+
+    try {
+      if (signal.from && !this.remotePeerCode) {
+        console.log('[SIGNALING] Setting remote peer code from signal:', signal.from);
+        this.remotePeerCode = signal.from;
+        if (this.onRemotePeerCodeUpdate) {
+          this.onRemotePeerCodeUpdate(signal.from);
+        }
+      }
+
+      switch (signal.type) {
+        case 'offer':
+          await this.signalingHandler.handleSignal(signal);
+          break;
+        case 'answer':
+          await this.signalingHandler.handleSignal(signal);
+          // After receiving answer, both peers are ready
+          if (this.connectionStateListener) {
+            this.connectionStateListener('connected');
+          }
+          break;
+        case 'ice-candidate':
+          await this.signalingHandler.handleSignal(signal);
+          break;
+      }
+    } catch (error) {
+      console.error('[SIGNALING] Handler error:', error);
+      throw error;
+    }
+  }
+
   private handleError(error: WebRTCError) {
     console.error(`[${error.name}]`, error.message, error.details);
     
@@ -143,6 +177,15 @@ class WebRTCService {
             reject(new ConnectionError("Connection failed"));
           }
         };
+
+        // Set up beforeunload event listener
+        window.addEventListener('beforeunload', () => {
+          console.log('[WEBRTC] Page unloading, disconnecting...');
+          this.disconnect();
+          this.signalingService.sendSignal('disconnect', {}, this.remotePeerCode)
+            .catch(console.error);
+        });
+
       } catch (error) {
         reject(new ConnectionError("Failed to initiate connection", error));
       }
@@ -181,6 +224,13 @@ class WebRTCService {
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
     this.encryptionService.reset();
+    
+    // Notify the other peer about disconnection
+    if (this.remotePeerCode) {
+      this.signalingService.sendSignal('disconnect', {}, this.remotePeerCode)
+        .catch(console.error);
+    }
+    
     this.remotePeerCode = '';
     this.connectionAttempts = 0;
     if (this.onRemotePeerCodeUpdate) {
@@ -188,17 +238,6 @@ class WebRTCService {
     }
     this.connectionStateListener = undefined;
   }
-
-  private handleSignal = async (signal: SignalData) => {
-    if (signal.from && !this.remotePeerCode) {
-      console.log('[SIGNALING] Setting remote peer code from signal:', signal.from);
-      this.remotePeerCode = signal.from;
-      if (this.onRemotePeerCodeUpdate) {
-        this.onRemotePeerCodeUpdate(signal.from);
-      }
-    }
-    await this.signalingHandler.handleSignal(signal);
-  };
 
   getRemotePeerCode(): string {
     return this.remotePeerCode;
