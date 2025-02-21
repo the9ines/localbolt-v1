@@ -1,5 +1,5 @@
 
-import { TransferError, TransferErrorCode } from '@/types/webrtc-errors';
+import { TransferError } from '@/types/webrtc-errors';
 import { EncryptionService } from './EncryptionService';
 import { ChunkProcessor } from './transfer/ChunkProcessor';
 import { TransferManager } from './transfer/TransferManager';
@@ -71,11 +71,7 @@ export class FileTransferService {
         }
       } catch (error) {
         console.error('[TRANSFER] Error processing message:', error);
-        throw new TransferError(
-          "Failed to process received data",
-          TransferErrorCode.INVALID_CHUNK,
-          error
-        );
+        throw new TransferError("Failed to process received data", error);
       }
     };
   }
@@ -96,10 +92,7 @@ export class FileTransferService {
       for (let i = 0; i < totalChunks; i++) {
         if (this.cancelTransfer) {
           console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
-          throw new TransferError(
-            "Transfer cancelled by user",
-            TransferErrorCode.TRANSFER_CANCELLED
-          );
+          throw new TransferError("Transfer cancelled by user");
         }
 
         const start = i * CHUNK_SIZE;
@@ -134,10 +127,7 @@ export class FileTransferService {
 
           if (this.cancelTransfer) {
             console.log(`[TRANSFER] Transfer cancelled during send at chunk ${i + 1}/${totalChunks}`);
-            throw new TransferError(
-              "Transfer cancelled by user",
-              TransferErrorCode.TRANSFER_CANCELLED
-            );
+            throw new TransferError("Transfer cancelled by user");
           }
 
           this.dataChannel.send(message);
@@ -156,7 +146,6 @@ export class FileTransferService {
         } catch (error) {
           throw new TransferError(
             "Failed to send file chunk",
-            TransferErrorCode.NETWORK_ERROR,
             { chunkIndex: i, totalChunks, error }
           );
         }
@@ -164,11 +153,7 @@ export class FileTransferService {
       console.log(`[TRANSFER] Completed sending ${file.name}`);
     } catch (error) {
       console.error('[TRANSFER] Error sending file:', error);
-      throw error instanceof Error ? error : new TransferError(
-        "Failed to send file",
-        TransferErrorCode.NETWORK_ERROR,
-        error
-      );
+      throw error instanceof Error ? error : new TransferError("Failed to send file", error);
     }
   }
 }

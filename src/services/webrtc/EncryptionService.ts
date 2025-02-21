@@ -1,35 +1,71 @@
 
+import { box, randomBytes } from 'tweetnacl';
+import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
+import { EncryptionError } from '@/types/webrtc-errors';
+
 export class EncryptionService {
-  private publicKey: CryptoKey | null = null;
-  private remotePublicKey: CryptoKey | null = null;
+  private keyPair: { publicKey: Uint8Array; secretKey: Uint8Array };
+  private remotePeerPublicKey: Uint8Array | null = null;
 
-  async encrypt(data: ArrayBuffer): Promise<ArrayBuffer> {
-    // For now, return the data as-is
-    return data;
+  constructor() {
+    this.keyPair = box.keyPair();
   }
 
-  async decrypt(data: ArrayBuffer): Promise<ArrayBuffer> {
-    // For now, return the data as-is
-    return data;
+  getPublicKey(): string {
+    return encodeBase64(this.keyPair.publicKey);
   }
 
-  async encryptChunk(chunk: Uint8Array): Promise<ArrayBuffer> {
-    // For now, return the chunk as ArrayBuffer
-    return chunk.buffer;
+  setRemotePublicKey(publicKeyBase64: string) {
+    this.remotePeerPublicKey = decodeBase64(publicKeyBase64);
   }
 
-  async decryptChunk(chunk: ArrayBuffer): Promise<ArrayBuffer> {
-    // For now, return the chunk as-is
-    return chunk;
+  async encryptChunk(chunk: Uint8Array): Promise<Uint8Array> {
+    console.log('[ENCRYPTION] Encrypting chunk');
+    if (!this.remotePeerPublicKey) {
+      throw new EncryptionError("No remote peer public key available");
+    }
+    
+    try {
+      const nonce = randomBytes(box.nonceLength);
+      const encryptedChunk = box(
+        chunk,
+        nonce,
+        this.remotePeerPublicKey,
+        this.keyPair.secretKey
+      );
+      return new Uint8Array([...nonce, ...encryptedChunk]);
+    } catch (error) {
+      throw new EncryptionError("Failed to encrypt chunk", error);
+    }
   }
 
-  async getPublicKey(): Promise<string> {
-    // For now, return a placeholder
-    return 'dummy-public-key';
+  async decryptChunk(encryptedData: Uint8Array): Promise<Uint8Array> {
+    console.log('[ENCRYPTION] Decrypting chunk');
+    if (!this.remotePeerPublicKey) {
+      throw new EncryptionError("No remote peer public key available");
+    }
+    
+    try {
+      const nonce = encryptedData.slice(0, box.nonceLength);
+      const encryptedChunk = encryptedData.slice(box.nonceLength);
+      const decryptedChunk = box.open(
+        encryptedChunk,
+        nonce,
+        this.remotePeerPublicKey,
+        this.keyPair.secretKey
+      );
+      
+      if (!decryptedChunk) {
+        throw new EncryptionError("Decryption failed");
+      }
+      
+      return decryptedChunk;
+    } catch (error) {
+      throw new EncryptionError("Failed to decrypt chunk", error);
+    }
   }
 
-  async setRemotePublicKey(key: string): Promise<void> {
-    // For now, just store the key
-    console.log('Setting remote public key:', key);
+  reset() {
+    this.remotePeerPublicKey = null;
   }
 }
