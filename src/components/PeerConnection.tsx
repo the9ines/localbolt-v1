@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -27,27 +28,16 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     const connected = state === 'connected';
     setIsConnected(connected);
     onConnectionChange(connected, webrtc || undefined);
+    
+    if (!connected) {
+      setTargetPeerCode(""); // Reset target peer code on disconnect
+    }
   }, [onConnectionChange, webrtc]);
 
-  const handleFileReceive = useCallback((file: Blob, filename: string) => {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    toast({
-      title: "File received",
-      description: `Successfully received ${filename}`,
-    });
-  }, [toast]);
-
-  const handleError = useCallback((error: WebRTCError) => {
+  const handleConnectionError = useCallback((error: WebRTCError) => {
     console.error(`[${error.name}]`, error.message, error.details);
     setIsConnected(false);
+    setTargetPeerCode(""); // Reset target peer code on error
     onConnectionChange(false);
     
     let title = "Connection Error";
@@ -79,25 +69,25 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     });
   }, [toast, onConnectionChange]);
 
-  const handleDisconnect = () => {
+  const handleDisconnect = useCallback(() => {
     if (webrtc) {
       webrtc.disconnect();
       setIsConnected(false);
+      setTargetPeerCode(""); // Reset target peer code when disconnecting
       onConnectionChange(false);
-      setTargetPeerCode("");
       toast({
         title: "Disconnected",
         description: "Connection closed successfully",
       });
     }
-  };
+  }, [webrtc, toast, onConnectionChange]);
 
   useEffect(() => {
     if (!webrtc) {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
       console.log('[WEBRTC] Creating new service with code:', code);
-      const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+      const rtcService = new WebRTCService(code, handleFileReceive, handleConnectionError, handleProgress);
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
       setWebrtc(rtcService);
 
@@ -143,7 +133,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     } catch (error) {
       setIsConnected(false);
       if (error instanceof WebRTCError) {
-        handleError(error);
+        handleConnectionError(error);
       } else {
         console.error('[UNEXPECTED]', error);
         toast({
@@ -155,6 +145,22 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       onConnectionChange(false);
     }
   };
+
+  const handleFileReceive = useCallback((file: Blob, filename: string) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "File received",
+      description: `Successfully received ${filename}`,
+    });
+  }, [toast]);
 
   return (
     <div className="space-y-4">
@@ -180,6 +186,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           isConnected={isConnected}
+          remotePeerCode="Enter peer code"
         />
       </div>
 
