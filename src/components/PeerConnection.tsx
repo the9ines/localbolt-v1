@@ -79,16 +79,21 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   }, [toast]);
 
   useEffect(() => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
-    rtcService.setConnectionStateHandler(handleConnectionStateChange);
-    setWebrtc(rtcService);
+    // Only create WebRTCService if we don't have one yet
+    if (!webrtc) {
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setPeerCode(code);
+      console.log('[WEBRTC] Creating new service with code:', code);
+      const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+      rtcService.setConnectionStateHandler(handleConnectionStateChange);
+      setWebrtc(rtcService);
 
-    return () => {
-      rtcService.disconnect();
-    };
-  }, [handleFileReceive, handleError, handleProgress, setPeerCode, handleConnectionStateChange]);
+      return () => {
+        console.log('[WEBRTC] Cleaning up service');
+        rtcService.disconnect();
+      };
+    }
+  }, []); // Empty dependency array since we only want this to run once
 
   const handleConnect = async () => {
     if (!webrtc) return;
