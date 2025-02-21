@@ -85,6 +85,10 @@ class WebRTCService {
     this.retryHandler.handleError(error, this.remotePeerCode);
   }
 
+  getRemotePeerCode(): string {
+    return this.remotePeerCode;
+  }
+
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
