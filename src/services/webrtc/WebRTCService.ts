@@ -109,7 +109,8 @@ class WebRTCService {
         
         await this.signalingService.sendSignal('offer', {
           offer,
-          publicKey: this.encryptionService.getPublicKey()
+          publicKey: this.encryptionService.getPublicKey(),
+          peerCode: this.localPeerCode
         }, remotePeerCode);
 
         peerConnection.onconnectionstatechange = () => {

@@ -19,7 +19,7 @@ export class SignalingHandler {
   private async handleOffer(signal: SignalData) {
     console.log('[SIGNALING] Received offer from peer:', signal.from);
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-    this.remotePeerCode = signal.from; // Store remote peer code
+    this.remotePeerCode = signal.data.peerCode || signal.from; // Use provided peerCode or fallback to from
     
     const peerConnection = await this.connectionManager.createPeerConnection();
     const offerDesc = new RTCSessionDescription(signal.data.offer);
@@ -33,17 +33,16 @@ export class SignalingHandler {
     await this.signalingService.sendSignal('answer', {
       answer,
       publicKey: this.encryptionService.getPublicKey(),
-      peerCode: this.localPeerCode // Include local peer code in answer
+      peerCode: this.localPeerCode // Always include local peer code
     }, signal.from);
 
-    // Process any pending candidates after setting descriptions
     await this.processPendingCandidates();
   }
 
   private async handleAnswer(signal: SignalData) {
     console.log('[SIGNALING] Received answer from peer:', signal.from);
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-    this.remotePeerCode = signal.from; // Store remote peer code
+    this.remotePeerCode = signal.data.peerCode || signal.from; // Use provided peerCode or fallback to from
     
     const peerConnection = this.connectionManager.getPeerConnection();
     if (!peerConnection) {
@@ -53,8 +52,6 @@ export class SignalingHandler {
     if (peerConnection.signalingState === 'have-local-offer') {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
       console.log('[SIGNALING] Set remote description (answer)');
-      
-      // Process any pending candidates after setting descriptions
       await this.processPendingCandidates();
     } else {
       throw new ConnectionError(
@@ -85,7 +82,6 @@ export class SignalingHandler {
   private async handleIceCandidate(signal: SignalData) {
     const peerConnection = this.connectionManager.getPeerConnection();
     
-    // Always queue the candidate if there's no connection or remote description isn't set
     if (!peerConnection || !peerConnection.remoteDescription) {
       console.log('[ICE] Queuing candidate - no connection or remote description');
       this.pendingCandidates.push(signal.data);
