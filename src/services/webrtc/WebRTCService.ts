@@ -1,22 +1,22 @@
-import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
+
+import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
 import { ConnectionManager } from './ConnectionManager';
-import { SignalingHandler } from './SignalingHandler';
 import { DataChannelManager } from './DataChannelManager';
+import { ConnectionStateManager } from './managers/ConnectionStateManager';
+import { SignalingManager } from './managers/SignalingManager';
 import type { TransferProgress } from './types/transfer';
 
 class WebRTCService {
   private remotePeerCode: string = '';
   private connectionManager: ConnectionManager;
-  private signalingHandler: SignalingHandler;
   private dataChannelManager: DataChannelManager;
   private encryptionService: EncryptionService;
   private signalingService: SignalingService;
+  private connectionStateManager: ConnectionStateManager;
+  private signalingManager: SignalingManager;
   private onProgressCallback?: (progress: TransferProgress) => void;
-  private connectionAttempts: number = 0;
-  private maxConnectionAttempts: number = 3;
-  private onConnectionStateChange: (state: RTCPeerConnectionState) => void;
 
   constructor(
     private localPeerCode: string,
@@ -29,20 +29,7 @@ class WebRTCService {
     
     this.encryptionService = new EncryptionService();
     this.onProgressCallback = onProgress;
-    this.onConnectionStateChange = onConnectionStateChange || (() => {});
     
-    this.dataChannelManager = new DataChannelManager(
-      this.encryptionService,
-      this.onReceiveFile,
-      (progress) => {
-        console.log('[TRANSFER] Progress update:', progress);
-        if (this.onProgressCallback) {
-          this.onProgressCallback(progress);
-        }
-      },
-      this.handleError.bind(this)
-    );
-
     this.connectionManager = new ConnectionManager(
       (candidate) => {
         this.signalingService.sendSignal('ice-candidate', candidate, this.remotePeerCode)
@@ -55,58 +42,52 @@ class WebRTCService {
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
+    this.dataChannelManager = new DataChannelManager(
+      this.encryptionService,
+      this.onReceiveFile,
+      (progress) => {
+        console.log('[TRANSFER] Progress update:', progress);
+        if (this.onProgressCallback) {
+          this.onProgressCallback(progress);
+        }
+      },
+      this.handleError.bind(this)
+    );
+
     this.signalingService = new SignalingService(localPeerCode, this.handleSignal.bind(this));
-    
-    this.signalingHandler = new SignalingHandler(
+
+    this.connectionStateManager = new ConnectionStateManager(
+      this.connectionManager,
+      this.onError,
+      onConnectionStateChange || (() => {})
+    );
+
+    this.signalingManager = new SignalingManager(
+      this.signalingService,
       this.connectionManager,
       this.encryptionService,
-      this.signalingService,
       localPeerCode,
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
   }
 
   private handleError(error: WebRTCError) {
-    console.error(`[${error.name}]`, error.message, error.details);
-    
-    if (error instanceof ConnectionError && this.connectionAttempts < this.maxConnectionAttempts) {
-      console.log('[WEBRTC] Connection failed, attempting retry...');
-      this.connectionAttempts++;
-      this.retryConnection();
-    } else {
-      this.onError(error);
-    }
-  }
-
-  private async retryConnection() {
-    console.log('[WEBRTC] Retrying connection, attempt:', this.connectionAttempts);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    try {
-      await this.connect(this.remotePeerCode);
-    } catch (error) {
-      this.handleError(error as WebRTCError);
-    }
+    this.connectionStateManager.handleError(error);
   }
 
   private async handleSignal(signal: SignalData) {
-    if (signal.to !== this.localPeerCode) return;
+    const shouldDisconnect = await this.signalingManager.handleSignal(
+      signal,
+      this.remotePeerCode,
+      this.onConnectionStateChange
+    );
 
-    try {
-      if (signal.from && !this.remotePeerCode) {
-        this.remotePeerCode = signal.from;
-        this.onConnectionStateChange('connecting');
-      }
+    if (shouldDisconnect) {
+      this.disconnect();
+    }
 
-      const signalType = signal.type as string | undefined;
-      if (signalType && signalType === 'disconnect') {
-        this.disconnect();
-        return;
-      }
-
-      await this.signalingHandler.handleSignal(signal);
-    } catch (error) {
-      console.error('[SIGNALING] Handler error:', error);
-      throw error;
+    if (signal.from) {
+      this.remotePeerCode = signal.from;
     }
   }
 
@@ -137,9 +118,8 @@ class WebRTCService {
         peerConnection.onconnectionstatechange = () => {
           const state = peerConnection.connectionState;
           console.log('[WEBRTC] Connection state changed:', state);
-          this.onConnectionStateChange(state);
           if (state === 'connected') {
-            this.connectionAttempts = 0;
+            this.connectionStateManager.resetConnectionAttempts();
             resolve();
           } else if (state === 'failed') {
             reject(new ConnectionError("Connection failed"));
@@ -164,10 +144,6 @@ class WebRTCService {
     }
   }
 
-  setProgressCallback(callback: (progress: TransferProgress) => void) {
-    this.onProgressCallback = callback;
-  }
-
   async sendFile(file: File) {
     console.log('[WEBRTC] Starting file transfer:', file.name);
     await this.dataChannelManager.sendFile(file);
@@ -184,8 +160,7 @@ class WebRTCService {
     this.connectionManager.disconnect();
     this.encryptionService.reset();
     this.remotePeerCode = '';
-    this.connectionAttempts = 0;
-    this.onConnectionStateChange('disconnected');
+    this.connectionStateManager.resetConnectionAttempts();
   }
 
   public getRemotePeerCode(): string {
