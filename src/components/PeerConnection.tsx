@@ -81,14 +81,18 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
-    rtcService.setConnectionStateHandler(handleConnectionStateChange);
+    const rtcService = new WebRTCService(
+      code, 
+      handleFileReceive, 
+      handleError, 
+      handleProgress
+    );
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
     };
-  }, [handleFileReceive, handleError, handleProgress, setPeerCode, handleConnectionStateChange]);
+  }, [handleFileReceive, handleError, handleProgress, setPeerCode]);
 
   const handleConnect = async () => {
     if (!webrtc) return;
