@@ -19,7 +19,9 @@ export class SignalingHandler {
   private async handleOffer(signal: SignalData) {
     console.log('[SIGNALING] Received offer from peer:', signal.from);
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-    this.remotePeerCode = signal.data.peerCode;
+    
+    // Store the remote peer code from the signal sender
+    this.remotePeerCode = signal.from;
     
     const peerConnection = await this.connectionManager.createPeerConnection();
     const offerDesc = new RTCSessionDescription(signal.data.offer);
@@ -34,7 +36,7 @@ export class SignalingHandler {
       answer,
       publicKey: this.encryptionService.getPublicKey(),
       peerCode: this.localPeerCode
-    }, this.remotePeerCode);
+    }, signal.from);
 
     await this.processPendingCandidates();
   }
@@ -42,7 +44,9 @@ export class SignalingHandler {
   private async handleAnswer(signal: SignalData) {
     console.log('[SIGNALING] Received answer from peer:', signal.from);
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-    this.remotePeerCode = signal.data.peerCode;
+    
+    // Store the remote peer code from the signal sender
+    this.remotePeerCode = signal.from;
     
     const peerConnection = this.connectionManager.getPeerConnection();
     if (!peerConnection) {
