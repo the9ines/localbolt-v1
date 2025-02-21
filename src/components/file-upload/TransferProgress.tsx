@@ -61,42 +61,42 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
   const isPaused = progress.status === 'paused';
 
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between text-sm">
+    <div className="space-y-2 w-full">
+      <div className="flex justify-between items-center text-sm w-full">
         <span className="truncate flex-1">{progress.filename}</span>
-        <span>{getStatusText()}</span>
+        <span className="ml-2">{getStatusText()}</span>
       </div>
       
-      <div className="flex space-x-2">
+      <div className="flex items-center space-x-2 w-full">
         <Progress 
           value={(progress.currentChunk / progress.totalChunks) * 100}
           className="h-2 flex-1 bg-neon/20"
         />
-        <div className="flex space-x-1">
+        <div className="flex items-center space-x-1 min-w-[80px] justify-end">
           {showControls && onPause && onResume && (
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={isPaused ? onResume : onPause}
-              className="text-white/50 hover:text-neon transition-colors touch-manipulation"
+              className="h-8 w-8 p-0 flex items-center justify-center text-white/50 hover:text-neon transition-colors touch-manipulation"
               aria-label={isPaused ? "Resume transfer" : "Pause transfer"}
             >
               {isPaused ? (
-                <Play className="w-4 h-4" />
+                <Play className="h-4 w-4" />
               ) : (
-                <Pause className="w-4 h-4" />
+                <Pause className="h-4 w-4" />
               )}
             </Button>
           )}
           {showControls && (
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={onCancel}
-              className="text-white/50 hover:text-red-500 transition-colors touch-manipulation"
+              className="h-8 w-8 p-0 flex items-center justify-center text-white/50 hover:text-red-500 transition-colors touch-manipulation"
               aria-label="Cancel transfer"
             >
-              <X className="w-4 h-4" />
+              <X className="h-4 w-4" />
             </Button>
           )}
         </div>
