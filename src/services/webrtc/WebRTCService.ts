@@ -29,20 +29,44 @@ export default class WebRTCService implements IWebRTCService {
   private encryptionService: EncryptionService;
   private eventListeners: { [event: string]: ((...args: any[]) => void)[] } = {};
   private progressCallback: ((progress: TransferProgress) => void) | null = null;
+  private connectionStateHandler: ((state: RTCPeerConnectionState) => void) | null = null;
 
   constructor(
-    signalingService: SignalingService,
-    private onReceiveFile: (file: Blob, filename: string) => void
+    private localPeerCode: string,
+    private onReceiveFile: (file: Blob, filename: string) => void,
+    private onError: (error: WebRTCError) => void
   ) {
-    this.signalingService = signalingService;
+    this.signalingService = new SignalingService(localPeerCode, this.handleSignal);
     this.encryptionService = new EncryptionService();
 
-    this.signalingService.on('offer', this.handleOffer);
-    this.signalingService.on('answer', this.handleAnswer);
-    this.signalingService.on('ice-candidate', this.handleICECandidate);
-    this.signalingService.on('peer-disconnected', this.handlePeerDisconnected);
+    this.setupSignalingHandlers();
+  }
 
-    console.log('[WEBRTC] Initialized WebRTCService');
+  private setupSignalingHandlers() {
+    this.on('offer', this.handleOffer);
+    this.on('answer', this.handleAnswer);
+    this.on('ice-candidate', this.handleICECandidate);
+    this.on('peer-disconnected', this.handlePeerDisconnected);
+  }
+
+  private async createPeerConnection() {
+    const config: RTCConfiguration = {
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    };
+
+    this.peerConnection = new RTCPeerConnection(config);
+    this.peerConnection.onicecandidate = this.handleICECandidateEvent;
+    this.peerConnection.oniceconnectionstatechange = this.handleICEConnectionStateChangeEvent;
+    this.peerConnection.onconnectionstatechange = this.handleConnectionStateChangeEvent;
+    this.peerConnection.ondatachannel = this.handleDataChannel;
+  }
+
+  public getRemotePeerCode(): string | null {
+    return this.peerId;
+  }
+
+  public setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
+    this.connectionStateHandler = handler;
   }
 
   private handleOffer = async (offer: RTCSessionDescriptionInit, peerId: string) => {
@@ -237,6 +261,19 @@ export default class WebRTCService implements IWebRTCService {
 
   public cancelTransfer(filename: string, isReceiver: boolean = false): void {
     this.dataChannelManager?.cancelTransfer(filename, isReceiver);
+  }
+
+  public on(event: string, callback: (...args: any[]) => void): void {
+    if (!this.eventListeners[event]) {
+      this.eventListeners[event] = [];
+    }
+    this.eventListeners[event].push(callback);
+  }
+
+  public off(event: string, callback: (...args: any[]) => void): void {
+    if (this.eventListeners[event]) {
+      this.eventListeners[event] = this.eventListeners[event].filter(cb => cb !== callback);
+    }
   }
 
   private emit(event: string, ...args: any[]): void {

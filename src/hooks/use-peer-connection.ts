@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import WebRTCService from '@/services/webrtc/WebRTCService';
@@ -8,16 +7,73 @@ export const usePeerConnection = (
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void
 ) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
-  const [connectedPeerCode, setConnectedPeerCode] = useState("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
 
+  const handleConnect = async () => {
+    if (!webrtc) return;
+    
+    if (targetPeerCode.length < 6) {
+      toast({
+        title: "Invalid peer code",
+        description: "Please enter a valid peer code",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setIsConnected(false);
+      onConnectionChange(false);
+      
+      toast({
+        title: "Connecting...",
+        description: "Establishing secure connection",
+      });
+      
+      await webrtc.connectToPeer(targetPeerCode);
+      
+      setIsConnected(true);
+      onConnectionChange(true, webrtc);
+      
+      toast({
+        title: "Connected!",
+        description: "Secure connection established",
+      });
+    } catch (error) {
+      setIsConnected(false);
+      setTargetPeerCode("");
+      if (error instanceof WebRTCError) {
+        handleConnectionError(error);
+      } else {
+        console.error('[UNEXPECTED]', error);
+        toast({
+          title: "Unexpected Error",
+          description: "An unexpected error occurred",
+          variant: "destructive",
+        });
+      }
+      onConnectionChange(false);
+    }
+  };
+
+  const handleDisconnect = useCallback(() => {
+    if (webrtc) {
+      webrtc.disconnect();
+      setIsConnected(false);
+      setTargetPeerCode("");
+      toast({
+        title: "Disconnected",
+        description: "Connection closed successfully",
+      });
+    }
+  }, [webrtc, toast]);
+
   const handleConnectionError = useCallback((error: WebRTCError) => {
     console.error(`[${error.name}]`, error.message, error.details);
     setIsConnected(false);
-    setTargetPeerCode(""); 
-    setConnectedPeerCode("");
+    setTargetPeerCode("");
     onConnectionChange(false);
     
     let title = "Connection Error";
@@ -49,71 +105,9 @@ export const usePeerConnection = (
     });
   }, [toast, onConnectionChange]);
 
-  const handleConnect = async () => {
-    if (!webrtc) return;
-    
-    if (targetPeerCode.length < 6) {
-      toast({
-        title: "Invalid peer code",
-        description: "Please enter a valid peer code",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    try {
-      setIsConnected(false);
-      onConnectionChange(false);
-      
-      toast({
-        title: "Connecting...",
-        description: "Establishing secure connection",
-      });
-      
-      await webrtc.connect(targetPeerCode);
-      
-      setIsConnected(true);
-      onConnectionChange(true, webrtc);
-      
-      toast({
-        title: "Connected!",
-        description: "Secure connection established",
-      });
-    } catch (error) {
-      setIsConnected(false);
-      setConnectedPeerCode("");
-      if (error instanceof WebRTCError) {
-        handleConnectionError(error);
-      } else {
-        console.error('[UNEXPECTED]', error);
-        toast({
-          title: "Unexpected Error",
-          description: "An unexpected error occurred",
-          variant: "destructive",
-        });
-      }
-      onConnectionChange(false);
-    }
-  };
-
-  const handleDisconnect = useCallback(() => {
-    if (webrtc) {
-      webrtc.disconnect();
-      setIsConnected(false);
-      setTargetPeerCode("");
-      setConnectedPeerCode("");
-      onConnectionChange(false);
-      toast({
-        title: "Disconnected",
-        description: "Connection closed successfully",
-      });
-    }
-  }, [webrtc, toast, onConnectionChange]);
-
   return {
     targetPeerCode,
     setTargetPeerCode,
-    connectedPeerCode,
     webrtc,
     setWebrtc,
     isConnected,

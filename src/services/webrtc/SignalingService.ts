@@ -9,9 +9,12 @@ export interface SignalData {
   to: string;
 }
 
-export type SignalHandler = (signal: SignalData) => void;
+type SignalHandler = (signal: any, peerId: string) => void;
+type EventHandler = (...args: any[]) => void;
 
 export class SignalingService {
+  private handlers: { [key: string]: EventHandler[] } = {};
+
   constructor(
     private localPeerId: string,
     private onSignal: SignalHandler
@@ -48,6 +51,39 @@ export class SignalingService {
       });
     } catch (error) {
       throw new SignalingError(`Failed to send ${type} signal`, error);
+    }
+  }
+
+  // Add required signaling methods
+  async sendOffer(offer: RTCSessionDescriptionInit, remotePeerId: string) {
+    await this.sendSignal('offer', { offer }, remotePeerId);
+  }
+
+  async sendAnswer(answer: RTCSessionDescriptionInit, remotePeerId: string) {
+    await this.sendSignal('answer', { answer }, remotePeerId);
+  }
+
+  async sendICECandidate(candidate: RTCIceCandidate, remotePeerId: string) {
+    await this.sendSignal('ice-candidate', candidate, remotePeerId);
+  }
+
+  // Event handling methods
+  on(event: string, handler: EventHandler) {
+    if (!this.handlers[event]) {
+      this.handlers[event] = [];
+    }
+    this.handlers[event].push(handler);
+  }
+
+  off(event: string, handler: EventHandler) {
+    if (this.handlers[event]) {
+      this.handlers[event] = this.handlers[event].filter(h => h !== handler);
+    }
+  }
+
+  emit(event: string, ...args: any[]) {
+    if (this.handlers[event]) {
+      this.handlers[event].forEach(handler => handler(...args));
     }
   }
 }

@@ -1,4 +1,3 @@
-
 import { useEffect } from "react";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { TransferProgressBar } from "./file-upload/TransferProgress";
@@ -17,7 +16,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const {
     targetPeerCode,
     setTargetPeerCode,
-    connectedPeerCode,
     webrtc,
     setWebrtc,
     isConnected,
@@ -43,7 +41,13 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
       console.log('[WEBRTC] Creating new service with code:', code);
-      const rtcService = new WebRTCService(code, handleFileReceive, handleConnectionError, handleProgress);
+      
+      const rtcService = new WebRTCService(
+        code,
+        handleFileReceive,
+        handleConnectionError
+      );
+
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
       setWebrtc(rtcService);
 
@@ -54,7 +58,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         onConnectionChange(false);
       };
     }
-  }, []); // Empty dependency array since we only want this to run once
+  }, []);
 
   const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
     console.log('[UI] Connection state changed:', state);
