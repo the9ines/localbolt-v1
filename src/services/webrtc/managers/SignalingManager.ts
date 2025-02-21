@@ -24,7 +24,7 @@ export class SignalingManager {
   }
 
   async handleSignal(signal: SignalData, remotePeerCode: string, onStateChange: (state: RTCPeerConnectionState) => void) {
-    if (signal.to !== this.localPeerCode) return;
+    if (signal.to !== this.localPeerCode) return false;
 
     try {
       if (signal.from && !remotePeerCode) {
