@@ -13,9 +13,9 @@ const Index = () => {
   const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
     console.log('[UI] Connection change:', connected, !!service);
     setIsConnected(connected);
-    if (service) {
+    if (connected && service) {
       setWebrtc(service);
-    } else if (!connected) {
+    } else {
       setWebrtc(null);
     }
   };
@@ -75,7 +75,7 @@ const Index = () => {
 
             <PeerConnection onConnectionChange={handleConnectionChange} />
             
-            {webrtc && (
+            {isConnected && webrtc && (
               <div className="animate-fade-in">
                 <FileUpload webrtc={webrtc} />
               </div>

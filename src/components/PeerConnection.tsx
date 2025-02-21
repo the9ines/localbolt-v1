@@ -28,9 +28,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
     setIsConnected(connected);
-    onConnectionChange(connected, webrtc || undefined);
-
-    if (!connected) {
+    
+    if (connected && webrtc) {
+      onConnectionChange(true, webrtc);
+    } else {
+      onConnectionChange(false);
       setRemotePeerCode("");
     }
   }, [onConnectionChange, webrtc]);
