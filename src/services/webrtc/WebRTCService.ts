@@ -81,7 +81,16 @@ class WebRTCService {
   }
 
   private handleConnectionStateChange(state: RTCPeerConnectionState) {
-    this.connectionStateHandler.handleConnectionStateChange(state, this.remotePeerCode);
+    console.log('[WEBRTC] Connection state change:', state);
+    if (state === 'connected') {
+      // Ensure UI is updated when connection is established
+      this.connectionStateHandler.handleConnectionStateChange(state, this.remotePeerCode);
+    } else {
+      this.connectionStateHandler.handleConnectionStateChange(state, this.remotePeerCode);
+      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        this.handleDisconnection();
+      }
+    }
   }
 
   private async handleSignal(signal: SignalData) {
@@ -131,6 +140,7 @@ class WebRTCService {
         publicKey: this.encryptionService.getPublicKey()
       }, remotePeerCode);
 
+      // Ensure connection state changes are properly handled
       peerConnection.onconnectionstatechange = () => {
         const state = peerConnection.connectionState;
         console.log('[WEBRTC] Connection state changed:', state);
