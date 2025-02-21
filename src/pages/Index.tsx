@@ -9,9 +9,9 @@ import { Shield, Wifi, Database, Zap } from "lucide-react";
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
-  const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [webrtc, setWebrtc] = useState<typeof WebRTCService | null>(null);
 
-  const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
+  const handleConnectionChange = (connected: boolean, service?: typeof WebRTCService) => {
     setIsConnected(connected);
     if (service) {
       setWebrtc(service);

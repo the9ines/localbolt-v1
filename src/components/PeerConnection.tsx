@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -10,16 +11,24 @@ import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 
 interface PeerConnectionProps {
-  onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
+  onConnectionChange: (connected: boolean, service?: typeof WebRTCService) => void;
 }
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
   
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
+
+  const handleConnectionStateChange = useCallback((state: RTCPeerConnectionState) => {
+    console.log('[UI] Connection state changed:', state);
+    const connected = state === 'connected';
+    setIsConnected(connected);
+    onConnectionChange(connected, webrtc);
+  }, [onConnectionChange, webrtc]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -73,12 +82,13 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
     const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+    rtcService.setConnectionStateHandler(handleConnectionStateChange);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
     };
-  }, [handleFileReceive, handleError, handleProgress, setPeerCode]);
+  }, [handleFileReceive, handleError, handleProgress, setPeerCode, handleConnectionStateChange]);
 
   const handleConnect = async () => {
     if (!webrtc) return;
@@ -99,7 +109,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
       
       await webrtc.connect(targetPeerCode);
-      onConnectionChange(true, webrtc);
       
       toast({
         title: "Connected!",
@@ -123,7 +132,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
-        <Shield className="w-5 h-5" />
+        <Shield 
+          className={`w-5 h-5 transition-colors duration-300 ${
+            isConnected ? "fill-neon text-neon" : "text-neon"
+          }`} 
+        />
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
       

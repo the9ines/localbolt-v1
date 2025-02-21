@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -9,7 +8,7 @@ import { FileList } from "./FileList";
 import { TransferProgressBar } from "./TransferProgress";
 
 interface FileUploadProps {
-  webrtc?: WebRTCService;
+  webrtc?: typeof WebRTCService;
 }
 
 export const FileUpload = ({ webrtc }: FileUploadProps) => {
