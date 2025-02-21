@@ -13,9 +13,9 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
   const getStatusText = () => {
     switch (progress.status) {
       case 'canceled_by_sender':
-        return 'Transfer canceled by sender';
+        return 'Transfer canceled';
       case 'canceled_by_receiver':
-        return 'Transfer canceled by receiver';
+        return 'Transfer canceled';
       case 'error':
         return 'Transfer terminated due to an error';
       default:
@@ -25,7 +25,7 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
 
   const getProgressBarColor = () => {
     if (progress.status === 'error') return 'bg-red-500/20';
-    if (progress.status?.includes('canceled')) return 'bg-yellow-500/20';
+    if (progress.status?.includes('canceled')) return 'bg-neon/20';
     return 'bg-dark-accent';
   };
 
@@ -37,7 +37,7 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
         <span className="truncate">{progress.filename}</span>
         <span className={
           progress.status === 'error' ? 'text-red-500' : 
-          progress.status?.includes('canceled') ? 'text-yellow-500' : ''
+          progress.status?.includes('canceled') ? 'text-neon' : ''
         }>
           {getStatusText()}
         </span>

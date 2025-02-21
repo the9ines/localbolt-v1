@@ -47,11 +47,10 @@ export class TransferManager {
     };
     
     this.dataChannel.send(JSON.stringify(message));
-    this.handleCleanup(filename, isReceiver);
+    this.handleCleanup(filename);
   }
 
-  // Changed from private to public and renamed for clarity
-  handleCleanup(filename: string, isReceiver: boolean) {
+  handleCleanup(filename: string) {
     if (this.chunksBuffer[filename]) {
       const totalChunks = this.chunksBuffer[filename].length;
       delete this.chunksBuffer[filename];
@@ -62,7 +61,7 @@ export class TransferManager {
         totalChunks,
         0,
         0,
-        isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender'
+        'canceled_by_sender'
       );
     }
   }
