@@ -18,6 +18,7 @@ class WebRTCService {
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
   private connectionStateListener?: (state: RTCPeerConnectionState) => void;
+  private isDisconnecting: boolean = false;
 
   constructor(
     private localPeerCode: string,
@@ -64,25 +65,22 @@ class WebRTCService {
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
-    // Enhanced connection state handler with improved peer disconnection detection
     this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
       console.log('[CONNECTION] State changed:', state);
       
-      // Ensure disconnected state is properly propagated
-      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+      if ((state === 'disconnected' || state === 'failed' || state === 'closed') && !this.isDisconnecting) {
         console.log('[CONNECTION] Peer disconnected, cleaning up connection state');
-        this.disconnect(); // This will clean up and notify the UI
+        this.disconnect();
       }
       
-      if (this.connectionStateListener) {
+      if (this.connectionStateListener && !this.isDisconnecting) {
         this.connectionStateListener(state);
       }
     });
 
-    // Add data channel state monitoring
     this.dataChannelManager.setStateChangeHandler((state: RTCDataChannelState) => {
       console.log('[DATACHANNEL] State changed:', state);
-      if (state === 'closed') {
+      if (state === 'closed' && !this.isDisconnecting) {
         console.log('[DATACHANNEL] Channel closed, initiating disconnect');
         this.disconnect();
       }
@@ -190,16 +188,26 @@ class WebRTCService {
   }
 
   disconnect() {
-    console.log('[WEBRTC] Disconnecting');
-    if (this.connectionStateListener) {
-      // Ensure UI is notified of disconnection
-      this.connectionStateListener('disconnected');
+    if (this.isDisconnecting) {
+      console.log('[WEBRTC] Already disconnecting, skipping redundant disconnect call');
+      return;
     }
-    this.dataChannelManager.disconnect();
-    this.connectionManager.disconnect();
-    this.encryptionService.reset();
-    this.remotePeerCode = '';
-    this.connectionAttempts = 0;
+
+    console.log('[WEBRTC] Disconnecting');
+    this.isDisconnecting = true;
+
+    try {
+      if (this.connectionStateListener) {
+        this.connectionStateListener('disconnected');
+      }
+      this.dataChannelManager.disconnect();
+      this.connectionManager.disconnect();
+      this.encryptionService.reset();
+      this.remotePeerCode = '';
+      this.connectionAttempts = 0;
+    } finally {
+      this.isDisconnecting = false;
+    }
   }
 
   private handleSignal = async (signal: SignalData) => {
