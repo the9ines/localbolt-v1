@@ -1,26 +1,32 @@
 
+import { EncryptionError } from '@/types/webrtc-errors';
 import { EncryptionService } from '../EncryptionService';
-import { TransferError } from '@/types/webrtc-errors';
 
 export class ChunkProcessor {
   constructor(private encryptionService: EncryptionService) {}
 
-  async decryptChunk(chunk: string): Promise<Blob> {
+  async encryptChunk(data: Uint8Array): Promise<string> {
     try {
-      const encryptedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
-      const decryptedChunk = await this.encryptionService.decryptChunk(encryptedChunk);
-      return new Blob([decryptedChunk]);
+      console.log('[ENCRYPTION] Encrypting chunk');
+      // Convert to base64 before encryption to avoid recursion with large chunks
+      const base64 = Buffer.from(data).toString('base64');
+      const encrypted = await this.encryptionService.encrypt(base64);
+      return encrypted;
     } catch (error) {
-      throw new TransferError("Failed to decrypt chunk", error);
+      console.error('[ENCRYPTION] Failed to encrypt chunk:', error);
+      throw new EncryptionError("Failed to encrypt chunk", error);
     }
   }
 
-  async encryptChunk(chunk: Uint8Array): Promise<string> {
+  async decryptChunk(data: string): Promise<Blob> {
     try {
-      const encryptedChunk = await this.encryptionService.encryptChunk(chunk);
-      return btoa(String.fromCharCode(...encryptedChunk));
+      const decrypted = await this.encryptionService.decrypt(data);
+      // Convert back from base64 to binary
+      const binary = Buffer.from(decrypted, 'base64');
+      return new Blob([binary]);
     } catch (error) {
-      throw new TransferError("Failed to encrypt chunk", error);
+      console.error('[ENCRYPTION] Failed to decrypt chunk:', error);
+      throw new EncryptionError("Failed to decrypt chunk", error);
     }
   }
 }
