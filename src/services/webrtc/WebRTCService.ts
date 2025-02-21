@@ -73,11 +73,26 @@ class WebRTCService {
         if (this.onRemotePeerCodeUpdate) {
           this.onRemotePeerCodeUpdate(this.remotePeerCode);
         }
+      } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        console.log('[CONNECTION] Connection lost or closed');
+        this.handleDisconnection();
       }
       if (this.connectionStateListener) {
         this.connectionStateListener(state);
       }
     });
+  }
+
+  private handleDisconnection() {
+    console.log('[CONNECTION] Handling disconnection');
+    if (this.onRemotePeerCodeUpdate) {
+      this.onRemotePeerCodeUpdate('');
+    }
+    this.remotePeerCode = '';
+    this.connectionAttempts = 0;
+    if (this.connectionStateListener) {
+      this.connectionStateListener('disconnected');
+    }
   }
 
   private async handleSignal(signal: SignalData) {
@@ -99,20 +114,13 @@ class WebRTCService {
           break;
         case 'answer':
           await this.signalingHandler.handleSignal(signal);
-          // After receiving answer, both peers are ready
-          if (this.connectionStateListener) {
-            this.connectionStateListener('connected');
-          }
           break;
         case 'ice-candidate':
           await this.signalingHandler.handleSignal(signal);
           break;
         case 'disconnect':
           console.log('[SIGNALING] Received disconnect signal from peer');
-          if (this.connectionStateListener) {
-            this.connectionStateListener('disconnected');
-          }
-          this.disconnect();
+          this.handleDisconnection();
           break;
       }
     } catch (error) {
@@ -180,7 +188,7 @@ class WebRTCService {
             console.log('[WEBRTC] Connection established successfully');
             this.connectionAttempts = 0;
             resolve();
-          } else if (state === 'failed') {
+          } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
             reject(new ConnectionError("Connection failed"));
           }
         };
@@ -189,8 +197,6 @@ class WebRTCService {
         window.addEventListener('beforeunload', () => {
           console.log('[WEBRTC] Page unloading, disconnecting...');
           this.disconnect();
-          this.signalingService.sendSignal('disconnect', {}, this.remotePeerCode)
-            .catch(console.error);
         });
 
       } catch (error) {
@@ -207,7 +213,7 @@ class WebRTCService {
     try {
       await Promise.race([connectionPromise, timeoutPromise]);
     } catch (error) {
-      this.disconnect();
+      this.handleDisconnection();
       throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
     }
   }
@@ -238,12 +244,7 @@ class WebRTCService {
         .catch(console.error);
     }
     
-    this.remotePeerCode = '';
-    this.connectionAttempts = 0;
-    if (this.onRemotePeerCodeUpdate) {
-      this.onRemotePeerCodeUpdate('');
-    }
-    this.connectionStateListener = undefined;
+    this.handleDisconnection();
   }
 
   getRemotePeerCode(): string {
