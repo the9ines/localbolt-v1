@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { FileUpload } from "@/components/file-upload/FileUpload";
 import { PeerConnection } from "@/components/PeerConnection";
@@ -16,6 +15,8 @@ const Index = () => {
     setIsConnected(connected);
     if (service) {
       setWebrtc(service);
+    } else if (!connected) {
+      setWebrtc(null);
     }
   };
 
@@ -74,9 +75,11 @@ const Index = () => {
 
             <PeerConnection onConnectionChange={handleConnectionChange} />
             
-            <div className="animate-fade-in">
-              <FileUpload webrtc={webrtc} />
-            </div>
+            {webrtc && (
+              <div className="animate-fade-in">
+                <FileUpload webrtc={webrtc} />
+              </div>
+            )}
           </Card>
 
           <div className="text-center space-y-3 text-gray-400 max-w-2xl mx-auto animate-fade-up">

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +16,7 @@ interface PeerConnectionProps {
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
+  const [remotePeerCode, setRemotePeerCode] = useState<string>("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
@@ -27,6 +29,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     const connected = state === 'connected';
     setIsConnected(connected);
     onConnectionChange(connected, webrtc || undefined);
+
+    if (!connected) {
+      setRemotePeerCode("");
+    }
   }, [onConnectionChange, webrtc]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
@@ -85,6 +91,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       setIsConnected(false);
       onConnectionChange(false);
       setTargetPeerCode("");
+      setRemotePeerCode("");
       toast({
         title: "Disconnected",
         description: "Connection closed successfully",
@@ -97,7 +104,12 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
       console.log('[WEBRTC] Creating new service with code:', code);
-      const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+      const rtcService = new WebRTCService(
+        code,
+        handleFileReceive,
+        handleError,
+        handleProgress
+      );
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
       setWebrtc(rtcService);
 
@@ -108,7 +120,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         onConnectionChange(false);
       };
     }
-  }, []); // Empty dependency array since we only want this to run once
+  }, [handleFileReceive, handleError, handleProgress, handleConnectionStateChange, setPeerCode]);
 
   const handleConnect = async () => {
     if (!webrtc) return;
@@ -125,6 +137,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     try {
       setIsConnected(false);
       onConnectionChange(false);
+      setRemotePeerCode(targetPeerCode);
       
       toast({
         title: "Connecting...",
@@ -142,6 +155,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
     } catch (error) {
       setIsConnected(false);
+      setRemotePeerCode("");
       if (error instanceof WebRTCError) {
         handleError(error);
       } else {
@@ -180,6 +194,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           isConnected={isConnected}
+          remotePeerCode={remotePeerCode}
         />
       </div>
 
