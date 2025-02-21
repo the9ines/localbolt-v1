@@ -12,22 +12,21 @@ interface PeerCodeInputProps {
 export const PeerCodeInput = ({ peerCode, copied, onCopy }: PeerCodeInputProps) => {
   return (
     <div className="space-y-2">
-      <label className="text-base font-medium leading-none" htmlFor="peerCode">
-        Your Peer Code
-      </label>
+      <label className="text-sm font-medium leading-none">Your Peer Code</label>
       <div className="flex space-x-2">
         <Input
-          id="peerCode"
           value={peerCode}
           readOnly
-          className="font-mono bg-dark-accent text-neon text-xl p-4 h-14"
+          className="font-mono bg-dark-accent text-neon text-lg p-4 min-h-[48px]"
+          tabIndex={0}
           aria-label="Your peer code"
         />
         <Button
           variant="outline"
           size="icon"
           onClick={onCopy}
-          className="h-14 w-14 shrink-0"
+          className="shrink-0 min-h-[48px] min-w-[48px]"
+          tabIndex={0}
           aria-label={copied ? "Code copied" : "Copy code"}
         >
           {copied ? (

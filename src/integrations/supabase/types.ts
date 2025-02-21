@@ -9,7 +9,96 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      active_devices: {
+        Row: {
+          created_at: string | null
+          device_name: string
+          id: string
+          last_seen: string | null
+          network_id: string
+          peer_code: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_name: string
+          id?: string
+          last_seen?: string | null
+          network_id: string
+          peer_code: string
+        }
+        Update: {
+          created_at?: string | null
+          device_name?: string
+          id?: string
+          last_seen?: string | null
+          network_id?: string
+          peer_code?: string
+        }
+        Relationships: []
+      }
+      signals: {
+        Row: {
+          created_at: string | null
+          data: string
+          encryption_key: string | null
+          id: string
+          receiver: string
+          sender: string
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          data: string
+          encryption_key?: string | null
+          id?: string
+          receiver: string
+          sender: string
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          data?: string
+          encryption_key?: string | null
+          id?: string
+          receiver?: string
+          sender?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string | null
+          current_period_end: string | null
+          id: string
+          status: Database["public"]["Enums"]["subscription_status"]
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_period_end?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_period_end?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["subscription_status"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +107,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      subscription_status: "active" | "canceled" | "past_due"
     }
     CompositeTypes: {
       [_ in never]: never
