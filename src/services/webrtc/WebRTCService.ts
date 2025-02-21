@@ -1,3 +1,4 @@
+
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -83,6 +84,27 @@ class WebRTCService {
     this.connectionStateHandler.handleConnectionStateChange(state, this.remotePeerCode);
   }
 
+  private async handleSignal(signal: SignalData) {
+    if (signal.to !== this.localPeerCode) return;
+
+    try {
+      if (signal.from && !this.remotePeerCode) {
+        this.remotePeerCode = signal.from;
+        this.connectionStateHandler.handleConnectionStateChange('connecting', signal.from);
+      }
+
+      if (signal.type === 'disconnect') {
+        this.handleDisconnection();
+        return;
+      }
+
+      await this.signalingHandler.handleSignal(signal);
+    } catch (error) {
+      console.error('[SIGNALING] Handler error:', error);
+      throw error;
+    }
+  }
+
   async connect(remotePeerCode: string): Promise<void> {
     try {
       this.remotePeerCode = remotePeerCode;
@@ -151,6 +173,10 @@ class WebRTCService {
 
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
     this.connectionStateHandler.setConnectionStateHandler(handler);
+  }
+
+  setProgressCallback(callback: (progress: TransferProgress) => void) {
+    this.onProgressCallback = callback;
   }
 
   async sendFile(file: File) {
