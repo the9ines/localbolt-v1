@@ -25,6 +25,13 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const calculateTimeRemaining = (): string => {
+    if (!progress.stats?.speed || progress.stats.speed === 0) return '--:--';
+    const remainingBytes = progress.total - progress.loaded;
+    const remainingSeconds = remainingBytes / progress.stats.speed;
+    return formatTime(remainingSeconds);
+  };
+
   const getStatusText = () => {
     switch (progress.status) {
       case 'canceled_by_sender':
@@ -92,7 +99,7 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
           {progress.stats && (
             <>
               <p>Speed: {formatBytes(progress.stats.speed)}/s</p>
-              <p>Time remaining: {formatTime(progress.stats.estimatedTimeRemaining)}</p>
+              <p>Time remaining: {calculateTimeRemaining()}</p>
             </>
           )}
         </div>
