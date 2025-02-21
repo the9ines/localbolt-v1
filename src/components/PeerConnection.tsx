@@ -86,14 +86,14 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     setPeerCode(code);
     const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
     
-    // Set up connection state monitoring
-    rtcService.connectionManager.onConnectionStateChange = (state) => {
+    // Set up connection state monitoring using the public method
+    rtcService.setConnectionStateHandler((state) => {
       if (state === 'connected') {
         setIsConnected(true);
       } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
         handleDisconnect();
       }
-    };
+    });
     
     setWebrtc(rtcService);
 
