@@ -78,9 +78,14 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
               variant="ghost"
               size="icon"
               onClick={isPaused ? onResume : onPause}
-              className="text-white/50 hover:text-neon transition-colors"
+              className="text-white/50 hover:text-neon transition-colors touch-manipulation"
+              aria-label={isPaused ? "Resume transfer" : "Pause transfer"}
             >
-              {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+              {isPaused ? (
+                <Play className="w-4 h-4" />
+              ) : (
+                <Pause className="w-4 h-4" />
+              )}
             </Button>
           )}
           {showControls && (
@@ -88,7 +93,8 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
               variant="ghost"
               size="icon"
               onClick={onCancel}
-              className="text-white/50 hover:text-red-500 transition-colors"
+              className="text-white/50 hover:text-red-500 transition-colors touch-manipulation"
+              aria-label="Cancel transfer"
             >
               <X className="w-4 h-4" />
             </Button>
