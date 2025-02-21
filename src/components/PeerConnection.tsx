@@ -23,19 +23,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
 
-  const handleDisconnect = useCallback(() => {
-    setIsConnected(false);
-    onConnectionChange(false);
-    
-    // Only show disconnect toast if we were previously connected
-    if (isConnected) {
-      toast({
-        title: "Host has disconnected",
-        duration: 2000, // 2 seconds
-      });
-    }
-  }, [toast, isConnected, onConnectionChange]);
-
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
     const a = document.createElement('a');
@@ -88,20 +75,14 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(
-      code,
-      handleFileReceive,
-      handleError,
-      handleProgress,
-      handleDisconnect
-    );
+    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
       setIsConnected(false);
     };
-  }, [handleFileReceive, handleError, handleProgress, handleDisconnect, setPeerCode]);
+  }, [handleFileReceive, handleError, handleProgress, setPeerCode]);
 
   const handleConnect = async () => {
     if (!webrtc) return;

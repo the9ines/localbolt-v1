@@ -4,8 +4,7 @@ import { ConnectionError } from '@/types/webrtc-errors';
 export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
-  private readonly connectionTimeout: number = 60000;
-  public onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+  private readonly connectionTimeout: number = 60000; // Increased timeout for mobile connections
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
@@ -18,6 +17,7 @@ export class ConnectionManager {
     
     const config: RTCConfiguration = {
       iceServers: [
+        // Primary STUN servers with multiple options
         { 
           urls: [
             'stun:stun1.l.google.com:19302',
@@ -26,6 +26,7 @@ export class ConnectionManager {
             'stun:stun4.l.google.com:19302'
           ]
         },
+        // Multiple TURN servers for better reliability
         {
           urls: [
             'turn:openrelay.metered.ca:80',
@@ -45,17 +46,7 @@ export class ConnectionManager {
 
     this.peerConnection = new RTCPeerConnection(config);
 
-    this.peerConnection.addEventListener('connectionstatechange', () => {
-      const state = this.peerConnection?.connectionState;
-      console.log('[WEBRTC] Connection state changed:', state);
-      if (this.onConnectionStateChange) {
-        this.onConnectionStateChange(state as RTCPeerConnectionState);
-      }
-      if (state === 'failed') {
-        this.onError(new ConnectionError('Connection failed'));
-      }
-    });
-
+    // Enhanced connection monitoring
     this.peerConnection.addEventListener('iceconnectionstatechange', () => {
       console.log('[ICE] Connection state changed:', this.peerConnection?.iceConnectionState);
       if (this.peerConnection?.iceConnectionState === 'failed') {
@@ -65,6 +56,14 @@ export class ConnectionManager {
     
     this.peerConnection.addEventListener('icegatheringstatechange', () => {
       console.log('[ICE] Gathering state:', this.peerConnection?.iceGatheringState);
+    });
+
+    this.peerConnection.addEventListener('connectionstatechange', () => {
+      console.log('[WEBRTC] Connection state changed:', this.peerConnection?.connectionState);
+    });
+
+    this.peerConnection.addEventListener('negotiationneeded', () => {
+      console.log('[WEBRTC] Negotiation needed');
     });
 
     this.setupConnectionListeners();
