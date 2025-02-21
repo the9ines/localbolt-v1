@@ -19,6 +19,9 @@ class WebRTCService {
   private chunksBuffer: { [key: string]: Blob[] } = {};
   private keyPair: { publicKey: Uint8Array; secretKey: Uint8Array };
   private remotePeerPublicKey: Uint8Array | null = null;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 3;
+  private transferInProgress: boolean = false;
 
   constructor(localPeerCode: string, onReceiveFile: (file: Blob, filename: string) => void) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
@@ -42,31 +45,49 @@ class WebRTCService {
     if (signal.to !== this.localPeerCode) return;
     console.log('[SIGNALING] Processing signal:', signal.type, 'from:', signal.from);
 
-    if (signal.type === 'offer') {
-      console.log('[SIGNALING] Received offer from peer:', signal.from);
-      this.remotePeerCode = signal.from;
-      this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
-      await this.createPeerConnection();
-      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
-      const answer = await this.peerConnection!.createAnswer();
-      await this.peerConnection!.setLocalDescription(answer);
-      console.log('[SIGNALING] Created and sending answer');
-      this.sendSignal('answer', {
-        answer,
-        publicKey: encodeBase64(this.keyPair.publicKey)
-      });
-    } else if (signal.type === 'answer') {
-      console.log('[SIGNALING] Received answer from peer:', signal.from);
-      this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
-      await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
-    } else if (signal.type === 'ice-candidate' && this.peerConnection) {
-      try {
-        console.log('[ICE] Adding received ICE candidate');
-        await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
-      } catch (e) {
-        console.error('[ICE] Error adding ice candidate:', e);
+    try {
+      if (signal.type === 'offer') {
+        console.log('[SIGNALING] Received offer from peer:', signal.from);
+        this.remotePeerCode = signal.from;
+        this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
+        await this.createPeerConnection();
+        await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
+        const answer = await this.peerConnection!.createAnswer();
+        await this.peerConnection!.setLocalDescription(answer);
+        console.log('[SIGNALING] Created and sending answer');
+        await this.sendSignal('answer', {
+          answer,
+          publicKey: encodeBase64(this.keyPair.publicKey)
+        });
+      } else if (signal.type === 'answer' && this.peerConnection?.signalingState === 'have-local-offer') {
+        console.log('[SIGNALING] Received answer from peer:', signal.from);
+        this.remotePeerPublicKey = decodeBase64(signal.data.publicKey);
+        await this.peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
+      } else if (signal.type === 'ice-candidate' && this.peerConnection) {
+        try {
+          console.log('[ICE] Adding received ICE candidate');
+          await this.peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
+        } catch (e) {
+          console.error('[ICE] Error adding ice candidate:', e);
+          if (this.peerConnection.connectionState === 'failed' && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.attemptReconnection();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[SIGNALING] Error handling signal:', error);
+      if (this.peerConnection?.connectionState === 'failed' && this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.attemptReconnection();
       }
     }
+  }
+
+  private async attemptReconnection() {
+    console.log('[RECONNECT] Attempting reconnection, attempt:', this.reconnectAttempts + 1);
+    this.reconnectAttempts++;
+    this.disconnect();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await this.connect(this.remotePeerCode);
   }
 
   private async sendSignal(type: SignalData['type'], data: any) {
@@ -89,6 +110,11 @@ class WebRTCService {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
       ],
     });
 
@@ -101,10 +127,16 @@ class WebRTCService {
 
     this.peerConnection.oniceconnectionstatechange = () => {
       console.log('[ICE] Connection state:', this.peerConnection?.iceConnectionState);
+      if (this.peerConnection?.iceConnectionState === 'failed' && this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.attemptReconnection();
+      }
     };
 
     this.peerConnection.onconnectionstatechange = () => {
       console.log('[WEBRTC] Connection state:', this.peerConnection?.connectionState);
+      if (this.peerConnection?.connectionState === 'failed' && this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.attemptReconnection();
+      }
     };
 
     this.peerConnection.ondatachannel = (event) => {
@@ -121,16 +153,25 @@ class WebRTCService {
 
     console.log('[DATACHANNEL] Setting up data channel');
     
+    this.dataChannel.bufferedAmountLowThreshold = 262144; // 256 KB threshold
+    
     this.dataChannel.onopen = () => {
       console.log('[DATACHANNEL] Channel opened');
+      this.transferInProgress = false;
     };
 
     this.dataChannel.onclose = () => {
       console.log('[DATACHANNEL] Channel closed');
+      if (this.transferInProgress && this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.attemptReconnection();
+      }
     };
 
     this.dataChannel.onerror = (error) => {
       console.error('[DATACHANNEL] Error:', error);
+      if (this.transferInProgress && this.reconnectAttempts < this.maxReconnectAttempts) {
+        this.attemptReconnection();
+      }
     };
 
     this.dataChannel.onmessage = async (event) => {
@@ -154,10 +195,14 @@ class WebRTCService {
             const file = new Blob(this.chunksBuffer[filename]);
             delete this.chunksBuffer[filename];
             this.onReceiveFile(file, filename);
+            this.transferInProgress = false;
           }
         }
       } catch (error) {
         console.error('[TRANSFER] Error processing message:', error);
+        if (this.transferInProgress && this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.attemptReconnection();
+        }
       }
     };
   }
@@ -195,7 +240,9 @@ class WebRTCService {
     this.remotePeerCode = remotePeerCode;
     await this.createPeerConnection();
 
-    this.dataChannel = this.peerConnection!.createDataChannel('fileTransfer');
+    this.dataChannel = this.peerConnection!.createDataChannel('fileTransfer', {
+      ordered: true,
+    });
     this.setupDataChannel();
 
     const offer = await this.peerConnection!.createOffer();
@@ -216,6 +263,8 @@ class WebRTCService {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
     const CHUNK_SIZE = 16384; // 16KB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    this.transferInProgress = true;
+    this.reconnectAttempts = 0;
 
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
@@ -250,6 +299,7 @@ class WebRTCService {
       console.log(`[TRANSFER] Sent chunk ${i + 1}/${totalChunks}`);
     }
     console.log(`[TRANSFER] Completed sending ${file.name}`);
+    this.transferInProgress = false;
   }
 
   disconnect() {
@@ -263,6 +313,8 @@ class WebRTCService {
     this.dataChannel = null;
     this.peerConnection = null;
     this.remotePeerPublicKey = null;
+    this.transferInProgress = false;
+    this.reconnectAttempts = 0;
   }
 }
 
