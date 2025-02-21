@@ -49,6 +49,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const handleError = useCallback((error: WebRTCError) => {
     console.error(`[${error.name}]`, error.message, error.details);
     setIsConnected(false);
+    onConnectionChange(false);
     
     let title = "Connection Error";
     let description = "Failed to establish connection";
@@ -77,7 +78,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       description,
       variant: "destructive",
     });
-  }, [toast]);
+  }, [toast, onConnectionChange]);
 
   useEffect(() => {
     if (!webrtc) {
@@ -92,6 +93,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         console.log('[WEBRTC] Cleaning up service');
         rtcService.disconnect();
         setIsConnected(false);
+        onConnectionChange(false);
       };
     }
   }, []); // Empty dependency array since we only want this to run once
@@ -109,7 +111,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
     
     try {
-      setIsConnected(false); // Reset connection state before attempting to connect
+      setIsConnected(false);
+      onConnectionChange(false);
       
       toast({
         title: "Connecting...",
@@ -118,12 +121,13 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       
       await webrtc.connect(targetPeerCode);
       
+      setIsConnected(true);
+      onConnectionChange(true, webrtc);
+      
       toast({
         title: "Connected!",
         description: "Secure connection established",
       });
-      
-      setIsConnected(true); // Explicitly set connected state after successful connection
     } catch (error) {
       setIsConnected(false);
       if (error instanceof WebRTCError) {
