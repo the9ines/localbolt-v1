@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -17,7 +16,6 @@ class WebRTCService {
   private onProgressCallback?: (progress: TransferProgress) => void;
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
-  private connectionTimeoutId: NodeJS.Timeout | null = null;
 
   constructor(
     private localPeerCode: string,
@@ -80,14 +78,8 @@ class WebRTCService {
   private async retryConnection() {
     console.log('[WEBRTC] Retrying connection, attempt:', this.connectionAttempts);
     
-    // Clear any existing timeout
-    if (this.connectionTimeoutId) {
-      clearTimeout(this.connectionTimeoutId);
-      this.connectionTimeoutId = null;
-    }
-    
     // Wait before retrying
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     try {
       await this.connect(this.remotePeerCode);
@@ -99,31 +91,21 @@ class WebRTCService {
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
-    // Clear any existing timeout
-    if (this.connectionTimeoutId) {
-      clearTimeout(this.connectionTimeoutId);
-      this.connectionTimeoutId = null;
-    }
-    
     const connectionPromise = new Promise<void>(async (resolve, reject) => {
       try {
         this.remotePeerCode = remotePeerCode;
         const peerConnection = await this.connectionManager.createPeerConnection();
         
-        // Create data channel with increased reliability for mobile
+        // Create data channel with only maxRetransmits
         const dataChannel = peerConnection.createDataChannel('fileTransfer', {
           ordered: true,
-          maxRetransmits: 5
+          maxRetransmits: 3
         });
         
+        // Set up the data channel
         this.dataChannelManager.setupDataChannel(dataChannel);
         
-        const offer = await peerConnection.createOffer({
-          iceRestart: true,
-          offerToReceiveAudio: false,
-          offerToReceiveVideo: false
-        });
-        
+        const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
         console.log('[SIGNALING] Created and set local description (offer)');
         
@@ -137,10 +119,6 @@ class WebRTCService {
           if (state === 'connected') {
             console.log('[WEBRTC] Connection established successfully');
             this.connectionAttempts = 0; // Reset attempts on successful connection
-            if (this.connectionTimeoutId) {
-              clearTimeout(this.connectionTimeoutId);
-              this.connectionTimeoutId = null;
-            }
             resolve();
           } else if (state === 'failed') {
             reject(new ConnectionError("Connection failed"));
@@ -154,11 +132,8 @@ class WebRTCService {
       }
     });
 
-    // Set up connection timeout with proper cleanup
     const timeoutPromise = new Promise<void>((_, reject) => {
-      this.connectionTimeoutId = setTimeout(() => {
-        console.log('[WEBRTC] Connection timeout, cleaning up...');
-        this.disconnect();
+      setTimeout(() => {
         reject(new ConnectionError("Connection timeout"));
       }, this.connectionManager.getConnectionTimeout());
     });
@@ -187,10 +162,6 @@ class WebRTCService {
 
   disconnect() {
     console.log('[WEBRTC] Disconnecting');
-    if (this.connectionTimeoutId) {
-      clearTimeout(this.connectionTimeoutId);
-      this.connectionTimeoutId = null;
-    }
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
     this.encryptionService.reset();
