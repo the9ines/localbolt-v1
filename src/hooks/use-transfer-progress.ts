@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { TransferProgress } from '@/services/webrtc/FileTransferService';
 import WebRTCService from '@/services/webrtc/WebRTCService';
@@ -7,6 +7,17 @@ import WebRTCService from '@/services/webrtc/WebRTCService';
 export const useTransferProgress = (webrtc: WebRTCService | null) => {
   const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // Clear progress after a delay when transfer is complete or canceled
+    if (transferProgress?.status && transferProgress.status !== 'transferring') {
+      const timer = setTimeout(() => {
+        setTransferProgress(null);
+      }, 3000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [transferProgress]);
 
   const handleProgress = useCallback((progress: TransferProgress) => {
     setTransferProgress(progress);
@@ -33,10 +44,6 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
           });
           break;
       }
-    }
-
-    if (progress.status && progress.status !== 'transferring') {
-      setTimeout(() => setTransferProgress(null), 3000);
     }
   }, [toast]);
 
