@@ -1,5 +1,5 @@
 
-import { ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
+import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
 import { ConnectionManager } from './ConnectionManager';
