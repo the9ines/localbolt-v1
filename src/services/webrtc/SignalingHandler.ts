@@ -6,6 +6,7 @@ import { EncryptionService } from './EncryptionService';
 
 export class SignalingHandler {
   private pendingCandidates: RTCIceCandidateInit[] = [];
+  private remotePeerCode: string = '';
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -18,6 +19,7 @@ export class SignalingHandler {
   private async handleOffer(signal: SignalData) {
     console.log('[SIGNALING] Received offer from peer:', signal.from);
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
+    this.remotePeerCode = signal.from; // Store remote peer code
     
     const peerConnection = await this.connectionManager.createPeerConnection();
     const offerDesc = new RTCSessionDescription(signal.data.offer);
@@ -30,7 +32,8 @@ export class SignalingHandler {
     
     await this.signalingService.sendSignal('answer', {
       answer,
-      publicKey: this.encryptionService.getPublicKey()
+      publicKey: this.encryptionService.getPublicKey(),
+      peerCode: this.localPeerCode // Include local peer code in answer
     }, signal.from);
 
     // Process any pending candidates after setting descriptions
@@ -40,6 +43,7 @@ export class SignalingHandler {
   private async handleAnswer(signal: SignalData) {
     console.log('[SIGNALING] Received answer from peer:', signal.from);
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
+    this.remotePeerCode = signal.from; // Store remote peer code
     
     const peerConnection = this.connectionManager.getPeerConnection();
     if (!peerConnection) {
@@ -95,6 +99,10 @@ export class SignalingHandler {
       console.log('[ICE] Failed to add candidate, queuing:', error);
       this.pendingCandidates.push(signal.data);
     }
+  }
+
+  getRemotePeerCode(): string {
+    return this.remotePeerCode;
   }
 
   async handleSignal(signal: SignalData) {

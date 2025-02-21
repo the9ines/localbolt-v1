@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -86,7 +85,7 @@ class WebRTCService {
   }
 
   getRemotePeerCode(): string {
-    return this.remotePeerCode;
+    return this.signalingHandler.getRemotePeerCode();
   }
 
   async connect(remotePeerCode: string): Promise<void> {
