@@ -26,7 +26,7 @@ export const PeerCodeInput = ({ peerCode, copied, onCopy }: PeerCodeInputProps) 
           className="shrink-0"
         >
           {copied ? (
-            <Check className="h-4 w-4 text-black" />
+            <Check className="h-4 w-4 text-neon" />
           ) : (
             <Copy className="h-4 w-4" />
           )}
