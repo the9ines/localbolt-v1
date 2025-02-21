@@ -1,4 +1,3 @@
-
 import { ConnectionError } from '@/types/webrtc-errors';
 
 export class ConnectionManager {
@@ -41,11 +40,7 @@ export class ConnectionManager {
       iceCandidatePoolSize: 10,
       iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
-      rtcpMuxPolicy: 'require',
-      // Enable trickle ICE for faster connections
-      iceServers: [...config.iceServers || []],
-      // Mobile-friendly configuration
-      sdpSemantics: 'unified-plan',
+      rtcpMuxPolicy: 'require'
     };
 
     this.peerConnection = new RTCPeerConnection(config);
