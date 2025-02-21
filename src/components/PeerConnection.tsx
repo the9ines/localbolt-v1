@@ -1,5 +1,6 @@
+
 import { useState, useEffect, useCallback } from "react";
-import { Shield } from "lucide-react";
+import { Shield, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { WebRTCError } from "@/types/webrtc-errors";
@@ -16,10 +17,31 @@ interface PeerConnectionProps {
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
   
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
+
+  const handleConnectionStateChange = useCallback((state: RTCPeerConnectionState) => {
+    console.log('[CONNECTION] State changed:', state);
+    
+    if (state === 'connected') {
+      setIsConnected(true);
+      onConnectionChange(true, webrtc || undefined);
+    } else if (['disconnected', 'failed', 'closed'].includes(state)) {
+      setIsConnected(false);
+      onConnectionChange(false);
+      
+      // Show disconnection toast only if we were previously connected
+      if (isConnected) {
+        toast({
+          title: "The sending host has disconnected",
+          duration: 2000, // 2 seconds
+        });
+      }
+    }
+  }, [isConnected, onConnectionChange, webrtc, toast]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -39,14 +61,15 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   const handleError = useCallback((error: WebRTCError) => {
     console.error(`[${error.name}]`, error.message, error.details);
+    setIsConnected(false);
     
     let title = "Connection Error";
     let description = "Failed to establish connection";
 
     switch (error.name) {
       case 'ConnectionError':
-        title = "Connection Failed";
-        description = "Unable to connect to peer. Please try again.";
+        title = "Connection Lost";
+        description = "The connection was terminated";
         break;
       case 'SignalingError':
         title = "Signaling Error";
@@ -73,12 +96,15 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
     const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+    
+    rtcService.setConnectionStateHandler(handleConnectionStateChange);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
+      setIsConnected(false);
     };
-  }, [handleFileReceive, handleError, handleProgress, setPeerCode]);
+  }, [handleFileReceive, handleError, handleProgress, handleConnectionStateChange, setPeerCode]);
 
   const handleConnect = async () => {
     if (!webrtc) return;
@@ -99,7 +125,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
       
       await webrtc.connect(targetPeerCode);
-      onConnectionChange(true, webrtc);
       
       toast({
         title: "Connected!",
@@ -116,14 +141,17 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           variant: "destructive",
         });
       }
-      onConnectionChange(false);
     }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
-        <Shield className="w-5 h-5" />
+        {isConnected ? (
+          <ShieldCheck className="w-5 h-5 stroke-neon fill-neon transition-all duration-300" />
+        ) : (
+          <Shield className="w-5 h-5 stroke-neon transition-all duration-300" />
+        )}
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
       
