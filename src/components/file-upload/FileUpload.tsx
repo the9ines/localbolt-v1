@@ -11,10 +11,30 @@ interface FileUploadProps {
 
 export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [files, setFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const { toast } = useToast();
+
+  const onDragIn = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const onDragOut = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const onDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
     
     if (e.dataTransfer.items) {
       const newFiles = Array.from(e.dataTransfer.items)
@@ -25,6 +45,13 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
       setFiles(prevFiles => [...prevFiles, ...newFiles]);
     } else {
       const newFiles = Array.from(e.dataTransfer.files);
+      setFiles(prevFiles => [...prevFiles, ...newFiles]);
+    }
+  }, []);
+
+  const onFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
       setFiles(prevFiles => [...prevFiles, ...newFiles]);
     }
   }, []);
@@ -70,7 +97,14 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
   return (
     <div className="space-y-4">
-      <DragDropArea onDrop={onDrop} />
+      <DragDropArea 
+        isDragging={isDragging}
+        onDragIn={onDragIn}
+        onDragOut={onDragOut}
+        onDrag={onDrag}
+        onDrop={onDrop}
+        onFileSelect={onFileSelect}
+      />
       {files.length > 0 && (
         <FileList
           files={files}
