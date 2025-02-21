@@ -57,9 +57,10 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
     }
   };
 
-  // Show controls during transfer and when paused
-  const showControls = ['transferring', 'paused'].includes(progress.status || '');
+  // Simplified control visibility logic
   const isPaused = progress.status === 'paused';
+  const isTransferring = progress.status === 'transferring';
+  const showControls = isTransferring || isPaused;
 
   return (
     <div className="space-y-2 w-full">
@@ -73,32 +74,32 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
           value={(progress.currentChunk / progress.totalChunks) * 100}
           className="h-2 flex-1 bg-neon/20"
         />
-        <div className="flex items-center gap-2">
-          {showControls && onPause && onResume && (
+        {showControls && (
+          <div className="flex items-center gap-2">
+            {onPause && onResume && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={isPaused ? onResume : onPause}
+                className="h-8 w-8 md:h-9 md:w-9"
+              >
+                {isPaused ? (
+                  <Play className="h-4 w-4" />
+                ) : (
+                  <Pause className="h-4 w-4" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
-              size="sm"
-              onClick={isPaused ? onResume : onPause}
-              className="h-9 w-9 p-0"
-            >
-              {isPaused ? (
-                <Play className="h-4 w-4" />
-              ) : (
-                <Pause className="h-4 w-4" />
-              )}
-            </Button>
-          )}
-          {showControls && (
-            <Button
-              variant="ghost"
-              size="sm"
+              size="icon"
               onClick={onCancel}
-              className="h-9 w-9 p-0"
+              className="h-8 w-8 md:h-9 md:w-9"
             >
               <X className="h-4 w-4" />
             </Button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {progress.stats && (
