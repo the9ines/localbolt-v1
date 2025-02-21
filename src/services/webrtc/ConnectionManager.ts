@@ -4,7 +4,7 @@ import { ConnectionError } from '@/types/webrtc-errors';
 export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
-  private readonly connectionTimeout: number = 60000;
+  private readonly connectionTimeout: number = 120000; // Increased to 120 seconds
   public onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
 
   constructor(
@@ -40,6 +40,11 @@ export class ConnectionManager {
       iceCandidatePoolSize: 10,
       iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+      // Added additional configuration for mobile compatibility
+      iceTransportPolicy: 'all',
+      iceCandidatePoolSize: 10,
+      bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require'
     };
 
@@ -51,15 +56,13 @@ export class ConnectionManager {
       if (this.onConnectionStateChange) {
         this.onConnectionStateChange(state as RTCPeerConnectionState);
       }
-      if (state === 'failed' || state === 'disconnected') {
-        this.onError(new ConnectionError('Connection failed'));
-      }
     });
 
     this.peerConnection.addEventListener('iceconnectionstatechange', () => {
-      console.log('[ICE] Connection state changed:', this.peerConnection?.iceConnectionState);
+      console.log('[ICE] Connection state:', this.peerConnection?.iceConnectionState);
       if (this.peerConnection?.iceConnectionState === 'failed') {
-        this.onError(new ConnectionError('ICE connection failed'));
+        console.log('[ICE] Connection failed, attempting to restart ICE');
+        this.restartIce();
       }
     });
     
@@ -69,6 +72,24 @@ export class ConnectionManager {
 
     this.setupConnectionListeners();
     return this.peerConnection;
+  }
+
+  private async restartIce() {
+    if (!this.peerConnection) return;
+    
+    try {
+      if (this.peerConnection.restartIce) {
+        console.log('[ICE] Restarting ICE connection');
+        this.peerConnection.restartIce();
+      } else {
+        // Fallback for older browsers
+        const offer = await this.peerConnection.createOffer({ iceRestart: true });
+        await this.peerConnection.setLocalDescription(offer);
+      }
+    } catch (error) {
+      console.error('[ICE] Failed to restart ICE:', error);
+      this.onError(new ConnectionError('Failed to restart ICE connection'));
+    }
   }
 
   private setupConnectionListeners() {
