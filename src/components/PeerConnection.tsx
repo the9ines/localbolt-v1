@@ -1,5 +1,6 @@
+
 import { useState, useEffect, useCallback } from "react";
-import { Shield } from "lucide-react";
+import { Shield, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { WebRTCError } from "@/types/webrtc-errors";
@@ -16,6 +17,7 @@ interface PeerConnectionProps {
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
   
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
@@ -39,6 +41,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   const handleError = useCallback((error: WebRTCError) => {
     console.error(`[${error.name}]`, error.message, error.details);
+    setIsConnected(false);
     
     let title = "Connection Error";
     let description = "Failed to establish connection";
@@ -77,6 +80,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
     return () => {
       rtcService.disconnect();
+      setIsConnected(false);
     };
   }, [handleFileReceive, handleError, handleProgress, setPeerCode]);
 
@@ -99,6 +103,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
       
       await webrtc.connect(targetPeerCode);
+      setIsConnected(true);
       onConnectionChange(true, webrtc);
       
       toast({
@@ -106,6 +111,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Secure connection established",
       });
     } catch (error) {
+      setIsConnected(false);
       if (error instanceof WebRTCError) {
         handleError(error);
       } else {
@@ -123,7 +129,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
-        <Shield className="w-5 h-5" />
+        {isConnected ? (
+          <ShieldCheck className="w-5 h-5 fill-neon transition-all duration-300" />
+        ) : (
+          <Shield className="w-5 h-5 transition-all duration-300" />
+        )}
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
       
