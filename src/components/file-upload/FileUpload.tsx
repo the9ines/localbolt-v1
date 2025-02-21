@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -94,7 +95,8 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         currentChunk: 0,
         totalChunks,
         loaded: 0,
-        total: file.size
+        total: file.size,
+        status: 'initializing'
       });
 
       webrtc.setProgressCallback((transferProgress: TransferProgress) => {

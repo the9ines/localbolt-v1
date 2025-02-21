@@ -71,7 +71,11 @@ export class FileTransferService {
         }
       } catch (error) {
         console.error('[TRANSFER] Error processing message:', error);
-        throw new TransferError("Failed to process received data", error);
+        throw new TransferError(
+          "Failed to process received data", 
+          TransferError.Codes.CHUNK_PROCESSING,
+          error
+        );
       }
     };
   }
@@ -92,7 +96,10 @@ export class FileTransferService {
       for (let i = 0; i < totalChunks; i++) {
         if (this.cancelTransfer) {
           console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
-          throw new TransferError("Transfer cancelled by user");
+          throw new TransferError(
+            "Transfer cancelled by user",
+            TransferError.Codes.CANCELED
+          );
         }
 
         const start = i * CHUNK_SIZE;
@@ -127,7 +134,10 @@ export class FileTransferService {
 
           if (this.cancelTransfer) {
             console.log(`[TRANSFER] Transfer cancelled during send at chunk ${i + 1}/${totalChunks}`);
-            throw new TransferError("Transfer cancelled by user");
+            throw new TransferError(
+              "Transfer cancelled by user",
+              TransferError.Codes.CANCELED
+            );
           }
 
           this.dataChannel.send(message);
@@ -146,6 +156,7 @@ export class FileTransferService {
         } catch (error) {
           throw new TransferError(
             "Failed to send file chunk",
+            TransferError.Codes.CHUNK_PROCESSING,
             { chunkIndex: i, totalChunks, error }
           );
         }
@@ -153,7 +164,11 @@ export class FileTransferService {
       console.log(`[TRANSFER] Completed sending ${file.name}`);
     } catch (error) {
       console.error('[TRANSFER] Error sending file:', error);
-      throw error instanceof Error ? error : new TransferError("Failed to send file", error);
+      throw error instanceof Error ? error : new TransferError(
+        "Failed to send file",
+        TransferError.Codes.CHUNK_PROCESSING,
+        error
+      );
     }
   }
 }
