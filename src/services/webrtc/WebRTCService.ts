@@ -1,10 +1,12 @@
 
-import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
+import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
 import { ConnectionManager } from './ConnectionManager';
 import { SignalingHandler } from './SignalingHandler';
 import { DataChannelManager } from './DataChannelManager';
+import { WebRTCEventManager } from './WebRTCEventManager';
+import { WebRTCRetryHandler } from './WebRTCRetryHandler';
 import type { TransferProgress } from './types/transfer';
 
 class WebRTCService {
@@ -14,11 +16,9 @@ class WebRTCService {
   private dataChannelManager: DataChannelManager;
   private encryptionService: EncryptionService;
   private signalingService: SignalingService;
+  private eventManager: WebRTCEventManager;
+  private retryHandler: WebRTCRetryHandler;
   private onProgressCallback?: (progress: TransferProgress) => void;
-  private connectionAttempts: number = 0;
-  private maxConnectionAttempts: number = 3;
-  private connectionStateListener?: (state: RTCPeerConnectionState) => void;
-  private isDisconnecting: boolean = false;
 
   constructor(
     private localPeerCode: string,
@@ -31,6 +31,11 @@ class WebRTCService {
     this.encryptionService = new EncryptionService();
     this.onProgressCallback = onProgress;
     
+    this.initializeServices();
+    this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
+  }
+
+  private initializeServices() {
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
@@ -55,67 +60,29 @@ class WebRTCService {
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
-    this.signalingService = new SignalingService(localPeerCode, this.handleSignal.bind(this));
+    this.signalingService = new SignalingService(this.localPeerCode, this.handleSignal.bind(this));
     
     this.signalingHandler = new SignalingHandler(
       this.connectionManager,
       this.encryptionService,
       this.signalingService,
-      localPeerCode,
+      this.localPeerCode,
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
-    this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
-      console.log('[CONNECTION] State changed:', state);
-      
-      if ((state === 'disconnected' || state === 'failed' || state === 'closed') && !this.isDisconnecting) {
-        console.log('[CONNECTION] Peer disconnected, cleaning up connection state');
-        this.disconnect();
-      }
-      
-      if (this.connectionStateListener && !this.isDisconnecting) {
-        this.connectionStateListener(state);
-      }
-    });
-
-    this.dataChannelManager.setStateChangeHandler((state: RTCDataChannelState) => {
-      console.log('[DATACHANNEL] State changed:', state);
-      if (state === 'closed' && !this.isDisconnecting) {
-        console.log('[DATACHANNEL] Channel closed, initiating disconnect');
-        this.disconnect();
-      }
-    });
-  }
-
-  private handleError(error: WebRTCError) {
-    console.error(`[${error.name}]`, error.message, error.details);
-    
-    if (error instanceof ConnectionError && this.connectionAttempts < this.maxConnectionAttempts) {
-      console.log('[WEBRTC] Connection failed, attempting retry...');
-      this.connectionAttempts++;
-      this.retryConnection();
-    } else {
-      this.onError(error);
-      // Ensure connection is properly cleaned up on error
-      this.disconnect();
-    }
-  }
-
-  private async retryConnection() {
-    console.log('[WEBRTC] Retrying connection, attempt:', this.connectionAttempts);
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    try {
-      await this.connect(this.remotePeerCode);
-    } catch (error) {
-      this.handleError(error as WebRTCError);
-    }
+    this.eventManager = new WebRTCEventManager(
+      this.connectionManager,
+      this.dataChannelManager,
+      this.handleError.bind(this)
+    );
   }
 
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
-    console.log('[WEBRTC] Setting connection state handler');
-    this.connectionStateListener = handler;
+    this.eventManager.setConnectionStateListener(handler);
+  }
+
+  private handleError(error: WebRTCError) {
+    this.retryHandler.handleError(error, this.remotePeerCode);
   }
 
   async connect(remotePeerCode: string): Promise<void> {
@@ -146,11 +113,10 @@ class WebRTCService {
           const state = peerConnection.connectionState;
           if (state === 'connected') {
             console.log('[WEBRTC] Connection established successfully');
-            this.connectionAttempts = 0;
+            this.retryHandler.resetAttempts();
             resolve();
           } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
             console.log('[WEBRTC] Connection state changed to:', state);
-            this.disconnect();
             reject(new ConnectionError("Connection failed or closed"));
           }
         };
@@ -162,7 +128,7 @@ class WebRTCService {
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new ConnectionError("Connection timeout"));
-      }, 30000); // 30 seconds timeout
+      }, 30000);
     });
 
     try {
@@ -188,26 +154,13 @@ class WebRTCService {
   }
 
   disconnect() {
-    if (this.isDisconnecting) {
-      console.log('[WEBRTC] Already disconnecting, skipping redundant disconnect call');
-      return;
-    }
-
     console.log('[WEBRTC] Disconnecting');
-    this.isDisconnecting = true;
-
-    try {
-      if (this.connectionStateListener) {
-        this.connectionStateListener('disconnected');
-      }
-      this.dataChannelManager.disconnect();
-      this.connectionManager.disconnect();
-      this.encryptionService.reset();
-      this.remotePeerCode = '';
-      this.connectionAttempts = 0;
-    } finally {
-      this.isDisconnecting = false;
-    }
+    this.eventManager.handleDisconnect();
+    this.dataChannelManager.disconnect();
+    this.connectionManager.disconnect();
+    this.encryptionService.reset();
+    this.remotePeerCode = '';
+    this.retryHandler.resetAttempts();
   }
 
   private handleSignal = async (signal: SignalData) => {
