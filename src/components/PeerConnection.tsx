@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +27,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
     setIsConnected(connected);
+    
     if (webrtc) {
       onConnectionChange(connected, webrtc);
       if (connected) {
@@ -33,6 +35,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         if (remotePeerCode) {
           setTargetPeerCode(remotePeerCode);
         }
+      } else {
+        setTargetPeerCode("");
       }
     }
   }, [onConnectionChange, webrtc]);
@@ -108,7 +112,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
     }
-  }, []);
+  }, [peerCode, setPeerCode]);
 
   const handleConnect = async () => {
     if (!webrtc) return;
@@ -158,6 +162,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         });
       }
       onConnectionChange(false);
+      setIsConnected(false);
+      setTargetPeerCode("");
     }
   };
 
