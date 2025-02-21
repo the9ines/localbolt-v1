@@ -8,6 +8,7 @@ export type { TransferProgress };
 
 export class FileTransferService {
   private cancelTransfer: boolean = false;
+  private pausedTransfers: Set<string> = new Set();
   private transferManager: TransferManager;
   private chunkProcessor: ChunkProcessor;
   private readonly maxRetries: number = 3;
@@ -138,6 +139,57 @@ export class FileTransferService {
     }
   }
 
+  pauseTransfer(filename: string): void {
+    console.log(`[TRANSFER] Pausing transfer for ${filename}`);
+    this.pausedTransfers.add(filename);
+    
+    if (this.onProgress) {
+      this.onProgress({
+        filename,
+        currentChunk: 0,
+        totalChunks: 0,
+        loaded: 0,
+        total: 0,
+        status: 'paused',
+        stats: {
+          speed: 0,
+          averageSpeed: 0,
+          startTime: Date.now(),
+          estimatedTimeRemaining: 0,
+          pauseDuration: 0,
+          retryCount: 0,
+          maxRetries: this.maxRetries,
+          lastPausedAt: Date.now()
+        }
+      });
+    }
+  }
+
+  resumeTransfer(filename: string): void {
+    console.log(`[TRANSFER] Resuming transfer for ${filename}`);
+    this.pausedTransfers.delete(filename);
+    
+    if (this.onProgress) {
+      this.onProgress({
+        filename,
+        currentChunk: 0,
+        totalChunks: 0,
+        loaded: 0,
+        total: 0,
+        status: 'transferring',
+        stats: {
+          speed: 0,
+          averageSpeed: 0,
+          startTime: Date.now(),
+          estimatedTimeRemaining: 0,
+          pauseDuration: 0,
+          retryCount: 0,
+          maxRetries: this.maxRetries
+        }
+      });
+    }
+  }
+
   cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
     console.log(`[TRANSFER] Cancelling transfer of ${filename} by ${isReceiver ? 'receiver' : 'sender'}`);
     this.cancelTransfer = true;
@@ -152,6 +204,11 @@ export class FileTransferService {
 
     try {
       for (let i = 0; i < totalChunks; i++) {
+        while (this.pausedTransfers.has(file.name)) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (this.cancelTransfer) break;
+        }
+
         if (this.cancelTransfer) {
           console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
           throw new TransferError(
