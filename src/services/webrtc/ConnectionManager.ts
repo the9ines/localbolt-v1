@@ -1,10 +1,10 @@
+
 import { ConnectionError } from '@/types/webrtc-errors';
 
 export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
-  private readonly connectionTimeout: number = 120000; // Increased to 120 seconds
-  public onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+  private readonly connectionTimeout: number = 30000; // 30 seconds timeout
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
@@ -14,76 +14,39 @@ export class ConnectionManager {
 
   async createPeerConnection(): Promise<RTCPeerConnection> {
     console.log('[WEBRTC] Creating peer connection');
-    
-    const config: RTCConfiguration = {
+    this.peerConnection = new RTCPeerConnection({
       iceServers: [
-        { 
-          urls: [
-            'stun:stun1.l.google.com:19302',
-            'stun:stun2.l.google.com:19302',
-            'stun:stun3.l.google.com:19302',
-            'stun:stun4.l.google.com:19302'
-          ]
+        // Improved STUN/TURN server configuration for better connectivity
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
         },
         {
-          urls: [
-            'turn:openrelay.metered.ca:80',
-            'turn:openrelay.metered.ca:443',
-            'turn:openrelay.metered.ca:443?transport=tcp',
-            'turns:openrelay.metered.ca:443'
-          ],
+          urls: 'turn:openrelay.metered.ca:443',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
           username: 'openrelayproject',
           credential: 'openrelayproject',
         }
       ],
-      iceTransportPolicy: 'all',
       iceCandidatePoolSize: 10,
+      // Optimize for reliability over speed for Steam Deck's varying network conditions
+      iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require'
-    };
-
-    this.peerConnection = new RTCPeerConnection(config);
-
-    this.peerConnection.addEventListener('connectionstatechange', () => {
-      const state = this.peerConnection?.connectionState;
-      console.log('[WEBRTC] Connection state changed:', state);
-      if (this.onConnectionStateChange) {
-        this.onConnectionStateChange(state as RTCPeerConnectionState);
-      }
-    });
-
-    this.peerConnection.addEventListener('iceconnectionstatechange', () => {
-      console.log('[ICE] Connection state:', this.peerConnection?.iceConnectionState);
-      if (this.peerConnection?.iceConnectionState === 'failed') {
-        console.log('[ICE] Connection failed, attempting to restart ICE');
-        this.restartIce();
-      }
-    });
-    
-    this.peerConnection.addEventListener('icegatheringstatechange', () => {
-      console.log('[ICE] Gathering state:', this.peerConnection?.iceGatheringState);
     });
 
     this.setupConnectionListeners();
     return this.peerConnection;
-  }
-
-  private async restartIce() {
-    if (!this.peerConnection) return;
-    
-    try {
-      if (this.peerConnection.restartIce) {
-        console.log('[ICE] Restarting ICE connection');
-        this.peerConnection.restartIce();
-      } else {
-        // Fallback for older browsers
-        const offer = await this.peerConnection.createOffer({ iceRestart: true });
-        await this.peerConnection.setLocalDescription(offer);
-      }
-    } catch (error) {
-      console.error('[ICE] Failed to restart ICE:', error);
-      this.onError(new ConnectionError('Failed to restart ICE connection'));
-    }
   }
 
   private setupConnectionListeners() {
@@ -91,8 +54,36 @@ export class ConnectionManager {
 
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('[ICE] New candidate:', event.candidate.candidate?.substring(0, 50) + '...');
+        console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
         this.onIceCandidate(event.candidate);
+      }
+    };
+
+    this.peerConnection.oniceconnectionstatechange = () => {
+      const state = this.peerConnection?.iceConnectionState;
+      console.log('[ICE] Connection state:', state);
+      
+      if (state === 'checking') {
+        console.log('[ICE] Negotiating connection...');
+      } else if (state === 'connected' || state === 'completed') {
+        console.log('[ICE] Connection established');
+      } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+        console.error('[ICE] Connection failed:', state);
+        this.onError(new ConnectionError("ICE connection failed", { state }));
+      }
+    };
+
+    this.peerConnection.onconnectionstatechange = () => {
+      const state = this.peerConnection?.connectionState;
+      console.log('[WEBRTC] Connection state:', state);
+      
+      if (state === 'connecting') {
+        console.log('[WEBRTC] Establishing connection...');
+      } else if (state === 'connected') {
+        console.log('[WEBRTC] Connection established successfully');
+      } else if (state === 'failed' || state === 'closed') {
+        console.error('[WEBRTC] Connection failed:', state);
+        this.onError(new ConnectionError("WebRTC connection failed", { state }));
       }
     };
 
@@ -105,42 +96,47 @@ export class ConnectionManager {
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit) {
-    if (!this.peerConnection || !this.peerConnection.remoteDescription) {
-      console.log('[ICE] Queuing candidate - waiting for remote description');
+    if (!this.peerConnection) {
+      console.log('[ICE] Queuing ICE candidate (no peer connection)');
       this.pendingIceCandidates.push(candidate);
       return;
     }
 
-    try {
-      await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      console.log('[ICE] Added candidate successfully');
-    } catch (error) {
-      console.error('[ICE] Failed to add candidate:', error);
-      if (this.peerConnection.signalingState !== 'closed') {
+    const signalingState = this.peerConnection.signalingState;
+    console.log('[ICE] Current signaling state:', signalingState);
+
+    if (signalingState === 'stable' || signalingState === 'have-remote-offer' || signalingState === 'have-local-offer') {
+      try {
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log('[ICE] Added ICE candidate successfully');
+      } catch (error) {
+        console.error('[ICE] Failed to add ICE candidate:', error);
         this.pendingIceCandidates.push(candidate);
       }
+    } else {
+      console.log('[ICE] Queuing ICE candidate (invalid state)');
+      this.pendingIceCandidates.push(candidate);
     }
   }
 
   async processPendingCandidates() {
-    if (!this.peerConnection || !this.peerConnection.remoteDescription) {
-      console.log('[ICE] Cannot process candidates - no remote description');
-      return;
-    }
+    if (!this.peerConnection) return;
 
     console.log('[ICE] Processing pending candidates:', this.pendingIceCandidates.length);
     
-    const candidates = [...this.pendingIceCandidates];
-    this.pendingIceCandidates = [];
-
-    for (const candidate of candidates) {
-      try {
-        await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('[ICE] Added pending candidate successfully');
-      } catch (error) {
-        console.error('[ICE] Failed to add pending candidate:', error);
-        if (this.peerConnection.signalingState !== 'closed') {
-          this.pendingIceCandidates.push(candidate);
+    while (this.pendingIceCandidates.length > 0) {
+      const candidate = this.pendingIceCandidates.shift();
+      if (candidate) {
+        try {
+          await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log('[ICE] Added pending ICE candidate');
+        } catch (error) {
+          console.error('[ICE] Failed to add pending ICE candidate:', error);
+          // Re-queue the candidate if we're not ready
+          if (this.peerConnection.signalingState !== 'closed') {
+            this.pendingIceCandidates.unshift(candidate);
+            break;
+          }
         }
       }
     }

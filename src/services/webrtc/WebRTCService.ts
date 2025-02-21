@@ -16,7 +16,6 @@ class WebRTCService {
   private onProgressCallback?: (progress: TransferProgress) => void;
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
-  private onConnectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
 
   constructor(
     private localPeerCode: string,
@@ -52,13 +51,6 @@ class WebRTCService {
       this.handleError.bind(this),
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
-
-    this.connectionManager.onConnectionStateChange = (state) => {
-      console.log('[WEBRTC] Connection state changed:', state);
-      if (this.onConnectionStateChangeCallback) {
-        this.onConnectionStateChangeCallback(state);
-      }
-    };
 
     this.signalingService = new SignalingService(localPeerCode, this.handleSignal.bind(this));
     
@@ -156,10 +148,6 @@ class WebRTCService {
 
   setProgressCallback(callback: (progress: TransferProgress) => void) {
     this.onProgressCallback = callback;
-  }
-
-  setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
-    this.onConnectionStateChangeCallback = handler;
   }
 
   async sendFile(file: File) {
