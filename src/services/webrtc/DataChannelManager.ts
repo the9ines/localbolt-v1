@@ -15,6 +15,7 @@ export interface IDataChannelManager {
 export class DataChannelManager implements IDataChannelManager {
   private fileTransferService: FileTransferService | null = null;
   private stateChangeHandler: ((state: RTCDataChannelState) => void) | undefined;
+  private isDisconnecting: boolean = false;
 
   constructor(
     private encryptionService: EncryptionService,
@@ -35,17 +36,16 @@ export class DataChannelManager implements IDataChannelManager {
       this.onProgress
     );
 
-    // Add state change listener to the data channel
     channel.onclose = () => {
       console.log('[DATACHANNEL] Channel closed');
-      if (this.stateChangeHandler) {
+      if (this.stateChangeHandler && !this.isDisconnecting) {
         this.stateChangeHandler('closed');
       }
     };
 
     channel.onopen = () => {
       console.log('[DATACHANNEL] Channel opened');
-      if (this.stateChangeHandler) {
+      if (this.stateChangeHandler && !this.isDisconnecting) {
         this.stateChangeHandler('open');
       }
     };
@@ -77,11 +77,22 @@ export class DataChannelManager implements IDataChannelManager {
   }
 
   disconnect(): void {
-    console.log('[DATACHANNEL] Disconnecting data channel');
-    if (this.stateChangeHandler) {
-      this.stateChangeHandler('closed');
+    if (this.isDisconnecting) {
+      console.log('[DATACHANNEL] Already disconnecting, skipping redundant disconnect call');
+      return;
     }
-    this.fileTransferService = null;
-    this.stateChangeHandler = undefined;
+
+    console.log('[DATACHANNEL] Disconnecting data channel');
+    this.isDisconnecting = true;
+
+    try {
+      if (this.stateChangeHandler) {
+        this.stateChangeHandler('closed');
+      }
+      this.fileTransferService = null;
+      this.stateChangeHandler = undefined;
+    } finally {
+      this.isDisconnecting = false;
+    }
   }
 }
