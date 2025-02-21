@@ -1,3 +1,4 @@
+
 import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -16,6 +17,7 @@ class WebRTCService {
   private onProgressCallback?: (progress: TransferProgress) => void;
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
+  private connectionStateHandler?: (state: RTCPeerConnectionState) => void;
 
   constructor(
     private localPeerCode: string,
@@ -61,6 +63,14 @@ class WebRTCService {
       localPeerCode,
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
+
+    // Set up initial connection state handler
+    this.connectionManager.setPeerConnectionStateHandler((state) => {
+      console.log('[CONNECTION] State changed:', state);
+      if (this.connectionStateHandler) {
+        this.connectionStateHandler(state);
+      }
+    });
   }
 
   private handleError(error: WebRTCError) {
@@ -73,6 +83,12 @@ class WebRTCService {
     } else {
       this.onError(error);
     }
+  }
+
+  setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
+    this.connectionStateHandler = handler;
+    // Set the handler on the connection manager as well
+    this.connectionManager.setPeerConnectionStateHandler(handler);
   }
 
   private async retryConnection() {
