@@ -188,7 +188,10 @@ class WebRTCService {
         console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
         this.sendSignal('ice-candidate', event.candidate).catch(error => {
           console.error('[ICE] Failed to send candidate:', error);
-          this.onError(new SignalingError("Failed to send ICE candidate", error));
+          this.onError(new SignalingError(
+            "Failed to send ICE candidate",
+            error
+          ));
         });
       }
     };
@@ -239,10 +242,11 @@ class WebRTCService {
       console.log('[DATACHANNEL] Channel closed');
     };
 
-    this.dataChannel.onerror = (error) => {
+    this.dataChannel.onerror = (error: Event) => {
       console.error('[DATACHANNEL] Error:', error);
       this.onError(new TransferError(
         "Data channel error",
+        TransferError.Codes.CHUNK_PROCESSING,
         error
       ));
     };

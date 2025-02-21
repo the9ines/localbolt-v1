@@ -50,9 +50,13 @@ export class DataChannelManager implements IDataChannelManager {
       }
     };
 
-    channel.onerror = (error) => {
+    channel.onerror = (error: Event) => {
       console.error('[DATACHANNEL] Error:', error);
-      this.onError(new WebRTCError('Data channel error occurred', error));
+      this.onError(new WebRTCError(
+        'Data channel error occurred',
+        'DATACHANNEL_ERROR',
+        error
+      ));
     };
   }
 
@@ -64,7 +68,10 @@ export class DataChannelManager implements IDataChannelManager {
   async sendFile(file: File): Promise<void> {
     console.log('[DATACHANNEL] Attempting to send file:', file.name);
     if (!this.fileTransferService) {
-      throw new WebRTCError("No active data channel");
+      throw new WebRTCError(
+        "No active data channel",
+        'DATACHANNEL_NOT_READY'
+      );
     }
     await this.fileTransferService.sendFile(file);
   }
