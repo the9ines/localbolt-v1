@@ -64,11 +64,27 @@ class WebRTCService {
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
-    // Set up initial connection state handler
+    // Enhanced connection state handler with improved peer disconnection detection
     this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
       console.log('[CONNECTION] State changed:', state);
+      
+      // Ensure disconnected state is properly propagated
+      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        console.log('[CONNECTION] Peer disconnected, cleaning up connection state');
+        this.disconnect(); // This will clean up and notify the UI
+      }
+      
       if (this.connectionStateListener) {
         this.connectionStateListener(state);
+      }
+    });
+
+    // Add data channel state monitoring
+    this.dataChannelManager.setStateChangeHandler((state: RTCDataChannelState) => {
+      console.log('[DATACHANNEL] State changed:', state);
+      if (state === 'closed') {
+        console.log('[DATACHANNEL] Channel closed, initiating disconnect');
+        this.disconnect();
       }
     });
   }
@@ -82,6 +98,8 @@ class WebRTCService {
       this.retryConnection();
     } else {
       this.onError(error);
+      // Ensure connection is properly cleaned up on error
+      this.disconnect();
     }
   }
 
@@ -132,8 +150,10 @@ class WebRTCService {
             console.log('[WEBRTC] Connection established successfully');
             this.connectionAttempts = 0;
             resolve();
-          } else if (state === 'failed') {
-            reject(new ConnectionError("Connection failed"));
+          } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
+            console.log('[WEBRTC] Connection state changed to:', state);
+            this.disconnect();
+            reject(new ConnectionError("Connection failed or closed"));
           }
         };
       } catch (error) {
@@ -171,12 +191,15 @@ class WebRTCService {
 
   disconnect() {
     console.log('[WEBRTC] Disconnecting');
+    if (this.connectionStateListener) {
+      // Ensure UI is notified of disconnection
+      this.connectionStateListener('disconnected');
+    }
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
     this.encryptionService.reset();
     this.remotePeerCode = '';
     this.connectionAttempts = 0;
-    this.connectionStateListener = undefined;
   }
 
   private handleSignal = async (signal: SignalData) => {
