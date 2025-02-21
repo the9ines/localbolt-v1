@@ -6,7 +6,7 @@ import { SignalingHandler } from './SignalingHandler';
 import { DataChannelManager } from './DataChannelManager';
 import type { TransferProgress } from './types/transfer';
 
-export class WebRTCService {
+class WebRTCService {
   private remotePeerCode: string = '';
   private connectionManager: ConnectionManager;
   private signalingHandler: SignalingHandler;
@@ -16,7 +16,6 @@ export class WebRTCService {
   private onProgressCallback?: (progress: TransferProgress) => void;
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
-  private connectionStateHandler?: (state: RTCPeerConnectionState) => void;
 
   constructor(
     private localPeerCode: string,
@@ -62,14 +61,6 @@ export class WebRTCService {
       localPeerCode,
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
-
-    // Set up initial connection state handler
-    this.connectionManager.setPeerConnectionStateHandler((state) => {
-      console.log('[CONNECTION] State changed:', state);
-      if (this.connectionStateHandler) {
-        this.connectionStateHandler(state);
-      }
-    });
   }
 
   private handleError(error: WebRTCError) {
@@ -82,13 +73,6 @@ export class WebRTCService {
     } else {
       this.onError(error);
     }
-  }
-
-  setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void): void {
-    console.log('[WEBRTC] Setting connection state handler');
-    this.connectionStateHandler = handler;
-    // Set the handler on the connection manager as well
-    this.connectionManager.setPeerConnectionStateHandler(handler);
   }
 
   private async retryConnection() {
@@ -190,14 +174,4 @@ export class WebRTCService {
   };
 }
 
-// Create a default instance export
-const createWebRTCService = (
-  localPeerCode: string,
-  onReceiveFile: (file: Blob, filename: string) => void,
-  onError: (error: WebRTCError) => void,
-  onProgress?: (progress: TransferProgress) => void
-): WebRTCService => {
-  return new WebRTCService(localPeerCode, onReceiveFile, onError, onProgress);
-};
-
-export default createWebRTCService;
+export default WebRTCService;
