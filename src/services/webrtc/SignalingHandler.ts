@@ -39,24 +39,24 @@ export class SignalingHandler {
 
   private async handleAnswer(signal: SignalData) {
     console.log('[SIGNALING] Received answer from peer:', signal.from);
-    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
     
     const peerConnection = this.connectionManager.getPeerConnection();
     if (!peerConnection) {
       throw new ConnectionError("No peer connection established");
     }
 
-    if (peerConnection.signalingState === 'have-local-offer') {
+    console.log('[SIGNALING] Current signaling state:', peerConnection.signalingState);
+    
+    // Only process answer if we're in have-local-offer state or stable state
+    if (peerConnection.signalingState === 'have-local-offer' || peerConnection.signalingState === 'stable') {
+      this.encryptionService.setRemotePublicKey(signal.data.publicKey);
       await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
       console.log('[SIGNALING] Set remote description (answer)');
       
       // Process any pending candidates after setting descriptions
       await this.processPendingCandidates();
     } else {
-      throw new ConnectionError(
-        "Received answer in invalid state",
-        { state: peerConnection.signalingState }
-      );
+      console.log('[SIGNALING] Ignoring answer in invalid state:', peerConnection.signalingState);
     }
   }
 
