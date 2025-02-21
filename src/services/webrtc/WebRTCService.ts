@@ -79,10 +79,14 @@ class WebRTCService {
   private async retryConnection() {
     console.log('[WEBRTC] Retrying connection, attempt:', this.connectionAttempts);
     
-    // Wait before retrying
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
     try {
+      // Increased retry delay for better stability on Steam Deck
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Reset connection before retrying
+      this.connectionManager.disconnect();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       await this.connect(this.remotePeerCode);
     } catch (error) {
       this.handleError(error as WebRTCError);
@@ -97,13 +101,13 @@ class WebRTCService {
         this.remotePeerCode = remotePeerCode;
         const peerConnection = await this.connectionManager.createPeerConnection();
         
-        // Create data channel
+        // Increased buffer size for better performance
         const dataChannel = peerConnection.createDataChannel('fileTransfer', {
           ordered: true,
-          maxRetransmits: 3
+          maxRetransmits: 5,
+          maxPacketLifeTime: 5000
         });
         
-        // Set up the data channel
         this.dataChannelManager.setupDataChannel(dataChannel);
         
         const offer = await peerConnection.createOffer();
@@ -119,7 +123,7 @@ class WebRTCService {
           const state = peerConnection.connectionState;
           if (state === 'connected') {
             console.log('[WEBRTC] Connection established successfully');
-            this.connectionAttempts = 0; // Reset attempts on successful connection
+            this.connectionAttempts = 0;
             resolve();
           } else if (state === 'failed') {
             reject(new ConnectionError("Connection failed"));
@@ -133,10 +137,11 @@ class WebRTCService {
       }
     });
 
+    // Increased timeout for Steam Deck's potentially slower network
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new ConnectionError("Connection timeout"));
-      }, this.connectionManager.getConnectionTimeout());
+      }, 45000); // 45 seconds timeout
     });
 
     try {
