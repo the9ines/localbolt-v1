@@ -17,6 +17,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const {
     targetPeerCode,
     setTargetPeerCode,
+    connectedPeerCode,
     webrtc,
     setWebrtc,
     isConnected,
@@ -86,7 +87,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           isConnected={isConnected}
-          remotePeerCode={targetPeerCode}
+          remotePeerCode={connectedPeerCode || targetPeerCode}
         />
       </div>
 
