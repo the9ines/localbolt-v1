@@ -31,9 +31,11 @@ export class FileTransferService {
         if (type === 'file-chunk') {
           if (cancelled) {
             console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
+            // Set cancelTransfer flag to true when receiving cancellation message
             this.cancelTransfer = true;
             this.transferManager.handleCleanup(filename);
             
+            // Update progress to show cancellation
             if (this.onProgress) {
               this.onProgress({
                 filename,
@@ -74,37 +76,6 @@ export class FileTransferService {
     };
   }
 
-  private async waitForDataChannel(): Promise<void> {
-    if (this.dataChannel.readyState === 'open') {
-      return;
-    }
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new TransferError('Data channel connection timeout'));
-      }, 10000);
-
-      const checkState = () => {
-        if (this.dataChannel.readyState === 'open') {
-          clearTimeout(timeout);
-          resolve();
-        } else if (this.dataChannel.readyState === 'closed' || this.dataChannel.readyState === 'closing') {
-          clearTimeout(timeout);
-          reject(new TransferError('Data channel closed'));
-        }
-      };
-
-      this.dataChannel.onopen = checkState;
-      this.dataChannel.onclose = () => {
-        clearTimeout(timeout);
-        reject(new TransferError('Data channel closed'));
-      };
-      
-      // Check immediately in case the channel is already open
-      checkState();
-    });
-  }
-
   cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
     console.log(`[TRANSFER] Cancelling transfer of ${filename} by ${isReceiver ? 'receiver' : 'sender'}`);
     this.cancelTransfer = true;
@@ -113,19 +84,9 @@ export class FileTransferService {
 
   async sendFile(file: File) {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
-    await this.waitForDataChannel(); // Wait for data channel to be ready
-    
-    const CHUNK_SIZE = 262144; // 256KB chunks
+    const CHUNK_SIZE = 16384; // 16KB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     this.cancelTransfer = false;
-
-    const startTime = Date.now();
-    let lastUpdateTime = startTime;
-    let bytesTransferred = 0;
-    let totalPauseDuration = 0;
-    let lastPausedAt: number | undefined;
-    let retryCount = 0;
-    const maxRetries = 3;
 
     try {
       for (let i = 0; i < totalChunks; i++) {
@@ -144,11 +105,6 @@ export class FileTransferService {
         
         try {
           const base64 = await this.chunkProcessor.encryptChunk(chunkArray);
-
-          // Wait for data channel to be ready before sending
-          if (this.dataChannel.readyState !== 'open') {
-            throw new TransferError('Data channel not open');
-          }
 
           const message = JSON.stringify({
             type: 'file-chunk',
@@ -170,19 +126,12 @@ export class FileTransferService {
           }
 
           if (this.cancelTransfer) {
+            console.log(`[TRANSFER] Transfer cancelled during send at chunk ${i + 1}/${totalChunks}`);
             throw new TransferError("Transfer cancelled by user");
           }
 
           this.dataChannel.send(message);
           console.log(`[TRANSFER] Sent chunk ${i + 1}/${totalChunks}`);
-
-          bytesTransferred = end;
-          const currentTime = Date.now();
-          const elapsedTime = (currentTime - startTime - totalPauseDuration) / 1000;
-          const currentSpeed = bytesTransferred / elapsedTime;
-          const averageSpeed = bytesTransferred / elapsedTime;
-          const remainingBytes = file.size - bytesTransferred;
-          const estimatedTimeRemaining = remainingBytes / currentSpeed;
 
           if (this.onProgress) {
             this.onProgress({
@@ -191,27 +140,14 @@ export class FileTransferService {
               totalChunks,
               loaded: end,
               total: file.size,
-              status: 'transferring',
-              stats: {
-                speed: currentSpeed,
-                averageSpeed,
-                startTime,
-                estimatedTimeRemaining,
-                pauseDuration: totalPauseDuration,
-                retryCount,
-                maxRetries,
-                lastPausedAt
-              }
+              status: 'transferring'
             });
           }
         } catch (error) {
-          retryCount++;
-          if (retryCount <= maxRetries) {
-            console.log(`[TRANSFER] Retry ${retryCount}/${maxRetries} for chunk ${i}`);
-            i--; // Retry the same chunk
-            continue;
-          }
-          throw error;
+          throw new TransferError(
+            "Failed to send file chunk",
+            { chunkIndex: i, totalChunks, error }
+          );
         }
       }
       console.log(`[TRANSFER] Completed sending ${file.name}`);
