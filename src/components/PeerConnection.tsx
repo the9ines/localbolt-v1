@@ -16,6 +16,7 @@ interface PeerConnectionProps {
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
+  const [remotePeerCode, setRemotePeerCode] = useState("");  // Add this state
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { toast } = useToast();
@@ -124,6 +125,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       await webrtc.connect(targetPeerCode);
       
       setIsConnected(true);
+      setRemotePeerCode(targetPeerCode); // Store the remote peer code
       onConnectionChange(true, webrtc);
       
       toast({
@@ -132,6 +134,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
     } catch (error) {
       setIsConnected(false);
+      setRemotePeerCode(""); // Reset remote peer code on error
       if (error instanceof WebRTCError) {
         handleConnectionError(error);
       } else {
@@ -186,6 +189,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           isConnected={isConnected}
+          remotePeerCode={remotePeerCode}
         />
       </div>
 
