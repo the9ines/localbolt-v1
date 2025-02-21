@@ -1,3 +1,4 @@
+
 import { useEffect } from "react";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { TransferProgressBar } from "./file-upload/TransferProgress";
@@ -7,6 +8,8 @@ import { ConnectionStatus } from "./peer-connection/ConnectionStatus";
 import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 import { usePeerConnection } from "@/hooks/use-peer-connection";
+import { WebRTCCallbacks } from "@/services/webrtc/interfaces/WebRTCInterfaces";
+import { WebRTCError } from "@/types/webrtc-errors";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -28,7 +31,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
 
-  // Update connected peer code whenever connection state changes
   useEffect(() => {
     if (webrtc && isConnected) {
       const remotePeer = webrtc.getRemotePeerCode();
@@ -42,12 +44,12 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       setPeerCode(code);
       console.log('[WEBRTC] Creating new service with code:', code);
       
-      const rtcService = new WebRTCService(
-        code,
-        handleFileReceive,
-        handleConnectionError
-      );
+      const callbacks: WebRTCCallbacks = {
+        onReceiveFile: handleFileReceive,
+        onError: handleConnectionError
+      };
 
+      const rtcService = new WebRTCService(code, callbacks);
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
       setWebrtc(rtcService);
 
@@ -60,21 +62,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   }, []);
 
-  const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
-    console.log('[UI] Connection state changed:', state);
-    const connected = state === 'connected';
-    setIsConnected(connected);
-    onConnectionChange(connected, webrtc || undefined);
-    
-    // Update connected peer code when connection state changes
-    if (connected && webrtc) {
-      const remotePeerCode = webrtc.getRemotePeerCode();
-      console.log('[UI] Setting connected peer code:', remotePeerCode);
-    } else {
-      setTargetPeerCode("");
-    }
-  };
-
   const handleFileReceive = (file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
     const a = document.createElement('a');
@@ -84,6 +71,13 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
+    console.log('[UI] Connection state changed:', state);
+    const connected = state === 'connected';
+    setIsConnected(connected);
+    onConnectionChange(connected, webrtc || undefined);
   };
 
   return (
