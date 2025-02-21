@@ -20,7 +20,7 @@ export class ChunkProcessor {
     try {
       this.validateChunkSize(chunk);
       const encryptedChunk = await this.encryptionService.encryptChunk(chunk);
-      return this.arrayBufferToBase64(encryptedChunk);
+      return this.arrayBufferToBase64(new Uint8Array(encryptedChunk));
     } catch (error) {
       if (error instanceof TransferError) {
         throw error;
@@ -36,7 +36,7 @@ export class ChunkProcessor {
   async decryptChunk(chunk: string): Promise<Blob> {
     try {
       const encryptedChunk = this.base64ToArrayBuffer(chunk);
-      const decryptedChunk = await this.encryptionService.decryptChunk(encryptedChunk);
+      const decryptedChunk = await this.encryptionService.decryptChunk(encryptedChunk.buffer);
       return new Blob([decryptedChunk]);
     } catch (error) {
       throw new TransferError(

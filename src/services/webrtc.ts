@@ -1,8 +1,9 @@
-import { SignalingService } from './SignalingService';
-import { DataChannelManager, IDataChannelManager } from './DataChannelManager';
-import { EncryptionService } from './EncryptionService';
+
+import { SignalingService } from './webrtc/SignalingService';
+import { DataChannelManager, IDataChannelManager } from './webrtc/DataChannelManager';
+import { EncryptionService } from './webrtc/EncryptionService';
 import { ConnectionError, SignalingError, TransferError, TransferErrorCode, WebRTCError } from '@/types/webrtc-errors';
-import type { TransferProgress } from './FileTransferService';
+import type { TransferProgress } from './webrtc/types/transfer';
 
 interface ICECandidate {
   candidate: string;
