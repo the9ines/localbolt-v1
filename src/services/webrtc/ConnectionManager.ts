@@ -1,10 +1,8 @@
-
 import { ConnectionError } from '@/types/webrtc-errors';
 
 export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
-  private readonly connectionTimeout: number = 30000; // 30 seconds timeout
   private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
 
   constructor(
@@ -12,10 +10,6 @@ export class ConnectionManager {
     private onError: (error: Error) => void,
     private onDataChannel?: (channel: RTCDataChannel) => void
   ) {}
-
-  setConnectionStateChangeHandler(handler: (state: RTCPeerConnectionState) => void) {
-    this.connectionStateChangeCallback = handler;
-  }
 
   async createPeerConnection(): Promise<RTCPeerConnection> {
     console.log('[WEBRTC] Creating peer connection');
@@ -70,7 +64,7 @@ export class ConnectionManager {
         console.log('[ICE] Negotiating connection...');
       } else if (state === 'connected' || state === 'completed') {
         console.log('[ICE] Connection established');
-      } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+      } else if (state === 'failed') {
         console.error('[ICE] Connection failed:', state);
         this.onError(new ConnectionError("ICE connection failed", { state }));
       }
@@ -80,19 +74,8 @@ export class ConnectionManager {
       const state = this.peerConnection?.connectionState;
       console.log('[WEBRTC] Connection state:', state);
       
-      if (state) {
-        if (this.connectionStateChangeCallback) {
-          this.connectionStateChangeCallback(state);
-        }
-      }
-      
-      if (state === 'connecting') {
-        console.log('[WEBRTC] Establishing connection...');
-      } else if (state === 'connected') {
-        console.log('[WEBRTC] Connection established successfully');
-      } else if (state === 'failed' || state === 'closed') {
-        console.error('[WEBRTC] Connection failed:', state);
-        this.onError(new ConnectionError("WebRTC connection failed", { state }));
+      if (state && this.connectionStateChangeCallback) {
+        this.connectionStateChangeCallback(state);
       }
     };
 

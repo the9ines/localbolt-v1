@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -140,7 +139,45 @@ class WebRTCService {
   async connect(remotePeerCode: string): Promise<void> {
     try {
       this.remotePeerCode = remotePeerCode;
-      await this.connectionInitializer.initializeConnection(remotePeerCode);
+      const peerConnection = await this.connectionManager.createPeerConnection();
+      
+      const dataChannel = peerConnection.createDataChannel('fileTransfer', {
+        ordered: true,
+        maxRetransmits: 3
+      });
+      
+      this.dataChannelManager.setupDataChannel(dataChannel);
+      
+      peerConnection.ondatachannel = (event) => {
+        console.log('[WEBRTC] Received data channel');
+        this.dataChannelManager.setupDataChannel(event.channel);
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      console.log('[SIGNALING] Created and set local description (offer)');
+      
+      await this.signalingService.sendSignal('offer', {
+        offer,
+        publicKey: this.encryptionService.getPublicKey()
+      }, remotePeerCode);
+
+      peerConnection.onconnectionstatechange = () => {
+        const state = peerConnection.connectionState;
+        console.log('[WEBRTC] Connection state changed:', state);
+        
+        if (state === 'connected') {
+          console.log('[WEBRTC] Connection established successfully');
+          this.connectionAttempts = 0;
+          if (this.connectionStateListener) {
+            this.connectionStateListener('connected');
+          }
+        } else if (state === 'failed' || state === 'closed') {
+          console.error('[WEBRTC] Connection failed:', state);
+          throw new ConnectionError("WebRTC connection failed", { state });
+        }
+      };
+
     } catch (error) {
       this.handleDisconnection();
       throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
@@ -162,7 +199,7 @@ class WebRTCService {
   }
 
   disconnect() {
-    console.log('[WEBRTC] Disconnecting');
+    console.log('[WEBRTC] Manual disconnect initiated');
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
     this.encryptionService.reset();
