@@ -1,12 +1,10 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import WebRTCService from "@/services/webrtc/WebRTCService";
-import { WebRTCError } from "@/types/webrtc-errors";
-import { Progress } from "@/components/ui/progress";
-import { TransferProgress } from "@/services/webrtc/FileTransferService";
+import WebRTCService from "@/services/webrtc";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -17,15 +15,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
-  const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
-
-  const handleProgress = useCallback((progress: TransferProgress) => {
-    setTransferProgress(progress);
-    if (progress.currentChunk === progress.totalChunks) {
-      setTimeout(() => setTransferProgress(null), 1000);
-    }
-  }, []);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -43,48 +33,16 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     });
   }, [toast]);
 
-  const handleError = useCallback((error: WebRTCError) => {
-    console.error(`[${error.name}]`, error.message, error.details);
-    
-    let title = "Connection Error";
-    let description = "Failed to establish connection";
-
-    switch (error.name) {
-      case 'ConnectionError':
-        title = "Connection Failed";
-        description = "Unable to connect to peer. Please try again.";
-        break;
-      case 'SignalingError':
-        title = "Signaling Error";
-        description = "Failed to establish initial connection. Please check your peer code.";
-        break;
-      case 'TransferError':
-        title = "Transfer Failed";
-        description = "File transfer failed. Please try again.";
-        break;
-      case 'EncryptionError':
-        title = "Security Error";
-        description = "Failed to encrypt/decrypt data. Please reconnect.";
-        break;
-    }
-
-    toast({
-      title,
-      description,
-      variant: "destructive",
-    });
-  }, [toast]);
-
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+    const rtcService = new WebRTCService(code, handleFileReceive);
     setWebrtc(rtcService);
 
     return () => {
       rtcService.disconnect();
     };
-  }, [handleFileReceive, handleError, handleProgress]);
+  }, [handleFileReceive]);
 
   const copyToClipboard = async () => {
     try {
@@ -130,16 +88,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         description: "Secure connection established",
       });
     } catch (error) {
-      if (error instanceof WebRTCError) {
-        handleError(error);
-      } else {
-        console.error('[UNEXPECTED]', error);
-        toast({
-          title: "Unexpected Error",
-          description: "An unexpected error occurred",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Connection failed",
+        description: "Failed to establish connection",
+        variant: "destructive",
+      });
       onConnectionChange(false);
     }
   };
@@ -151,19 +104,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
       
-      {transferProgress && (
-        <div className="space-y-2 animate-fade-up">
-          <div className="flex justify-between text-sm">
-            <span className="truncate">{transferProgress.filename}</span>
-            <span>{Math.round((transferProgress.loaded / transferProgress.total) * 100)}%</span>
-          </div>
-          <Progress 
-            value={(transferProgress.currentChunk / transferProgress.totalChunks) * 100}
-            className="h-2 bg-dark-accent"
-          />
-        </div>
-      )}
-
       <div className="space-y-2">
         <label className="text-sm font-medium leading-none">Your Peer Code</label>
         <div className="flex space-x-2">

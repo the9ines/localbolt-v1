@@ -1,10 +1,10 @@
 
 import { useState } from "react";
-import { FileUpload } from "@/components/file-upload/FileUpload";
+import { FileUpload } from "@/components/FileUpload";
 import { PeerConnection } from "@/components/PeerConnection";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
-import WebRTCService from "@/services/webrtc/WebRTCService";
+import WebRTCService from "@/services/webrtc";
 import { Shield, Wifi, Database, Zap } from "lucide-react";
 
 const Index = () => {
