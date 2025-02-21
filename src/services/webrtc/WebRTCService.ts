@@ -1,3 +1,4 @@
+
 import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -16,17 +17,20 @@ class WebRTCService {
   private onProgressCallback?: (progress: TransferProgress) => void;
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
+  private onConnectionStateChange: (state: RTCPeerConnectionState) => void;
 
   constructor(
     private localPeerCode: string,
     private onReceiveFile: (file: Blob, filename: string) => void,
     private onError: (error: WebRTCError) => void,
-    private onProgress?: (progress: TransferProgress) => void
+    private onProgress?: (progress: TransferProgress) => void,
+    onConnectionStateChange?: (state: RTCPeerConnectionState) => void
   ) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     
     this.encryptionService = new EncryptionService();
     this.onProgressCallback = onProgress;
+    this.onConnectionStateChange = onConnectionStateChange || (() => {});
     
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
@@ -77,14 +81,32 @@ class WebRTCService {
 
   private async retryConnection() {
     console.log('[WEBRTC] Retrying connection, attempt:', this.connectionAttempts);
-    
-    // Wait before retrying
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
     try {
       await this.connect(this.remotePeerCode);
     } catch (error) {
       this.handleError(error as WebRTCError);
+    }
+  }
+
+  private async handleSignal(signal: SignalData) {
+    if (signal.to !== this.localPeerCode) return;
+
+    try {
+      if (signal.from && !this.remotePeerCode) {
+        this.remotePeerCode = signal.from;
+        this.onConnectionStateChange('connecting');
+      }
+
+      if (signal.type === 'disconnect') {
+        this.disconnect();
+        return;
+      }
+
+      await this.signalingHandler.handleSignal(signal);
+    } catch (error) {
+      console.error('[SIGNALING] Handler error:', error);
+      throw error;
     }
   }
 
@@ -102,7 +124,6 @@ class WebRTCService {
           maxRetransmits: 3
         });
         
-        // Set up the data channel
         this.dataChannelManager.setupDataChannel(dataChannel);
         
         const offer = await peerConnection.createOffer();
@@ -114,19 +135,17 @@ class WebRTCService {
           publicKey: this.encryptionService.getPublicKey()
         }, remotePeerCode);
 
-        const checkConnection = () => {
+        peerConnection.onconnectionstatechange = () => {
           const state = peerConnection.connectionState;
+          console.log('[WEBRTC] Connection state changed:', state);
+          this.onConnectionStateChange(state);
           if (state === 'connected') {
-            console.log('[WEBRTC] Connection established successfully');
-            this.connectionAttempts = 0; // Reset attempts on successful connection
+            this.connectionAttempts = 0;
             resolve();
           } else if (state === 'failed') {
             reject(new ConnectionError("Connection failed"));
           }
         };
-
-        peerConnection.onconnectionstatechange = checkConnection;
-        checkConnection();
       } catch (error) {
         reject(new ConnectionError("Failed to initiate connection", error));
       }
@@ -135,7 +154,7 @@ class WebRTCService {
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new ConnectionError("Connection timeout"));
-      }, this.connectionManager.getConnectionTimeout());
+      }, 30000);
     });
 
     try {
@@ -167,11 +186,8 @@ class WebRTCService {
     this.encryptionService.reset();
     this.remotePeerCode = '';
     this.connectionAttempts = 0;
+    this.onConnectionStateChange('disconnected');
   }
-
-  private handleSignal = async (signal: SignalData) => {
-    await this.signalingHandler.handleSignal(signal);
-  };
 }
 
 export default WebRTCService;

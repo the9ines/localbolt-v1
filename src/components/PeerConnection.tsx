@@ -11,7 +11,7 @@ import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 
 interface PeerConnectionProps {
-  onConnectionChange: (connected: boolean, service?: typeof WebRTCService) => void;
+  onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
 }
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
@@ -81,8 +81,13 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   useEffect(() => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     setPeerCode(code);
-    const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
-    rtcService.setConnectionStateHandler(handleConnectionStateChange);
+    const rtcService = new WebRTCService(
+      code, 
+      handleFileReceive, 
+      handleError, 
+      handleProgress, 
+      (state) => handleConnectionStateChange(state)
+    );
     setWebrtc(rtcService);
 
     return () => {
