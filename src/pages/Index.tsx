@@ -13,11 +13,7 @@ const Index = () => {
   const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
     console.log('[UI] Connection change:', connected, !!service);
     setIsConnected(connected);
-    if (connected && service) {
-      setWebrtc(service);
-    } else {
-      setWebrtc(null);
-    }
+    setWebrtc(connected && service ? service : null);
   };
 
   return (

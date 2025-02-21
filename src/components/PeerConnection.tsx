@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -29,9 +28,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     const connected = state === 'connected';
     setIsConnected(connected);
     
-    if (connected && webrtc) {
+    if (connected) {
+      console.log('[UI] Triggering connection change with webrtc instance');
       onConnectionChange(true, webrtc);
     } else {
+      console.log('[UI] Triggering disconnection');
       onConnectionChange(false);
       setRemotePeerCode("");
     }
