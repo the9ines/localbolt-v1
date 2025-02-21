@@ -19,9 +19,9 @@ export const TargetPeerInput = ({
   isConnected,
   remotePeerCode
 }: TargetPeerInputProps) => {
-  // Always show targetPeerCode when not connected, 
-  // and always show remotePeerCode when connected
-  const displayValue = isConnected ? remotePeerCode || targetPeerCode : targetPeerCode;
+  // When connected, show the target peer code (the code we connected to)
+  // When not connected, show the input field for entering a new peer code
+  const displayValue = isConnected ? targetPeerCode : remotePeerCode || targetPeerCode;
   
   return (
     <div className="space-y-2">
