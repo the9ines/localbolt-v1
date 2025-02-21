@@ -54,15 +54,16 @@ export class WebRTCEventManager {
     }
     
     try {
+      // Ensure we always notify of disconnection
       if (this.connectionStateListener) {
         this.connectionStateListener('disconnected');
       }
     } finally {
-      // Set a new timeout
+      // Set a new timeout with increased duration
       this.disconnectTimeout = setTimeout(() => {
         this.isDisconnecting = false;
         this.disconnectTimeout = null;
-      }, 500);
+      }, 1000); // Increased timeout to ensure all disconnect events are processed
     }
   }
 }
