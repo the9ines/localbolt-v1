@@ -115,6 +115,7 @@ export const usePeerConnection = (
     targetPeerCode,
     setTargetPeerCode,
     connectedPeerCode,
+    setConnectedPeerCode,  // Added this to the return object
     webrtc,
     setWebrtc,
     isConnected,
