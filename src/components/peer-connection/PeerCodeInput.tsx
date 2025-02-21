@@ -17,18 +17,22 @@ export const PeerCodeInput = ({ peerCode, copied, onCopy }: PeerCodeInputProps) 
         <Input
           value={peerCode}
           readOnly
-          className="font-mono bg-dark-accent text-neon"
+          className="font-mono bg-dark-accent text-neon text-lg p-4 min-h-[48px]"
+          tabIndex={0}
+          aria-label="Your peer code"
         />
         <Button
           variant="outline"
           size="icon"
           onClick={onCopy}
-          className="shrink-0"
+          className="shrink-0 min-h-[48px] min-w-[48px]"
+          tabIndex={0}
+          aria-label={copied ? "Code copied" : "Copy code"}
         >
           {copied ? (
-            <Check className="h-4 w-4 text-neon" />
+            <Check className="h-6 w-6 text-neon" />
           ) : (
-            <Copy className="h-4 w-4" />
+            <Copy className="h-6 w-6" />
           )}
         </Button>
       </div>
