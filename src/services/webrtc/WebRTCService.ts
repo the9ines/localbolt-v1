@@ -114,6 +114,7 @@ class WebRTCService {
           break;
         case 'answer':
           await this.signalingHandler.handleSignal(signal);
+          console.log('[SIGNALING] Answer processed, connection established');
           if (this.connectionStateListener) {
             this.connectionStateListener('connected');
           }
@@ -175,6 +176,11 @@ class WebRTCService {
         });
         
         this.dataChannelManager.setupDataChannel(dataChannel);
+        
+        peerConnection.ondatachannel = (event) => {
+          console.log('[WEBRTC] Received data channel');
+          this.dataChannelManager.setupDataChannel(event.channel);
+        };
         
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
