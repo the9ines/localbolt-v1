@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -79,6 +78,19 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       variant: "destructive",
     });
   }, [toast, onConnectionChange]);
+
+  const handleDisconnect = () => {
+    if (webrtc) {
+      webrtc.disconnect();
+      setIsConnected(false);
+      onConnectionChange(false);
+      setTargetPeerCode("");
+      toast({
+        title: "Disconnected",
+        description: "Connection closed successfully",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!webrtc) {
@@ -166,6 +178,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           targetPeerCode={targetPeerCode}
           onTargetPeerCodeChange={setTargetPeerCode}
           onConnect={handleConnect}
+          onDisconnect={handleDisconnect}
+          isConnected={isConnected}
         />
       </div>
 
