@@ -20,7 +20,7 @@ export default {
     },
     extend: {
       colors: {
-        neon: "#39FF14",
+        neon: "#14FF6A",
         dark: "#121212",
         "dark-lighter": "#1A1A1A",
         "dark-accent": "#242424",
