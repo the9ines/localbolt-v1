@@ -23,10 +23,10 @@ export const PeerCodeInput = ({ peerCode, copied, onCopy }: PeerCodeInputProps) 
           variant="outline"
           size="icon"
           onClick={onCopy}
-          className="shrink-0"
+          className={`shrink-0 ${copied ? '[&_svg]:text-black' : ''}`}
         >
           {copied ? (
-            <Check className="h-4 w-4 text-black" />
+            <Check className="h-4 w-4" />
           ) : (
             <Copy className="h-4 w-4" />
           )}
