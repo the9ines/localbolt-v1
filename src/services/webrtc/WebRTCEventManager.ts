@@ -7,6 +7,7 @@ import { DataChannelManager } from './DataChannelManager';
 export class WebRTCEventManager {
   private connectionStateListener?: (state: RTCPeerConnectionState) => void;
   private isDisconnecting: boolean = false;
+  private disconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -20,15 +21,13 @@ export class WebRTCEventManager {
     this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
       console.log('[CONNECTION] State changed:', state);
       
-      // If we're disconnecting or already in a disconnected state, ensure we notify the UI
-      if ((state === 'disconnected' || state === 'failed' || state === 'closed')) {
+      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
         console.log('[CONNECTION] Peer disconnected, cleaning up connection state');
         this.handleDisconnect();
-        return; // Don't process further state changes during disconnect
-      }
-      
-      if (this.connectionStateListener && !this.isDisconnecting) {
-        this.connectionStateListener(state);
+      } else if (!this.isDisconnecting) {
+        if (this.connectionStateListener) {
+          this.connectionStateListener(state);
+        }
       }
     });
 
@@ -48,16 +47,22 @@ export class WebRTCEventManager {
   handleDisconnect() {
     if (this.isDisconnecting) return;
     this.isDisconnecting = true;
+
+    // Clear any existing timeout
+    if (this.disconnectTimeout) {
+      clearTimeout(this.disconnectTimeout);
+    }
     
     try {
       if (this.connectionStateListener) {
-        // Always notify UI of disconnection
         this.connectionStateListener('disconnected');
       }
     } finally {
-      setTimeout(() => {
+      // Set a new timeout
+      this.disconnectTimeout = setTimeout(() => {
         this.isDisconnecting = false;
-      }, 100); // Small delay to ensure all disconnect events are processed
+        this.disconnectTimeout = null;
+      }, 500);
     }
   }
 }
