@@ -6,6 +6,7 @@ import type { TransferProgress } from './FileTransferService';
 
 export class DataChannelManager {
   private fileTransferService: FileTransferService | null = null;
+  private stateChangeHandler?: (state: RTCDataChannelState) => void;
 
   constructor(
     private encryptionService: EncryptionService,
@@ -21,6 +22,25 @@ export class DataChannelManager {
       this.onReceiveFile,
       this.onProgress
     );
+
+    // Add state change listener to the data channel
+    channel.onclose = () => {
+      console.log('[DATACHANNEL] Channel closed');
+      if (this.stateChangeHandler) {
+        this.stateChangeHandler('closed');
+      }
+    };
+
+    channel.onopen = () => {
+      console.log('[DATACHANNEL] Channel opened');
+      if (this.stateChangeHandler) {
+        this.stateChangeHandler('open');
+      }
+    };
+  }
+
+  setStateChangeHandler(handler: (state: RTCDataChannelState) => void) {
+    this.stateChangeHandler = handler;
   }
 
   async sendFile(file: File) {
@@ -37,6 +57,10 @@ export class DataChannelManager {
   }
 
   disconnect() {
+    if (this.stateChangeHandler) {
+      this.stateChangeHandler('closed');
+    }
     this.fileTransferService = null;
+    this.stateChangeHandler = undefined;
   }
 }
