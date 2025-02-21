@@ -1,4 +1,6 @@
 
+import { TransferErrorCode } from '@/types/webrtc-errors';
+
 export interface TransferProgress {
   filename: string;
   currentChunk: number;
