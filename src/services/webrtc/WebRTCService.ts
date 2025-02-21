@@ -82,6 +82,10 @@ class WebRTCService {
   }
 
   private async handleSignal(signal: SignalData) {
+    if (signal.from) {
+      this.remotePeerCode = signal.from;
+    }
+
     const shouldDisconnect = await this.signalingManager.handleSignal(
       signal,
       this.remotePeerCode,
@@ -94,10 +98,6 @@ class WebRTCService {
 
     if (shouldDisconnect) {
       this.disconnect();
-    }
-
-    if (signal.from) {
-      this.remotePeerCode = signal.from;
     }
   }
 
@@ -128,6 +128,11 @@ class WebRTCService {
         peerConnection.onconnectionstatechange = () => {
           const state = peerConnection.connectionState;
           console.log('[WEBRTC] Connection state changed:', state);
+          
+          if (this.stateChangeCallback) {
+            this.stateChangeCallback(state);
+          }
+          
           if (state === 'connected') {
             this.connectionStateManager.resetConnectionAttempts();
             resolve();
@@ -171,6 +176,10 @@ class WebRTCService {
     this.encryptionService.reset();
     this.remotePeerCode = '';
     this.connectionStateManager.resetConnectionAttempts();
+    
+    if (this.stateChangeCallback) {
+      this.stateChangeCallback('disconnected');
+    }
   }
 
   public getRemotePeerCode(): string {
