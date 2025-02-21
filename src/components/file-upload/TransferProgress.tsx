@@ -97,9 +97,11 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
           )}
         </div>
         <div className="text-right">
-          <p>Chunks: {progress.currentChunk} / {progress.totalChunks}</p>
           {progress.stats && (
             <>
+              <p>Elapsed: {formatTime(
+                (Date.now() - progress.stats.startTime) / 1000
+              )}</p>
               <p>Avg. Speed: {formatBytes(progress.stats.averageSpeed)}/s</p>
               {progress.stats.retryCount > 0 && (
                 <p>Retries: {progress.stats.retryCount}</p>
