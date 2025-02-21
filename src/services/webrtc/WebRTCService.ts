@@ -1,5 +1,5 @@
 
-import { ConnectionError, WebRTCError } from '@/types/webrtc-errors';
+import { ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
 import { ConnectionManager } from './ConnectionManager';
@@ -15,6 +15,8 @@ class WebRTCService {
   private encryptionService: EncryptionService;
   private signalingService: SignalingService;
   private onProgressCallback?: (progress: TransferProgress) => void;
+  private connectionAttempts: number = 0;
+  private maxConnectionAttempts: number = 3;
 
   constructor(
     private localPeerCode: string,
@@ -36,7 +38,7 @@ class WebRTCService {
           this.onProgressCallback(progress);
         }
       },
-      this.onError
+      this.handleError.bind(this)
     );
 
     this.connectionManager = new ConnectionManager(
@@ -44,10 +46,10 @@ class WebRTCService {
         this.signalingService.sendSignal('ice-candidate', candidate, this.remotePeerCode)
           .catch(error => {
             console.error('[ICE] Failed to send candidate:', error);
-            this.onError(error as WebRTCError);
+            this.handleError(error as WebRTCError);
           });
       },
-      this.onError,
+      this.handleError.bind(this),
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
@@ -62,6 +64,31 @@ class WebRTCService {
     );
   }
 
+  private handleError(error: WebRTCError) {
+    console.error(`[${error.name}]`, error.message, error.details);
+    
+    if (error instanceof ConnectionError && this.connectionAttempts < this.maxConnectionAttempts) {
+      console.log('[WEBRTC] Connection failed, attempting retry...');
+      this.connectionAttempts++;
+      this.retryConnection();
+    } else {
+      this.onError(error);
+    }
+  }
+
+  private async retryConnection() {
+    console.log('[WEBRTC] Retrying connection, attempt:', this.connectionAttempts);
+    
+    // Wait before retrying
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    try {
+      await this.connect(this.remotePeerCode);
+    } catch (error) {
+      this.handleError(error as WebRTCError);
+    }
+  }
+
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
@@ -70,12 +97,13 @@ class WebRTCService {
         this.remotePeerCode = remotePeerCode;
         const peerConnection = await this.connectionManager.createPeerConnection();
         
-        // Create the data channel directly in WebRTCService
+        // Create data channel
         const dataChannel = peerConnection.createDataChannel('fileTransfer', {
-          ordered: true
+          ordered: true,
+          maxRetransmits: 3
         });
         
-        // Set up the data channel in the manager
+        // Set up the data channel
         this.dataChannelManager.setupDataChannel(dataChannel);
         
         const offer = await peerConnection.createOffer();
@@ -88,9 +116,12 @@ class WebRTCService {
         }, remotePeerCode);
 
         const checkConnection = () => {
-          if (peerConnection.connectionState === 'connected') {
+          const state = peerConnection.connectionState;
+          if (state === 'connected') {
+            console.log('[WEBRTC] Connection established successfully');
+            this.connectionAttempts = 0; // Reset attempts on successful connection
             resolve();
-          } else if (peerConnection.connectionState === 'failed') {
+          } else if (state === 'failed') {
             reject(new ConnectionError("Connection failed"));
           }
         };
@@ -136,6 +167,7 @@ class WebRTCService {
     this.connectionManager.disconnect();
     this.encryptionService.reset();
     this.remotePeerCode = '';
+    this.connectionAttempts = 0;
   }
 
   private handleSignal = async (signal: SignalData) => {
