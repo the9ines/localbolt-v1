@@ -74,6 +74,37 @@ export class FileTransferService {
     };
   }
 
+  private async waitForDataChannel(): Promise<void> {
+    if (this.dataChannel.readyState === 'open') {
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new TransferError('Data channel connection timeout'));
+      }, 10000);
+
+      const checkState = () => {
+        if (this.dataChannel.readyState === 'open') {
+          clearTimeout(timeout);
+          resolve();
+        } else if (this.dataChannel.readyState === 'closed' || this.dataChannel.readyState === 'closing') {
+          clearTimeout(timeout);
+          reject(new TransferError('Data channel closed'));
+        }
+      };
+
+      this.dataChannel.onopen = checkState;
+      this.dataChannel.onclose = () => {
+        clearTimeout(timeout);
+        reject(new TransferError('Data channel closed'));
+      };
+      
+      // Check immediately in case the channel is already open
+      checkState();
+    });
+  }
+
   cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
     console.log(`[TRANSFER] Cancelling transfer of ${filename} by ${isReceiver ? 'receiver' : 'sender'}`);
     this.cancelTransfer = true;
@@ -82,7 +113,9 @@ export class FileTransferService {
 
   async sendFile(file: File) {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
-    const CHUNK_SIZE = 262144; // Increased to 256KB chunks for better performance
+    await this.waitForDataChannel(); // Wait for data channel to be ready
+    
+    const CHUNK_SIZE = 262144; // 256KB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     this.cancelTransfer = false;
 
@@ -112,6 +145,11 @@ export class FileTransferService {
         try {
           const base64 = await this.chunkProcessor.encryptChunk(chunkArray);
 
+          // Wait for data channel to be ready before sending
+          if (this.dataChannel.readyState !== 'open') {
+            throw new TransferError('Data channel not open');
+          }
+
           const message = JSON.stringify({
             type: 'file-chunk',
             filename: file.name,
@@ -132,7 +170,6 @@ export class FileTransferService {
           }
 
           if (this.cancelTransfer) {
-            console.log(`[TRANSFER] Transfer cancelled during send at chunk ${i + 1}/${totalChunks}`);
             throw new TransferError("Transfer cancelled by user");
           }
 
@@ -141,7 +178,7 @@ export class FileTransferService {
 
           bytesTransferred = end;
           const currentTime = Date.now();
-          const elapsedTime = (currentTime - startTime - totalPauseDuration) / 1000; // Convert to seconds
+          const elapsedTime = (currentTime - startTime - totalPauseDuration) / 1000;
           const currentSpeed = bytesTransferred / elapsedTime;
           const averageSpeed = bytesTransferred / elapsedTime;
           const remainingBytes = file.size - bytesTransferred;
@@ -174,10 +211,7 @@ export class FileTransferService {
             i--; // Retry the same chunk
             continue;
           }
-          throw new TransferError(
-            "Failed to send file chunk",
-            { chunkIndex: i, totalChunks, error }
-          );
+          throw error;
         }
       }
       console.log(`[TRANSFER] Completed sending ${file.name}`);
