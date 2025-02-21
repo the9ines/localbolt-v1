@@ -107,6 +107,13 @@ class WebRTCService {
         case 'ice-candidate':
           await this.signalingHandler.handleSignal(signal);
           break;
+        case 'disconnect':
+          console.log('[SIGNALING] Received disconnect signal from peer');
+          if (this.connectionStateListener) {
+            this.connectionStateListener('disconnected');
+          }
+          this.disconnect();
+          break;
       }
     } catch (error) {
       console.error('[SIGNALING] Handler error:', error);
