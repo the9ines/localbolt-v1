@@ -1,4 +1,5 @@
-import { SignalingService } from './SignalingService';
+
+import { SignalingService, SignalData } from './SignalingService';
 import { DataChannelManager, IDataChannelManager } from './DataChannelManager';
 import { EncryptionService } from './EncryptionService';
 import { ConnectionError, SignalingError, TransferError, TransferErrorCode, WebRTCError } from '@/types/webrtc-errors';
@@ -36,11 +37,29 @@ export default class WebRTCService implements IWebRTCService {
     private onReceiveFile: (file: Blob, filename: string) => void,
     private onError: (error: WebRTCError) => void
   ) {
-    this.signalingService = new SignalingService(localPeerCode, this.handleSignal);
     this.encryptionService = new EncryptionService();
-
+    this.signalingService = new SignalingService(localPeerCode, this.handleSignal.bind(this));
     this.setupSignalingHandlers();
   }
+
+  private handleSignal = (signal: SignalData) => {
+    if (signal.to !== this.localPeerCode) return;
+    
+    console.log('[WEBRTC] Received signal:', signal.type, 'from:', signal.from);
+    switch (signal.type) {
+      case 'offer':
+        this.emit('offer', signal.data.offer, signal.from);
+        break;
+      case 'answer':
+        this.emit('answer', signal.data.answer, signal.from);
+        break;
+      case 'ice-candidate':
+        this.emit('ice-candidate', signal.data, signal.from);
+        break;
+      default:
+        console.warn('[WEBRTC] Unknown signal type:', signal.type);
+    }
+  };
 
   private setupSignalingHandlers() {
     this.on('offer', this.handleOffer);

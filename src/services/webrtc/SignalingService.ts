@@ -9,11 +9,12 @@ export interface SignalData {
   to: string;
 }
 
-type SignalHandler = (signal: any, peerId: string) => void;
+type SignalHandler = (signal: SignalData) => void;
 type EventHandler = (...args: any[]) => void;
 
 export class SignalingService {
   private handlers: { [key: string]: EventHandler[] } = {};
+  private channel: ReturnType<typeof supabase.channel> | null = null;
 
   constructor(
     private localPeerId: string,
@@ -25,7 +26,7 @@ export class SignalingService {
   private async setupChannel() {
     console.log('[SIGNALING] Setting up signaling channel');
     try {
-      const channel = supabase.channel('signals')
+      this.channel = supabase.channel('signals')
         .on('broadcast', { event: 'signal' }, ({ payload }) => {
           console.log('[SIGNALING] Received signal:', payload.type);
           this.onSignal(payload as SignalData);
