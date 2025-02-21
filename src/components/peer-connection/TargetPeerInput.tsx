@@ -23,16 +23,10 @@ export const TargetPeerInput = ({
           value={targetPeerCode}
           onChange={(e) => onTargetPeerCodeChange(e.target.value.toUpperCase())}
           placeholder="Enter peer code"
-          className="font-mono bg-dark-accent placeholder:text-white/20 text-lg p-4 min-h-[48px]"
+          className="font-mono bg-dark-accent placeholder:text-white/20"
           maxLength={6}
-          tabIndex={0}
-          aria-label="Enter peer code"
         />
-        <Button 
-          onClick={onConnect} 
-          className="shrink-0 bg-neon text-black hover:bg-neon/90 min-h-[48px] px-6 text-lg"
-          tabIndex={0}
-        >
+        <Button onClick={onConnect} className="shrink-0 bg-neon text-black hover:bg-neon/90">
           Connect
         </Button>
       </div>
