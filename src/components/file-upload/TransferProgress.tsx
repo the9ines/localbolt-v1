@@ -32,6 +32,14 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
     return formatTime(remainingSeconds);
   };
 
+  const truncateFileName = (filename: string, maxLength: number = 20): string => {
+    if (filename.length <= maxLength) return filename;
+    const extension = filename.split('.').pop() || '';
+    const nameWithoutExt = filename.slice(0, -(extension.length + 1));
+    const truncatedName = nameWithoutExt.slice(0, maxLength - extension.length - 3) + '...';
+    return `${truncatedName}.${extension}`;
+  };
+
   const getStatusText = () => {
     switch (progress.status) {
       case 'canceled_by_sender':
@@ -65,9 +73,9 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
 
   return (
     <div className="space-y-3 bg-dark-accent/20 p-4 rounded-lg border border-white/10">
-      <div className="flex justify-between items-start">
-        <div className="space-y-1">
-          <h4 className="font-medium truncate">{progress.filename}</h4>
+      <div className="flex justify-between items-start gap-2">
+        <div className="space-y-1 min-w-0 flex-1">
+          <h4 className="font-medium text-sm sm:text-base">{truncateFileName(progress.filename)}</h4>
           <p className={`text-sm ${
             progress.status === 'error' ? 'text-red-500' : 
             progress.status?.includes('canceled') ? 'text-neon' : 
@@ -81,7 +89,7 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
             variant="ghost"
             size="icon"
             onClick={onCancel}
-            className="text-white/50 hover:text-neon transition-colors"
+            className="text-white/50 hover:text-neon transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </Button>
@@ -93,7 +101,7 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
         className={`h-2 ${getProgressBarColor()}`}
       />
 
-      <div className="grid grid-cols-2 gap-4 text-sm text-white/70">
+      <div className="grid grid-cols-2 gap-4 text-xs sm:text-sm text-white/70">
         <div>
           <p>Transferred: {formatBytes(progress.loaded)} / {formatBytes(progress.total)}</p>
           {progress.stats && (
