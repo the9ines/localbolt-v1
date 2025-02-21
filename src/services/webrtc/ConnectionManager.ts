@@ -5,6 +5,7 @@ export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private readonly connectionTimeout: number = 30000; // 30 seconds timeout
+  private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
@@ -12,11 +13,14 @@ export class ConnectionManager {
     private onDataChannel?: (channel: RTCDataChannel) => void
   ) {}
 
+  setConnectionStateChangeHandler(handler: (state: RTCPeerConnectionState) => void) {
+    this.connectionStateChangeCallback = handler;
+  }
+
   async createPeerConnection(): Promise<RTCPeerConnection> {
     console.log('[WEBRTC] Creating peer connection');
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
-        // Improved STUN/TURN server configuration for better connectivity
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
@@ -39,7 +43,6 @@ export class ConnectionManager {
         }
       ],
       iceCandidatePoolSize: 10,
-      // Optimize for reliability over speed for Steam Deck's varying network conditions
       iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require'
@@ -76,6 +79,12 @@ export class ConnectionManager {
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection?.connectionState;
       console.log('[WEBRTC] Connection state:', state);
+      
+      if (state) {
+        if (this.connectionStateChangeCallback) {
+          this.connectionStateChangeCallback(state);
+        }
+      }
       
       if (state === 'connecting') {
         console.log('[WEBRTC] Establishing connection...');

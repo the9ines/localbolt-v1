@@ -65,7 +65,7 @@ class WebRTCService {
     );
 
     // Set up initial connection state handler
-    this.connectionManager.on('connectionStateChange', (state: RTCPeerConnectionState) => {
+    this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
       console.log('[CONNECTION] State changed:', state);
       if (this.connectionStateListener) {
         this.connectionStateListener(state);
