@@ -29,6 +29,9 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     setIsConnected(connected);
     if (webrtc) {
       onConnectionChange(connected, webrtc);
+      if (connected && webrtc.remotePeerCode) {
+        setTargetPeerCode(webrtc.remotePeerCode);
+      }
     }
   }, [onConnectionChange, webrtc]);
 
@@ -99,16 +102,27 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   }, [peerCode, handleFileReceive, handleError, handleProgress, handleConnectionStateChange]);
 
-  // Generate peer code only once when component mounts
   useEffect(() => {
     if (!peerCode) {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
     }
-  }, []); // Empty dependency array ensures this runs only once
+  }, []);
 
   const handleConnect = async () => {
     if (!webrtc) return;
+    
+    if (isConnected) {
+      webrtc.disconnect();
+      setIsConnected(false);
+      setTargetPeerCode("");
+      onConnectionChange(false);
+      toast({
+        title: "Disconnected",
+        description: "Connection closed",
+      });
+      return;
+    }
     
     if (targetPeerCode.length < 6) {
       toast({
@@ -168,6 +182,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           targetPeerCode={targetPeerCode}
           onTargetPeerCodeChange={setTargetPeerCode}
           onConnect={handleConnect}
+          isConnected={isConnected}
         />
       </div>
 
