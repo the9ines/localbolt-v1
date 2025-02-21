@@ -86,7 +86,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           isConnected={isConnected}
-          remotePeerCode={peerCode}
+          remotePeerCode={targetPeerCode}
         />
       </div>
 
