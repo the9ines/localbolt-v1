@@ -57,10 +57,7 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
     }
   };
 
-  // Simplified control visibility logic
   const isPaused = progress.status === 'paused';
-  const isTransferring = progress.status === 'transferring';
-  const showControls = isTransferring || isPaused;
 
   return (
     <div className="space-y-2 w-full">
@@ -69,37 +66,37 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         <span className="ml-2">{getStatusText()}</span>
       </div>
       
-      <div className="flex items-center space-x-2 w-full">
+      <div className="flex items-center gap-2 w-full">
         <Progress 
           value={(progress.currentChunk / progress.totalChunks) * 100}
           className="h-2 flex-1 bg-neon/20"
         />
-        {showControls && (
-          <div className="flex items-center gap-2">
-            {onPause && onResume && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={isPaused ? onResume : onPause}
-                className="h-8 w-8 md:h-9 md:w-9"
-              >
-                {isPaused ? (
-                  <Play className="h-4 w-4" />
-                ) : (
-                  <Pause className="h-4 w-4" />
-                )}
-              </Button>
-            )}
+        
+        {/* Control buttons - always render container but conditionally show buttons */}
+        <div className="flex items-center gap-1">
+          {onPause && onResume && (
             <Button
               variant="ghost"
               size="icon"
-              onClick={onCancel}
-              className="h-8 w-8 md:h-9 md:w-9"
+              onClick={isPaused ? onResume : onPause}
+              className="h-8 w-8"
             >
-              <X className="h-4 w-4" />
+              {isPaused ? (
+                <Play className="h-4 w-4" />
+              ) : (
+                <Pause className="h-4 w-4" />
+              )}
             </Button>
-          </div>
-        )}
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onCancel}
+            className="h-8 w-8"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {progress.stats && (
