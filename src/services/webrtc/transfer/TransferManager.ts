@@ -7,6 +7,7 @@ export class TransferManager {
   private chunksBuffer: { [key: string]: Blob[] } = {};
   private activeTransfers: Set<string> = new Set();
   private chunkProcessor: ChunkProcessor;
+  private transferProgress: { [key: string]: TransferProgress } = {};
 
   constructor(
     private dataChannel: RTCDataChannel,
@@ -14,6 +15,16 @@ export class TransferManager {
     private onProgress?: (progress: TransferProgress) => void
   ) {
     this.chunkProcessor = chunkProcessor;
+  }
+
+  getCurrentProgress(filename: string): TransferProgress {
+    return this.transferProgress[filename] || {
+      filename,
+      currentChunk: 0,
+      totalChunks: 0,
+      loaded: 0,
+      total: 0
+    };
   }
 
   private updateProgress(
@@ -24,15 +35,19 @@ export class TransferManager {
     total: number,
     status: TransferProgress['status'] = 'transferring'
   ) {
+    const progress: TransferProgress = {
+      filename,
+      currentChunk,
+      totalChunks,
+      loaded,
+      total,
+      status
+    };
+
+    this.transferProgress[filename] = progress;
+
     if (this.onProgress) {
-      this.onProgress({
-        filename,
-        currentChunk,
-        totalChunks,
-        loaded,
-        total,
-        status
-      });
+      this.onProgress(progress);
     }
   }
 
@@ -54,6 +69,7 @@ export class TransferManager {
     if (this.chunksBuffer[filename]) {
       const totalChunks = this.chunksBuffer[filename].length;
       delete this.chunksBuffer[filename];
+      delete this.transferProgress[filename];
       
       this.updateProgress(
         filename,
@@ -100,11 +116,13 @@ export class TransferManager {
         const completeFile = new Blob(this.chunksBuffer[filename]);
         this.activeTransfers.delete(filename);
         delete this.chunksBuffer[filename];
+        delete this.transferProgress[filename];
         return completeFile;
       }
     } catch (error) {
       this.activeTransfers.delete(filename);
       delete this.chunksBuffer[filename];
+      delete this.transferProgress[filename];
       this.updateProgress(filename, 0, totalChunks, 0, fileSize, 'error');
       throw error;
     }

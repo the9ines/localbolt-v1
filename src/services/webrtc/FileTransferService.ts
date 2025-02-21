@@ -3,12 +3,13 @@ import { TransferError } from '@/types/webrtc-errors';
 import { EncryptionService } from './EncryptionService';
 import { ChunkProcessor } from './transfer/ChunkProcessor';
 import { TransferManager } from './transfer/TransferManager';
-import type { TransferProgress } from './types/transfer';
+import type { TransferProgress, FileChunkMessage } from './types/transfer';
 
 export type { TransferProgress };
 
 export class FileTransferService {
   private cancelTransfer: boolean = false;
+  private isPaused: boolean = false;
   private transferManager: TransferManager;
   private chunkProcessor: ChunkProcessor;
   
@@ -26,16 +27,15 @@ export class FileTransferService {
   private setupDataChannel() {
     this.dataChannel.onmessage = async (event) => {
       try {
-        const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled, cancelledBy } = JSON.parse(event.data);
+        const message: FileChunkMessage = JSON.parse(event.data);
+        const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled, cancelledBy, paused, resumed } = message;
 
         if (type === 'file-chunk') {
           if (cancelled) {
             console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
-            // Set cancelTransfer flag to true when receiving cancellation message
             this.cancelTransfer = true;
             this.transferManager.handleCleanup(filename);
             
-            // Update progress to show cancellation
             if (this.onProgress) {
               this.onProgress({
                 filename,
@@ -49,8 +49,37 @@ export class FileTransferService {
             return;
           }
 
+          if (paused) {
+            console.log(`[TRANSFER] Transfer paused for ${filename}`);
+            this.isPaused = true;
+            if (this.onProgress) {
+              this.onProgress({
+                ...this.transferManager.getCurrentProgress(filename),
+                status: 'paused'
+              });
+            }
+            return;
+          }
+
+          if (resumed) {
+            console.log(`[TRANSFER] Transfer resumed for ${filename}`);
+            this.isPaused = false;
+            if (this.onProgress) {
+              this.onProgress({
+                ...this.transferManager.getCurrentProgress(filename),
+                status: 'transferring'
+              });
+            }
+            return;
+          }
+
           if (!this.transferManager.isTransferActive(filename) && chunkIndex !== 0) {
             console.log(`[TRANSFER] Ignoring chunk for cancelled transfer: ${filename}`);
+            return;
+          }
+
+          if (this.isPaused) {
+            console.log(`[TRANSFER] Ignoring chunk while paused: ${filename}`);
             return;
           }
 
@@ -58,10 +87,10 @@ export class FileTransferService {
           
           const completeFile = await this.transferManager.processReceivedChunk(
             filename,
-            chunk,
-            chunkIndex,
-            totalChunks,
-            fileSize
+            chunk!,
+            chunkIndex!,
+            totalChunks!,
+            fileSize!
           );
 
           if (completeFile) {
@@ -82,17 +111,47 @@ export class FileTransferService {
     this.transferManager.cancelTransfer(filename, isReceiver);
   }
 
+  pauseTransfer(filename: string) {
+    console.log(`[TRANSFER] Pausing transfer of ${filename}`);
+    const message: FileChunkMessage = {
+      type: 'file-chunk',
+      filename,
+      paused: true
+    };
+    this.dataChannel.send(JSON.stringify(message));
+    this.isPaused = true;
+  }
+
+  resumeTransfer(filename: string) {
+    console.log(`[TRANSFER] Resuming transfer of ${filename}`);
+    const message: FileChunkMessage = {
+      type: 'file-chunk',
+      filename,
+      resumed: true
+    };
+    this.dataChannel.send(JSON.stringify(message));
+    this.isPaused = false;
+  }
+
   async sendFile(file: File) {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
     const CHUNK_SIZE = 16384; // 16KB chunks
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     this.cancelTransfer = false;
+    this.isPaused = false;
 
     try {
       for (let i = 0; i < totalChunks; i++) {
         if (this.cancelTransfer) {
           console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
           throw new TransferError("Transfer cancelled by user");
+        }
+
+        while (this.isPaused) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (this.cancelTransfer) {
+            throw new TransferError("Transfer cancelled while paused");
+          }
         }
 
         const start = i * CHUNK_SIZE;
@@ -106,14 +165,14 @@ export class FileTransferService {
         try {
           const base64 = await this.chunkProcessor.encryptChunk(chunkArray);
 
-          const message = JSON.stringify({
+          const message: FileChunkMessage = {
             type: 'file-chunk',
             filename: file.name,
             chunk: base64,
             chunkIndex: i,
             totalChunks,
             fileSize: file.size
-          });
+          };
 
           if (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
             console.log('[TRANSFER] Waiting for buffer to clear');
@@ -130,7 +189,7 @@ export class FileTransferService {
             throw new TransferError("Transfer cancelled by user");
           }
 
-          this.dataChannel.send(message);
+          this.dataChannel.send(JSON.stringify(message));
           console.log(`[TRANSFER] Sent chunk ${i + 1}/${totalChunks}`);
 
           if (this.onProgress) {
@@ -140,7 +199,7 @@ export class FileTransferService {
               totalChunks,
               loaded: end,
               total: file.size,
-              status: 'transferring'
+              status: this.isPaused ? 'paused' : 'transferring'
             });
           }
         } catch (error) {
