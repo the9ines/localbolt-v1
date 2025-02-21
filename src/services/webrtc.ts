@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { box, randomBytes } from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
@@ -28,7 +29,6 @@ class WebRTCService {
   private remotePeerPublicKey: Uint8Array | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private connectionTimeout: number = 30000; // 30 seconds timeout
-  private cancelTransfer: boolean = false;
 
   constructor(
     localPeerCode: string, 
@@ -188,10 +188,7 @@ class WebRTCService {
         console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
         this.sendSignal('ice-candidate', event.candidate).catch(error => {
           console.error('[ICE] Failed to send candidate:', error);
-          this.onError(new SignalingError(
-            "Failed to send ICE candidate",
-            error
-          ));
+          this.onError(new SignalingError("Failed to send ICE candidate", error));
         });
       }
     };
@@ -242,18 +239,17 @@ class WebRTCService {
       console.log('[DATACHANNEL] Channel closed');
     };
 
-    this.dataChannel.onerror = (error: Event) => {
+    this.dataChannel.onerror = (error) => {
       console.error('[DATACHANNEL] Error:', error);
       this.onError(new TransferError(
         "Data channel error",
-        TransferError.Codes.CHUNK_PROCESSING,
-        { error }
+        error
       ));
     };
 
     this.dataChannel.onmessage = async (event) => {
       try {
-        const { type, filename, chunk, chunkIndex, totalChunks, fileSize } = JSON.parse(event.data);
+        const { type, filename, chunk, chunkIndex, totalChunks } = JSON.parse(event.data);
 
         if (type === 'file-chunk') {
           console.log(`[TRANSFER] Receiving chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
@@ -401,10 +397,7 @@ class WebRTCService {
 
   async sendFile(file: File) {
     if (!this.dataChannel) {
-      throw new TransferError(
-        "No connection established",
-        TransferError.Codes.CHUNK_PROCESSING
-      );
+      throw new TransferError("No connection established");
     }
 
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
@@ -413,14 +406,6 @@ class WebRTCService {
 
     try {
       for (let i = 0; i < totalChunks; i++) {
-        if (this.cancelTransfer) {
-          console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
-          throw new TransferError(
-            "Transfer cancelled by user",
-            TransferError.Codes.CANCELED
-          );
-        }
-
         const start = i * CHUNK_SIZE;
         const end = Math.min(start + CHUNK_SIZE, file.size);
         const chunk = file.slice(start, end);
@@ -439,7 +424,6 @@ class WebRTCService {
             chunk: base64,
             chunkIndex: i,
             totalChunks,
-            fileSize: file.size
           });
 
           if (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
@@ -457,7 +441,6 @@ class WebRTCService {
         } catch (error) {
           throw new TransferError(
             "Failed to send file chunk",
-            TransferError.Codes.CHUNK_PROCESSING,
             { chunkIndex: i, totalChunks, error }
           );
         }
@@ -468,11 +451,7 @@ class WebRTCService {
       if (error instanceof WebRTCError) {
         throw error;
       } else {
-        throw new TransferError(
-          "Failed to send file",
-          TransferError.Codes.CHUNK_PROCESSING,
-          { error }
-        );
+        throw new TransferError("Failed to send file", error);
       }
     }
   }

@@ -1,3 +1,4 @@
+
 import { FileTransferService } from './FileTransferService';
 import { EncryptionService } from './EncryptionService';
 import { WebRTCError } from '@/types/webrtc-errors';
@@ -8,8 +9,6 @@ export interface IDataChannelManager {
   setStateChangeHandler(handler: (state: RTCDataChannelState) => void): void;
   sendFile(file: File): Promise<void>;
   cancelTransfer(filename: string, isReceiver?: boolean): void;
-  pauseTransfer(filename: string): void;
-  resumeTransfer(filename: string): void;
   disconnect(): void;
 }
 
@@ -51,13 +50,9 @@ export class DataChannelManager implements IDataChannelManager {
       }
     };
 
-    channel.onerror = (error: Event) => {
+    channel.onerror = (error) => {
       console.error('[DATACHANNEL] Error:', error);
-      this.onError(new WebRTCError(
-        'Data channel error occurred',
-        'DATACHANNEL_ERROR',
-        error
-      ));
+      this.onError(new WebRTCError('Data channel error occurred', error));
     };
   }
 
@@ -69,26 +64,9 @@ export class DataChannelManager implements IDataChannelManager {
   async sendFile(file: File): Promise<void> {
     console.log('[DATACHANNEL] Attempting to send file:', file.name);
     if (!this.fileTransferService) {
-      throw new WebRTCError(
-        "No active data channel",
-        'DATACHANNEL_NOT_READY'
-      );
+      throw new WebRTCError("No active data channel");
     }
     await this.fileTransferService.sendFile(file);
-  }
-
-  pauseTransfer(filename: string): void {
-    console.log('[DATACHANNEL] Pausing transfer for:', filename);
-    if (this.fileTransferService) {
-      this.fileTransferService.pauseTransfer(filename);
-    }
-  }
-
-  resumeTransfer(filename: string): void {
-    console.log('[DATACHANNEL] Resuming transfer for:', filename);
-    if (this.fileTransferService) {
-      this.fileTransferService.resumeTransfer(filename);
-    }
   }
 
   cancelTransfer(filename: string, isReceiver: boolean = false): void {
