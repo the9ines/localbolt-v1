@@ -9,6 +9,14 @@ import { FileList } from "./FileList";
 import { TransferProgressBar } from "./TransferProgress";
 import { Camera, Image } from "lucide-react";
 
+// Add ImageCapture API type definitions
+declare global {
+  class ImageCapture {
+    constructor(track: MediaStreamTrack);
+    takePhoto(): Promise<Blob>;
+  }
+}
+
 interface FileUploadProps {
   webrtc?: WebRTCService;
 }
@@ -86,6 +94,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       const videoTrack = stream.getVideoTracks()[0];
+      // Now TypeScript knows about ImageCapture
       const imageCapture = new ImageCapture(videoTrack);
       
       const blob = await imageCapture.takePhoto();
