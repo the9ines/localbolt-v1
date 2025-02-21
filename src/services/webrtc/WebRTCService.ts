@@ -1,3 +1,4 @@
+
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -150,6 +151,16 @@ class WebRTCService {
   async sendFile(file: File) {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
     await this.dataChannelManager.sendFile(file);
+  }
+
+  pauseTransfer(filename: string) {
+    console.log('[WEBRTC] Pausing transfer:', filename);
+    this.dataChannelManager.pauseTransfer(filename);
+  }
+
+  resumeTransfer(filename: string) {
+    console.log('[WEBRTC] Resuming transfer:', filename);
+    this.dataChannelManager.resumeTransfer(filename);
   }
 
   cancelTransfer(filename: string, isReceiver: boolean = false) {
