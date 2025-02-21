@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -29,8 +28,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     setIsConnected(connected);
     if (webrtc) {
       onConnectionChange(connected, webrtc);
-      if (connected && webrtc.remotePeerCode) {
-        setTargetPeerCode(webrtc.remotePeerCode);
+      if (connected) {
+        const remotePeerCode = webrtc.getRemotePeerCode();
+        if (remotePeerCode) {
+          setTargetPeerCode(remotePeerCode);
+        }
       }
     }
   }, [onConnectionChange, webrtc]);
@@ -84,7 +86,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   }, [toast]);
 
   useEffect(() => {
-    // Only create WebRTCService if we don't have one and if peerCode exists
     if (!webrtc && peerCode) {
       console.log('[INIT] Creating WebRTC service with code:', peerCode);
       const rtcService = new WebRTCService(

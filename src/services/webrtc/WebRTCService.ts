@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -98,7 +97,6 @@ class WebRTCService {
         this.onConnectionStateChange('connecting');
       }
 
-      // Check if signal has a type property and if it equals 'disconnect'
       const signalType = signal.type as string | undefined;
       if (signalType && signalType === 'disconnect') {
         this.disconnect();
@@ -120,7 +118,6 @@ class WebRTCService {
         this.remotePeerCode = remotePeerCode;
         const peerConnection = await this.connectionManager.createPeerConnection();
         
-        // Create data channel with only maxRetransmits
         const dataChannel = peerConnection.createDataChannel('fileTransfer', {
           ordered: true,
           maxRetransmits: 3
@@ -189,6 +186,10 @@ class WebRTCService {
     this.remotePeerCode = '';
     this.connectionAttempts = 0;
     this.onConnectionStateChange('disconnected');
+  }
+
+  public getRemotePeerCode(): string {
+    return this.remotePeerCode;
   }
 }
 
