@@ -14,23 +14,14 @@ export class ConnectionManager {
 
   async createPeerConnection(): Promise<RTCPeerConnection> {
     console.log('[WEBRTC] Creating peer connection');
-    
-    if (this.peerConnection) {
-      console.log('[WEBRTC] Closing existing connection before creating new one');
-      this.peerConnection.close();
-    }
-    
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
-        { 
-          urls: [
-            'stun:stun.l.google.com:19302',
-            'stun:stun1.l.google.com:19302',
-            'stun:stun2.l.google.com:19302',
-            'stun:stun3.l.google.com:19302',
-            'stun:stun4.l.google.com:19302'
-          ]
-        },
+        // Improved STUN/TURN server configuration for better connectivity
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' },
         {
           urls: 'turn:openrelay.metered.ca:80',
           username: 'openrelayproject',
@@ -48,9 +39,10 @@ export class ConnectionManager {
         }
       ],
       iceCandidatePoolSize: 10,
+      // Optimize for reliability over speed for Steam Deck's varying network conditions
+      iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
-      rtcpMuxPolicy: 'require',
-      iceTransportPolicy: 'all'
+      rtcpMuxPolicy: 'require'
     });
 
     this.setupConnectionListeners();
@@ -64,20 +56,17 @@ export class ConnectionManager {
       if (event.candidate) {
         console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
         this.onIceCandidate(event.candidate);
-      } else {
-        console.log('[ICE] All candidates gathered');
       }
     };
 
     this.peerConnection.oniceconnectionstatechange = () => {
       const state = this.peerConnection?.iceConnectionState;
-      console.log('[ICE] Connection state changed to:', state);
+      console.log('[ICE] Connection state:', state);
       
       if (state === 'checking') {
         console.log('[ICE] Negotiating connection...');
       } else if (state === 'connected' || state === 'completed') {
         console.log('[ICE] Connection established');
-        this.processPendingCandidates();
       } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
         console.error('[ICE] Connection failed:', state);
         this.onError(new ConnectionError("ICE connection failed", { state }));
@@ -86,7 +75,7 @@ export class ConnectionManager {
 
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection?.connectionState;
-      console.log('[WEBRTC] Connection state changed to:', state);
+      console.log('[WEBRTC] Connection state:', state);
       
       if (state === 'connecting') {
         console.log('[WEBRTC] Establishing connection...');
@@ -104,16 +93,6 @@ export class ConnectionManager {
         this.onDataChannel(event.channel);
       }
     };
-
-    // Add gathering state change listener
-    this.peerConnection.onicegatheringstatechange = () => {
-      console.log('[ICE] Gathering state:', this.peerConnection?.iceGatheringState);
-    };
-
-    // Add signaling state change listener
-    this.peerConnection.onsignalingstatechange = () => {
-      console.log('[WEBRTC] Signaling state:', this.peerConnection?.signalingState);
-    };
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit) {
@@ -123,25 +102,25 @@ export class ConnectionManager {
       return;
     }
 
-    if (!this.peerConnection.remoteDescription) {
-      console.log('[ICE] Queuing ICE candidate (no remote description)');
-      this.pendingIceCandidates.push(candidate);
-      return;
-    }
+    const signalingState = this.peerConnection.signalingState;
+    console.log('[ICE] Current signaling state:', signalingState);
 
-    try {
-      await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      console.log('[ICE] Added ICE candidate successfully');
-    } catch (error) {
-      console.error('[ICE] Failed to add ICE candidate:', error);
+    if (signalingState === 'stable' || signalingState === 'have-remote-offer' || signalingState === 'have-local-offer') {
+      try {
+        await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log('[ICE] Added ICE candidate successfully');
+      } catch (error) {
+        console.error('[ICE] Failed to add ICE candidate:', error);
+        this.pendingIceCandidates.push(candidate);
+      }
+    } else {
+      console.log('[ICE] Queuing ICE candidate (invalid state)');
       this.pendingIceCandidates.push(candidate);
     }
   }
 
   async processPendingCandidates() {
-    if (!this.peerConnection || !this.peerConnection.remoteDescription) {
-      return;
-    }
+    if (!this.peerConnection) return;
 
     console.log('[ICE] Processing pending candidates:', this.pendingIceCandidates.length);
     
@@ -150,13 +129,14 @@ export class ConnectionManager {
       if (candidate) {
         try {
           await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log('[ICE] Added pending ICE candidate successfully');
+          console.log('[ICE] Added pending ICE candidate');
         } catch (error) {
           console.error('[ICE] Failed to add pending ICE candidate:', error);
-          if (this.peerConnection.remoteDescription) {
+          // Re-queue the candidate if we're not ready
+          if (this.peerConnection.signalingState !== 'closed') {
             this.pendingIceCandidates.unshift(candidate);
+            break;
           }
-          break;
         }
       }
     }

@@ -20,12 +20,6 @@ export class SignalingHandler {
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
     
     const peerConnection = await this.connectionManager.createPeerConnection();
-    
-    peerConnection.ondatachannel = (event) => {
-      console.log('[SIGNALING] Data channel received');
-      this.onDataChannel(event.channel);
-    };
-    
     const offerDesc = new RTCSessionDescription(signal.data.offer);
     await peerConnection.setRemoteDescription(offerDesc);
     console.log('[SIGNALING] Set remote description (offer)');
@@ -75,7 +69,7 @@ export class SignalingHandler {
       const candidate = this.pendingCandidates.shift();
       if (candidate) {
         try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          await this.connectionManager.addIceCandidate(candidate);
           console.log('[ICE] Added pending candidate');
         } catch (error) {
           console.error('[ICE] Failed to add pending candidate:', error);
@@ -95,7 +89,7 @@ export class SignalingHandler {
     }
 
     try {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
+      await this.connectionManager.addIceCandidate(signal.data);
       console.log('[ICE] Added ICE candidate in state:', peerConnection.signalingState);
     } catch (error) {
       console.log('[ICE] Failed to add candidate, queuing:', error);
