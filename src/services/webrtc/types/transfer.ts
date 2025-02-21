@@ -3,6 +3,7 @@ export type TransferStatus =
   | 'initializing'
   | 'transferring'
   | 'paused'
+  | 'retrying'
   | 'completed'
   | 'canceled_by_sender'
   | 'canceled_by_receiver'
@@ -15,6 +16,9 @@ export interface TransferStats {
   estimatedTimeRemaining: number; // seconds
   pauseDuration: number;  // total time spent paused
   retryCount: number;     // number of retry attempts
+  lastRetryAt?: number;   // timestamp of last retry attempt
+  maxRetries: number;     // maximum number of retry attempts
+  lastError?: string;     // last error message
   lastPausedAt?: number;  // timestamp of last pause
 }
 
@@ -46,4 +50,5 @@ export interface FileChunkMessage {
   resumed?: boolean;
   timestamp?: number;    // for calculating transfer speed
   retryCount?: number;   // for tracking retries
+  retryAfter?: number;   // delay before retry in ms
 }
