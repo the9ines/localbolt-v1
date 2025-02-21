@@ -98,7 +98,9 @@ class WebRTCService {
         this.onConnectionStateChange('connecting');
       }
 
-      if (signal.type && signal.type === 'disconnect') {
+      // Check if signal has a type property and if it equals 'disconnect'
+      const signalType = signal.type as string | undefined;
+      if (signalType && signalType === 'disconnect') {
         this.disconnect();
         return;
       }

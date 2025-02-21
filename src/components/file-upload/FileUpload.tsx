@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from "react";
 import { DragDropArea } from "./DragDropArea";
 import { FileList } from "./FileList";
@@ -12,12 +13,21 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [files, setFiles] = useState<File[]>([]);
   const { toast } = useToast();
 
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      setFiles((prevFiles) => [...prevFiles, ...acceptedFiles]);
-    },
-    []
-  );
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    
+    if (e.dataTransfer.items) {
+      const newFiles = Array.from(e.dataTransfer.items)
+        .filter(item => item.kind === 'file')
+        .map(item => item.getAsFile())
+        .filter((file): file is File => file !== null);
+      
+      setFiles(prevFiles => [...prevFiles, ...newFiles]);
+    } else {
+      const newFiles = Array.from(e.dataTransfer.files);
+      setFiles(prevFiles => [...prevFiles, ...newFiles]);
+    }
+  }, []);
 
   const handleSendFile = async (file: File) => {
     try {
@@ -37,8 +47,8 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     }
   };
 
-  const handleRemoveFile = (fileToRemove: File) => {
-    setFiles((prevFiles) => prevFiles.filter((file) => file !== fileToRemove));
+  const handleRemoveFile = (index: number) => {
+    setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
   };
 
   useEffect(() => {
@@ -64,8 +74,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
       {files.length > 0 && (
         <FileList
           files={files}
-          onSendFile={handleSendFile}
-          onRemoveFile={handleRemoveFile}
+          onRemove={handleRemoveFile}
         />
       )}
     </div>
