@@ -11,7 +11,7 @@ import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 
 interface PeerConnectionProps {
-  onConnectionChange: (connected: boolean, service?: typeof WebRTCService) => void;
+  onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
 }
 
 export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
@@ -27,7 +27,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
     setIsConnected(connected);
-    onConnectionChange(connected, webrtc);
+    onConnectionChange(connected, webrtc || undefined);
   }, [onConnectionChange, webrtc]);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
