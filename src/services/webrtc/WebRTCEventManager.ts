@@ -7,7 +7,6 @@ import { DataChannelManager } from './DataChannelManager';
 export class WebRTCEventManager {
   private connectionStateListener?: (state: RTCPeerConnectionState) => void;
   private isDisconnecting: boolean = false;
-  private disconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -23,12 +22,8 @@ export class WebRTCEventManager {
       
       if (state === 'disconnected' || state === 'failed' || state === 'closed') {
         console.log('[CONNECTION] Peer disconnected, cleaning up connection state');
-        this.handleDisconnect();
-        return; // Prevent any other state updates during disconnect
-      }
-
-      // Only update state if we're not in the process of disconnecting
-      if (!this.isDisconnecting && this.connectionStateListener) {
+        this.forceDisconnect();
+      } else if (!this.isDisconnecting && this.connectionStateListener) {
         this.connectionStateListener(state);
       }
     });
@@ -37,7 +32,7 @@ export class WebRTCEventManager {
       console.log('[DATACHANNEL] State changed:', state);
       if (state === 'closed' || state === 'closing') {
         console.log('[DATACHANNEL] Channel closed/closing, initiating disconnect');
-        this.handleDisconnect();
+        this.forceDisconnect();
       }
     });
   }
@@ -46,38 +41,28 @@ export class WebRTCEventManager {
     this.connectionStateListener = handler;
   }
 
-  handleDisconnect() {
+  private forceDisconnect() {
     if (this.isDisconnecting) return;
     this.isDisconnecting = true;
 
-    // Clear any existing timeout
-    if (this.disconnectTimeout) {
-      clearTimeout(this.disconnectTimeout);
-    }
-    
-    // Force immediate disconnect state notification
+    // Immediately notify of disconnection
     if (this.connectionStateListener) {
-      console.log('[CONNECTION] Forcing disconnect state notification');
+      console.log('[CONNECTION] Forcing immediate disconnect state');
       this.connectionStateListener('disconnected');
-      
-      // Double-check disconnect state after a brief delay
-      setTimeout(() => {
-        if (this.connectionStateListener) {
-          this.connectionStateListener('disconnected');
-        }
-      }, 50);
     }
 
-    // Reset disconnecting flag after a longer delay
-    this.disconnectTimeout = setTimeout(() => {
+    // Force the connection to close
+    this.connectionManager.disconnect();
+    this.dataChannelManager.disconnect();
+
+    // Reset the disconnecting flag after all cleanup
+    setTimeout(() => {
       console.log('[CONNECTION] Resetting disconnect state');
       this.isDisconnecting = false;
-      this.disconnectTimeout = null;
+    }, 100);
+  }
 
-      // Final disconnect state check
-      if (this.connectionStateListener) {
-        this.connectionStateListener('disconnected');
-      }
-    }, 1500);
+  handleDisconnect() {
+    this.forceDisconnect();
   }
 }

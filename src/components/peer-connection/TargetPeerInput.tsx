@@ -19,6 +19,8 @@ export const TargetPeerInput = ({
   isConnected,
   remotePeerCode
 }: TargetPeerInputProps) => {
+  const displayValue = isConnected ? remotePeerCode || targetPeerCode : targetPeerCode;
+  
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium leading-none">
@@ -26,12 +28,13 @@ export const TargetPeerInput = ({
       </label>
       <div className="flex space-x-2">
         <Input
-          value={targetPeerCode}
+          value={displayValue}
           onChange={(e) => onTargetPeerCodeChange(e.target.value.toUpperCase())}
           placeholder="Enter Peer Code"
           className="font-mono bg-dark-accent placeholder:text-white/20"
           maxLength={6}
           disabled={isConnected}
+          readOnly={isConnected}
         />
         <Button 
           variant="outline"
