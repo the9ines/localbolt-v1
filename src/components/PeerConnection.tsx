@@ -86,11 +86,14 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     setPeerCode(code);
     const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
     
-    // Set up connection state monitoring using the public method
     rtcService.setConnectionStateHandler((state) => {
+      console.log('[CONNECTION] State changed to:', state);
       if (state === 'connected') {
         setIsConnected(true);
+        onConnectionChange(true, rtcService);
       } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        setIsConnected(false);
+        onConnectionChange(false);
         handleDisconnect();
       }
     });
@@ -101,7 +104,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       rtcService.disconnect();
       setIsConnected(false);
     };
-  }, [handleFileReceive, handleError, handleProgress, handleDisconnect, setPeerCode]);
+  }, [handleFileReceive, handleError, handleProgress, handleDisconnect, setPeerCode, onConnectionChange]);
 
   const handleConnect = async () => {
     if (!webrtc) return;
@@ -122,15 +125,12 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       });
       
       await webrtc.connect(targetPeerCode);
-      setIsConnected(true);
-      onConnectionChange(true, webrtc);
       
       toast({
         title: "Connected!",
         description: "Secure connection established",
       });
     } catch (error) {
-      setIsConnected(false);
       if (error instanceof WebRTCError) {
         handleError(error);
       } else {
@@ -141,7 +141,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           variant: "destructive",
         });
       }
-      onConnectionChange(false);
     }
   };
 
@@ -149,9 +148,9 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     <div className="space-y-4">
       <div className="flex items-center justify-center space-x-2 text-neon mb-4">
         {isConnected ? (
-          <ShieldCheck className="w-5 h-5 fill-neon transition-all duration-300" />
+          <ShieldCheck className="w-5 h-5 fill-neon text-neon transition-all duration-300" />
         ) : (
-          <Shield className="w-5 h-5 transition-all duration-300" />
+          <Shield className="w-5 h-5 text-neon transition-all duration-300" />
         )}
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
