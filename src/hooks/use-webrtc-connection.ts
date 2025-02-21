@@ -9,24 +9,45 @@ import { useTransferProgress } from "./use-transfer-progress";
 export const useWebRTCConnection = (
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void
 ) => {
-  const [targetPeerCode, setTargetPeerCode] = useState("");
+  const [targetPeerCode, setTargetPeerCode] = useState(() => localStorage.getItem('targetPeerCode') || "");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [remotePeerCode, setRemotePeerCode] = useState("");
+  const [remotePeerCode, setRemotePeerCode] = useState(() => localStorage.getItem('remotePeerCode') || "");
   const { toast } = useToast();
   
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
 
+  // Persist connection state
+  useEffect(() => {
+    if (remotePeerCode) {
+      localStorage.setItem('remotePeerCode', remotePeerCode);
+    } else {
+      localStorage.removeItem('remotePeerCode');
+    }
+  }, [remotePeerCode]);
+
+  useEffect(() => {
+    if (targetPeerCode) {
+      localStorage.setItem('targetPeerCode', targetPeerCode);
+    } else {
+      localStorage.removeItem('targetPeerCode');
+    }
+  }, [targetPeerCode]);
+
   const handleConnectionStateChange = useCallback((state: RTCPeerConnectionState) => {
     console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
     setIsConnected(connected);
-    onConnectionChange(connected, webrtc || undefined);
-
-    if (!connected) {
-      setRemotePeerCode("");
-      setTargetPeerCode("");
+    
+    if (connected && webrtc) {
+      onConnectionChange(true, webrtc);
+    } else if (!connected) {
+      onConnectionChange(false);
+      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+        setRemotePeerCode("");
+        setTargetPeerCode("");
+      }
     }
   }, [onConnectionChange, webrtc]);
 
@@ -99,6 +120,8 @@ export const useWebRTCConnection = (
       onConnectionChange(false);
       setTargetPeerCode("");
       setRemotePeerCode("");
+      localStorage.removeItem('targetPeerCode');
+      localStorage.removeItem('remotePeerCode');
       toast({
         title: "Disconnected",
         description: "Connection closed successfully",
@@ -154,9 +177,17 @@ export const useWebRTCConnection = (
 
   useEffect(() => {
     if (!webrtc) {
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      // Try to restore connection from localStorage
+      const savedPeerCode = localStorage.getItem('peerCode');
+      const code = savedPeerCode || Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      if (!savedPeerCode) {
+        localStorage.setItem('peerCode', code);
+      }
+      
       setPeerCode(code);
       console.log('[WEBRTC] Creating new service with code:', code);
+      
       const rtcService = new WebRTCService(
         code,
         handleFileReceive,
@@ -166,21 +197,24 @@ export const useWebRTCConnection = (
       );
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
 
-      // Listen for disconnect signals from the other peer
+      // Don't disconnect on page unload/navigation
       const handleBeforeUnload = () => {
-        console.log('[WEBRTC] Page unloading, cleaning up...');
-        rtcService.disconnect();
+        console.log('[WEBRTC] Page unloading, persisting connection...');
+        return; // Do nothing, keep the connection alive
       };
 
       window.addEventListener('beforeunload', handleBeforeUnload);
       setWebrtc(rtcService);
 
+      // Try to restore connection if we have a target peer code
+      const savedTargetPeerCode = localStorage.getItem('targetPeerCode');
+      if (savedTargetPeerCode) {
+        setTargetPeerCode(savedTargetPeerCode);
+        rtcService.connect(savedTargetPeerCode).catch(console.error);
+      }
+
       return () => {
-        console.log('[WEBRTC] Cleaning up service');
         window.removeEventListener('beforeunload', handleBeforeUnload);
-        rtcService.disconnect();
-        setIsConnected(false);
-        onConnectionChange(false);
       };
     }
   }, []); // Empty dependency array since we only want this to run once
