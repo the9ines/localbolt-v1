@@ -17,6 +17,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   const [targetPeerCode, setTargetPeerCode] = useState("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [remotePeerCode, setRemotePeerCode] = useState("");
   const { toast } = useToast();
   
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
@@ -28,6 +29,12 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     setIsConnected(connected);
     onConnectionChange(connected, webrtc || undefined);
   }, [onConnectionChange, webrtc]);
+
+  const handleRemotePeerCode = useCallback((code: string) => {
+    console.log('[UI] Remote peer code updated:', code);
+    setRemotePeerCode(code);
+    setTargetPeerCode(code);
+  }, []);
 
   const handleFileReceive = useCallback((file: Blob, filename: string) => {
     const url = URL.createObjectURL(file);
@@ -85,6 +92,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       setIsConnected(false);
       onConnectionChange(false);
       setTargetPeerCode("");
+      setRemotePeerCode("");
       toast({
         title: "Disconnected",
         description: "Connection closed successfully",
@@ -97,7 +105,13 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
       console.log('[WEBRTC] Creating new service with code:', code);
-      const rtcService = new WebRTCService(code, handleFileReceive, handleError, handleProgress);
+      const rtcService = new WebRTCService(
+        code,
+        handleFileReceive,
+        handleError,
+        handleProgress,
+        handleRemotePeerCode
+      );
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
       setWebrtc(rtcService);
 

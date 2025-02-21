@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -18,17 +17,20 @@ class WebRTCService {
   private connectionAttempts: number = 0;
   private maxConnectionAttempts: number = 3;
   private connectionStateListener?: (state: RTCPeerConnectionState) => void;
+  private onRemotePeerCodeUpdate?: (code: string) => void;
 
   constructor(
     private localPeerCode: string,
     private onReceiveFile: (file: Blob, filename: string) => void,
     private onError: (error: WebRTCError) => void,
-    private onProgress?: (progress: TransferProgress) => void
+    private onProgress?: (progress: TransferProgress) => void,
+    onRemotePeerCode?: (code: string) => void
   ) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     
     this.encryptionService = new EncryptionService();
     this.onProgressCallback = onProgress;
+    this.onRemotePeerCodeUpdate = onRemotePeerCode;
     
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
@@ -64,11 +66,13 @@ class WebRTCService {
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
-    // Set up initial connection state handler
     this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
       console.log('[CONNECTION] State changed:', state);
       if (this.connectionStateListener) {
         this.connectionStateListener(state);
+      }
+      if (state === 'connected' && this.onRemotePeerCodeUpdate) {
+        this.onRemotePeerCodeUpdate(this.remotePeerCode);
       }
     });
   }
@@ -182,6 +186,10 @@ class WebRTCService {
   private handleSignal = async (signal: SignalData) => {
     await this.signalingHandler.handleSignal(signal);
   };
+
+  getRemotePeerCode(): string {
+    return this.remotePeerCode;
+  }
 }
 
 export default WebRTCService;
