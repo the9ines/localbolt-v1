@@ -73,7 +73,6 @@ export const usePeerConnection = (
       await webrtc.connect(targetPeerCode);
       
       setIsConnected(true);
-      setConnectedPeerCode(targetPeerCode);
       onConnectionChange(true, webrtc);
       
       toast({
@@ -115,7 +114,6 @@ export const usePeerConnection = (
     targetPeerCode,
     setTargetPeerCode,
     connectedPeerCode,
-    setConnectedPeerCode,  // Added this to the return object
     webrtc,
     setWebrtc,
     isConnected,

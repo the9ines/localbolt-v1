@@ -18,7 +18,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     targetPeerCode,
     setTargetPeerCode,
     connectedPeerCode,
-    setConnectedPeerCode,
     webrtc,
     setWebrtc,
     isConnected,
@@ -30,6 +29,14 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
   const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
+
+  // Update connected peer code whenever connection state changes
+  useEffect(() => {
+    if (webrtc && isConnected) {
+      const remotePeer = webrtc.getRemotePeerCode();
+      console.log('[UI] Remote peer code updated:', remotePeer);
+    }
+  }, [webrtc, isConnected]);
 
   useEffect(() => {
     if (!webrtc) {
@@ -59,10 +66,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     if (connected && webrtc) {
       const remotePeerCode = webrtc.getRemotePeerCode();
       console.log('[UI] Setting connected peer code:', remotePeerCode);
-      setConnectedPeerCode(remotePeerCode);
     } else {
       setTargetPeerCode("");
-      setConnectedPeerCode("");
     }
   };
 
@@ -94,7 +99,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           isConnected={isConnected}
-          remotePeerCode={isConnected ? connectedPeerCode : targetPeerCode}
+          remotePeerCode={webrtc?.getRemotePeerCode()}
         />
       </div>
 
