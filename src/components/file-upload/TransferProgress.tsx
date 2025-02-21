@@ -1,15 +1,47 @@
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { X } from "lucide-react";
+import { Pause, Play, X } from "lucide-react";
 import type { TransferProgress as TransferProgressType } from "@/services/webrtc/FileTransferService";
 
 interface TransferProgressProps {
   progress: TransferProgressType;
   onCancel: () => void;
+  onPause?: () => void;
+  onResume?: () => void;
 }
 
-export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProps) => {
+const formatSpeed = (bytesPerSecond: number): string => {
+  if (bytesPerSecond === 0) return '0 B/s';
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+  const exponent = Math.min(Math.floor(Math.log(bytesPerSecond) / Math.log(1024)), units.length - 1);
+  return `${(bytesPerSecond / Math.pow(1024, exponent)).toFixed(2)} ${units[exponent]}`;
+};
+
+const formatTime = (seconds: number): string => {
+  if (!isFinite(seconds) || seconds < 0) return 'calculating...';
+  if (seconds === 0) return '0s';
+  
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  const parts = [];
+  if (hrs > 0) parts.push(`${hrs}h`);
+  if (mins > 0) parts.push(`${mins}m`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+  
+  return parts.join(' ');
+};
+
+const formatSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, exponent)).toFixed(2)} ${units[exponent]}`;
+};
+
+export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: TransferProgressProps) => {
   const getStatusText = () => {
     switch (progress.status) {
       case 'canceled_by_sender':
@@ -18,6 +50,8 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
         return 'Transfer canceled';
       case 'error':
         return 'Transfer terminated due to an error';
+      case 'paused':
+        return 'Transfer paused';
       default:
         return `${Math.round((progress.loaded / progress.total) * 100)}%`;
     }
@@ -26,38 +60,74 @@ export const TransferProgressBar = ({ progress, onCancel }: TransferProgressProp
   const getProgressBarColor = () => {
     if (progress.status === 'error') return 'bg-red-500/20';
     if (progress.status?.includes('canceled')) return 'bg-neon/20';
+    if (progress.status === 'paused') return 'bg-yellow-500/20';
     return 'bg-dark-accent';
   };
 
-  const showCancelButton = progress.status === 'transferring';
+  const showControls = progress.status === 'transferring' || progress.status === 'paused';
+  const isPaused = progress.status === 'paused';
 
   return (
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
-        <span className="truncate">{progress.filename}</span>
+        <span className="truncate flex-1">{progress.filename}</span>
         <span className={
           progress.status === 'error' ? 'text-red-500' : 
-          progress.status?.includes('canceled') ? 'text-neon' : ''
+          progress.status?.includes('canceled') ? 'text-neon' :
+          progress.status === 'paused' ? 'text-yellow-500' : ''
         }>
           {getStatusText()}
         </span>
       </div>
+      
       <div className="flex space-x-2">
         <Progress 
           value={(progress.currentChunk / progress.totalChunks) * 100}
           className={`h-2 flex-1 ${getProgressBarColor()}`}
         />
-        {showCancelButton && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onCancel}
-            className="text-white/50 hover:text-neon transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        )}
+        <div className="flex space-x-1">
+          {showControls && onPause && onResume && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={isPaused ? onResume : onPause}
+              className="text-white/50 hover:text-neon transition-colors"
+            >
+              {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+            </Button>
+          )}
+          {showControls && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onCancel}
+              className="text-white/50 hover:text-red-500 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </div>
+
+      {progress.stats && (
+        <div className="grid grid-cols-2 gap-2 text-xs text-gray-400">
+          <div>Speed: {formatSpeed(progress.stats.speed)}</div>
+          <div>Avg: {formatSpeed(progress.stats.averageSpeed)}</div>
+          <div>
+            {formatSize(progress.loaded)} / {formatSize(progress.total)}
+          </div>
+          <div>
+            {progress.stats.estimatedTimeRemaining > 0 
+              ? `~${formatTime(progress.stats.estimatedTimeRemaining)} remaining` 
+              : 'Calculating...'}
+          </div>
+          {progress.stats.retryCount > 0 && (
+            <div className="col-span-2 text-yellow-500">
+              Retries: {progress.stats.retryCount}/{progress.stats.maxRetries}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
