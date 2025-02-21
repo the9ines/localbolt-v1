@@ -16,6 +16,7 @@ export class ConnectionManager {
     console.log('[WEBRTC] Creating peer connection');
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
+        // Improved STUN/TURN server configuration for better connectivity
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
         { urls: 'stun:stun2.l.google.com:19302' },
@@ -30,9 +31,18 @@ export class ConnectionManager {
           urls: 'turn:openrelay.metered.ca:443',
           username: 'openrelayproject',
           credential: 'openrelayproject',
+        },
+        {
+          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+          username: 'openrelayproject',
+          credential: 'openrelayproject',
         }
       ],
-      iceCandidatePoolSize: 10
+      iceCandidatePoolSize: 10,
+      // Optimize for reliability over speed for Steam Deck's varying network conditions
+      iceTransportPolicy: 'all',
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require'
     });
 
     this.setupConnectionListeners();
