@@ -128,6 +128,20 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         <span className="text-sm">End-to-End Encrypted</span>
       </div>
       
+      <div className="space-y-4">
+        <PeerCodeInput 
+          peerCode={peerCode}
+          copied={copied}
+          onCopy={copyToClipboard}
+        />
+
+        <TargetPeerInput
+          targetPeerCode={targetPeerCode}
+          onTargetPeerCodeChange={setTargetPeerCode}
+          onConnect={handleConnect}
+        />
+      </div>
+
       {transferProgress && (
         <div className="space-y-2 animate-fade-up">
           <TransferProgressBar 
@@ -136,18 +150,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           />
         </div>
       )}
-
-      <PeerCodeInput 
-        peerCode={peerCode}
-        copied={copied}
-        onCopy={copyToClipboard}
-      />
-
-      <TargetPeerInput
-        targetPeerCode={targetPeerCode}
-        onTargetPeerCodeChange={setTargetPeerCode}
-        onConnect={handleConnect}
-      />
     </div>
   );
 };
