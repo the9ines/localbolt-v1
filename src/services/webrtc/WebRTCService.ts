@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError, SignalingError, TransferError, EncryptionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -7,7 +6,7 @@ import { SignalingHandler } from './SignalingHandler';
 import { DataChannelManager } from './DataChannelManager';
 import type { TransferProgress } from './types/transfer';
 
-class WebRTCService {
+export class WebRTCService {
   private remotePeerCode: string = '';
   private connectionManager: ConnectionManager;
   private signalingHandler: SignalingHandler;
@@ -85,7 +84,8 @@ class WebRTCService {
     }
   }
 
-  setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
+  setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void): void {
+    console.log('[WEBRTC] Setting connection state handler');
     this.connectionStateHandler = handler;
     // Set the handler on the connection manager as well
     this.connectionManager.setPeerConnectionStateHandler(handler);
@@ -190,4 +190,14 @@ class WebRTCService {
   };
 }
 
-export default WebRTCService;
+// Create a default instance export
+const createWebRTCService = (
+  localPeerCode: string,
+  onReceiveFile: (file: Blob, filename: string) => void,
+  onError: (error: WebRTCError) => void,
+  onProgress?: (progress: TransferProgress) => void
+): WebRTCService => {
+  return new WebRTCService(localPeerCode, onReceiveFile, onError, onProgress);
+};
+
+export default createWebRTCService;
