@@ -7,16 +7,12 @@ interface PeerCodeInputProps {
   peerCode: string;
   copied: boolean;
   onCopy: () => void;
-  children?: React.ReactNode;
 }
 
-export const PeerCodeInput = ({ peerCode, copied, onCopy, children }: PeerCodeInputProps) => {
+export const PeerCodeInput = ({ peerCode, copied, onCopy }: PeerCodeInputProps) => {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium leading-none flex items-center space-x-2">
-        <span>Your Peer Code</span>
-        {children}
-      </label>
+      <label className="text-sm font-medium leading-none">Your Peer Code</label>
       <div className="flex space-x-2">
         <Input
           value={peerCode}
