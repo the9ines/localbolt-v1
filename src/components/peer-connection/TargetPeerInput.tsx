@@ -33,7 +33,7 @@ export const TargetPeerInput = ({
         />
         <Button 
           onClick={isConnected ? onDisconnect : onConnect} 
-          className="shrink-0 bg-black text-white hover:bg-neon hover:text-black transition-colors"
+          className="shrink-0 bg-dark-accent text-white hover:bg-neon hover:text-black transition-colors"
         >
           {isConnected ? 'Disconnect' : 'Connect'}
         </Button>
