@@ -65,6 +65,20 @@ export class ConnectionManager {
     return this.peerConnection;
   }
 
+  async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
+    if (!this.peerConnection) {
+      throw new ConnectionError("No peer connection established");
+    }
+
+    try {
+      await this.peerConnection.addIceCandidate(candidate);
+      console.log('[ICE] Successfully added candidate');
+    } catch (error) {
+      console.error('[ICE] Failed to add candidate:', error);
+      throw new ConnectionError("Failed to add ICE candidate", error);
+    }
+  }
+
   getConnectionTimeout(): number {
     return this.connectionTimeout;
   }
