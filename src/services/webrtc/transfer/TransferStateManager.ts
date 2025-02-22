@@ -2,17 +2,15 @@
 import type { TransferProgress } from '../types/transfer';
 import type { TransferControl, TransferControlMessage } from '../types/transfer-control';
 
-interface TransferProgress {
-  loaded: number;
-  total: number;
-  currentChunk: number;
-  totalChunks: number;
-}
-
 interface TransferState {
   filename: string;
   total: number;
-  progress?: TransferProgress;
+  progress?: {
+    loaded: number;
+    total: number;
+    currentChunk: number;
+    totalChunks: number;
+  };
 }
 
 export class TransferStateManager {
@@ -41,7 +39,16 @@ export class TransferStateManager {
       this.state = {
         isPaused: false,
         isCancelled: false,
-        currentTransfer: { filename, total }
+        currentTransfer: {
+          filename,
+          total,
+          progress: {
+            loaded: 0,
+            total,
+            currentChunk: 0,
+            totalChunks: 0
+          }
+        }
       };
       // Emit initial state
       this.updateProgress(filename, 'transferring');
@@ -68,12 +75,9 @@ export class TransferStateManager {
       this.state.isPaused = true;
 
       // Always emit full progress state when pausing
-      this.updateProgress(filename, 'paused', {
-        loaded: currentTransfer.progress?.loaded || 0,
-        total: currentTransfer.total,
-        currentChunk: currentTransfer.progress?.currentChunk || 0,
-        totalChunks: currentTransfer.progress?.totalChunks || 0
-      });
+      if (currentTransfer.progress) {
+        this.updateProgress(filename, 'paused', currentTransfer.progress);
+      }
     } catch (error) {
       console.error('[STATE] Error handling pause:', error);
     }
@@ -96,12 +100,9 @@ export class TransferStateManager {
       this.state.isPaused = false;
 
       // Always emit full progress state when resuming
-      this.updateProgress(filename, 'transferring', {
-        loaded: currentTransfer.progress?.loaded || 0,
-        total: currentTransfer.total,
-        currentChunk: currentTransfer.progress?.currentChunk || 0,
-        totalChunks: currentTransfer.progress?.totalChunks || 0
-      });
+      if (currentTransfer.progress) {
+        this.updateProgress(filename, 'transferring', currentTransfer.progress);
+      }
     } catch (error) {
       console.error('[STATE] Error handling resume:', error);
     }
@@ -149,7 +150,7 @@ export class TransferStateManager {
         this.updateProgress(
           filename,
           this.state.isPaused ? 'paused' : 'transferring',
-          { loaded, total, currentChunk, totalChunks }
+          currentTransfer.progress
         );
       });
     } catch (error) {
@@ -167,7 +168,7 @@ export class TransferStateManager {
 
   private updateProgress(
     filename: string,
-    status: TransferProgress['status'],
+    status: 'transferring' | 'paused' | 'canceled_by_sender' | 'canceled_by_receiver' | 'error',
     progress?: {
       loaded: number;
       total: number;
@@ -178,12 +179,12 @@ export class TransferStateManager {
     if (this.onProgress) {
       try {
         this.onProgress({
+          status,
           filename,
           currentChunk: progress?.currentChunk || 0,
           totalChunks: progress?.totalChunks || 0,
           loaded: progress?.loaded || 0,
           total: progress?.total || 0,
-          status
         });
       } catch (error) {
         console.error('[STATE] Error in progress callback:', error);
