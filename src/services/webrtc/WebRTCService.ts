@@ -19,6 +19,8 @@ class WebRTCService {
   private eventManager: WebRTCEventManager;
   private retryHandler: WebRTCRetryHandler;
   private onProgressCallback?: (progress: TransferProgress) => void;
+  private connectionCheckInterval: number | null = null;
+  private isTransferInProgress: boolean = false;
 
   constructor(
     private localPeerCode: string,
@@ -33,6 +35,32 @@ class WebRTCService {
     
     this.initializeServices();
     this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
+    this.startConnectionCheck();
+  }
+
+  private startConnectionCheck() {
+    // Check connection status every 5 seconds
+    this.connectionCheckInterval = window.setInterval(() => {
+      const peerConnection = this.connectionManager.getPeerConnection();
+      if (peerConnection && this.isTransferInProgress) {
+        console.log('[CONNECTION-CHECK] State:', peerConnection.connectionState);
+        if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+          console.log('[CONNECTION-CHECK] Connection lost during transfer, attempting recovery');
+          this.handleDisconnectDuringTransfer();
+        }
+      }
+    }, 5000);
+  }
+
+  private handleDisconnectDuringTransfer() {
+    if (this.isTransferInProgress) {
+      console.log('[CONNECTION-CHECK] Attempting to recover transfer connection');
+      this.retryHandler.resetAttempts(); // Reset attempts to allow new reconnection cycle
+      this.connect(this.remotePeerCode).catch(error => {
+        console.error('[CONNECTION-CHECK] Failed to recover connection:', error);
+        this.onError(new ConnectionError("Connection lost during transfer", { state: 'disconnected' }));
+      });
+    }
   }
 
   private initializeServices() {
@@ -122,7 +150,11 @@ class WebRTCService {
             resolve();
           } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
             console.log('[WEBRTC] Connection state changed to:', state);
-            reject(new ConnectionError("Connection failed or closed"));
+            if (this.isTransferInProgress) {
+              this.handleDisconnectDuringTransfer();
+            } else {
+              reject(new ConnectionError("Connection failed or closed"));
+            }
           }
         };
       } catch (error) {
@@ -150,16 +182,29 @@ class WebRTCService {
 
   async sendFile(file: File) {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
-    await this.dataChannelManager.sendFile(file);
+    this.isTransferInProgress = true;
+    try {
+      await this.dataChannelManager.sendFile(file);
+      this.isTransferInProgress = false;
+    } catch (error) {
+      this.isTransferInProgress = false;
+      throw error;
+    }
   }
 
   cancelTransfer(filename: string, isReceiver: boolean = false) {
     console.log('[WEBRTC] Cancelling transfer:', filename);
+    this.isTransferInProgress = false;
     this.dataChannelManager.cancelTransfer(filename, isReceiver);
   }
 
   disconnect() {
     console.log('[WEBRTC] Disconnecting');
+    this.isTransferInProgress = false;
+    if (this.connectionCheckInterval !== null) {
+      window.clearInterval(this.connectionCheckInterval);
+      this.connectionCheckInterval = null;
+    }
     this.eventManager.handleDisconnect();
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
