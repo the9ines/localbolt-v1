@@ -12,9 +12,15 @@ interface PeerCodeInputProps {
 export const PeerCodeInput = ({ peerCode, copied, onCopy }: PeerCodeInputProps) => {
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium leading-none">Your Peer Code</label>
+      <label 
+        htmlFor="peer-code-input" 
+        className="text-sm font-medium leading-none"
+      >
+        Your Peer Code
+      </label>
       <div className="flex space-x-2">
         <Input
+          id="peer-code-input"
           value={peerCode}
           readOnly
           className="font-mono bg-dark-accent text-neon"
