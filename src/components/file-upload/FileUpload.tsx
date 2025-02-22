@@ -1,57 +1,161 @@
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
+import type { TransferProgress } from "@/services/webrtc/FileTransferService";
 import { DragDropArea } from "./DragDropArea";
 import { FileList } from "./FileList";
 import { TransferProgressBar } from "./TransferProgress";
-import { TransferControls } from "./TransferControls";
-import { useFileManager } from "@/hooks/use-file-manager";
-import { useTransferManager } from "@/hooks/use-transfer-manager";
 
 interface FileUploadProps {
   webrtc?: WebRTCService;
 }
 
 export const FileUpload = ({ webrtc }: FileUploadProps) => {
-  const {
-    files,
-    isDragging,
-    handleFiles,
-    removeFile,
-    removeFirstFile,
-    handleDrag,
-    handleDragIn,
-    handleDragOut,
-    handleDrop,
-  } = useFileManager();
+  const [isDragging, setIsDragging] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<TransferProgress | null>(null);
+  const { toast } = useToast();
 
-  const {
-    progress,
-    setProgress,
-    handlePauseTransfer,
-    handleResumeTransfer,
-    cancelTransfer,
-    startTransfer,
-  } = useTransferManager(webrtc);
-
+  // Clear progress when WebRTC instance changes (including disconnection)
   useEffect(() => {
     if (!webrtc) {
       setProgress(null);
     }
-  }, [webrtc, setProgress]);
+  }, [webrtc]);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragIn = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragOut = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    handleFiles(droppedFiles);
+  };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     handleFiles(selectedFiles);
   };
 
-  const handleStartTransfer = async () => {
-    const file = files[0];
-    if (!file) return;
+  const handleFiles = (newFiles: File[]) => {
+    setFiles((prev) => [...prev, ...newFiles]);
+    toast({
+      title: "Files added",
+      description: `${newFiles.length} file(s) ready to transfer`,
+    });
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleProgress = (transferProgress: TransferProgress) => {
+    console.log('[TRANSFER] Progress update in UI:', transferProgress);
+    setProgress(transferProgress);
     
-    const success = await startTransfer(file);
-    if (success) {
-      removeFirstFile();
+    if (transferProgress.status === 'canceled_by_sender' || 
+        transferProgress.status === 'canceled_by_receiver' || 
+        transferProgress.status === 'error') {
+      // Clear progress after a delay for error/canceled states
+      setTimeout(() => setProgress(null), 3000);
+    }
+  };
+
+  const handlePauseTransfer = () => {
+    if (webrtc && progress) {
+      webrtc.pauseTransfer(progress.filename);
+    }
+  };
+
+  const handleResumeTransfer = () => {
+    if (webrtc && progress) {
+      webrtc.resumeTransfer(progress.filename);
+    }
+  };
+
+  const cancelTransfer = () => {
+    if (webrtc && progress) {
+      webrtc.cancelTransfer(progress.filename);
+      setProgress(null);
+      toast({
+        title: "Transfer cancelled",
+        description: `Cancelled transfer of ${progress.filename}`,
+      });
+    }
+  };
+
+  const startTransfer = async () => {
+    if (!webrtc) {
+      toast({
+        title: "Connection error",
+        description: "No peer connection available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const file = files[0];
+      if (!file) return;
+
+      console.log('Starting transfer for:', file.name);
+      
+      const CHUNK_SIZE = 16384;
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      
+      setProgress({
+        filename: file.name,
+        currentChunk: 0,
+        totalChunks,
+        loaded: 0,
+        total: file.size,
+        status: 'transferring'
+      });
+
+      webrtc.setProgressCallback(handleProgress);
+      await webrtc.sendFile(file);
+      
+      console.log('Transfer completed for:', file.name);
+
+      toast({
+        title: "Transfer complete",
+        description: `${file.name} has been sent successfully`,
+      });
+
+      setFiles(prevFiles => prevFiles.slice(1));
+    } catch (error) {
+      console.error('Transfer error:', error);
+      if (error.message === "Transfer cancelled by user") {
+        // Already handled by cancelTransfer
+      } else {
+        toast({
+          title: "Transfer failed",
+          description: `Failed to send file`,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      if (!webrtc) {
+        setProgress(null);
+      }
     }
   };
 
@@ -86,11 +190,13 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
             />
           )}
 
-          <TransferControls
-            files={files}
-            progress={progress}
-            onStartTransfer={handleStartTransfer}
-          />
+          <Button
+            onClick={startTransfer}
+            className="w-full bg-neon text-black hover:bg-neon/90"
+            disabled={progress !== null}
+          >
+            Start Transfer
+          </Button>
         </div>
       )}
     </div>

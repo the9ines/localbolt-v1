@@ -1,3 +1,4 @@
+
 import { SignalingService, type SignalData } from './SignalingService';
 import { ConnectionError } from '@/types/webrtc-errors';
 import { ConnectionManager } from './ConnectionManager';
@@ -6,8 +7,6 @@ import { EncryptionService } from './EncryptionService';
 export class SignalingHandler {
   private pendingCandidates: RTCIceCandidateInit[] = [];
   private remotePeerCode: string = '';
-  private hasReceivedOffer: boolean = false;
-  private isProcessingOffer: boolean = false;
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -18,47 +17,35 @@ export class SignalingHandler {
   ) {}
 
   private async handleOffer(signal: SignalData) {
-    if (this.isProcessingOffer) {
-      console.log('[SIGNALING] Already processing an offer, ignoring new offer');
-      return;
-    }
+    console.log('[SIGNALING] Received offer from peer:', signal.from);
+    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
+    
+    // Store the remote peer code from the signal sender
+    this.remotePeerCode = signal.from;
+    
+    const peerConnection = await this.connectionManager.createPeerConnection();
+    const offerDesc = new RTCSessionDescription(signal.data.offer);
+    await peerConnection.setRemoteDescription(offerDesc);
+    console.log('[SIGNALING] Set remote description (offer)');
+    
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    console.log('[SIGNALING] Created and sending answer');
+    
+    await this.signalingService.sendSignal('answer', {
+      answer,
+      publicKey: this.encryptionService.getPublicKey(),
+      peerCode: this.localPeerCode
+    }, signal.from);
 
-    try {
-      this.isProcessingOffer = true;
-      console.log('[SIGNALING] Received offer from peer:', signal.from);
-      
-      this.hasReceivedOffer = true;
-      this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-      this.remotePeerCode = signal.from;
-      
-      const peerConnection = await this.connectionManager.createPeerConnection();
-      const offerDesc = new RTCSessionDescription(signal.data.offer);
-      
-      await peerConnection.setRemoteDescription(offerDesc);
-      console.log('[SIGNALING] Set remote description (offer)');
-      
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      console.log('[SIGNALING] Created and sending answer');
-      
-      await this.signalingService.sendSignal('answer', {
-        answer,
-        publicKey: this.encryptionService.getPublicKey(),
-        peerCode: this.localPeerCode
-      }, signal.from);
-
-      await this.processPendingCandidates();
-    } catch (error) {
-      console.error('[SIGNALING] Error handling offer:', error);
-      throw error;
-    } finally {
-      this.isProcessingOffer = false;
-    }
+    await this.processPendingCandidates();
   }
 
   private async handleAnswer(signal: SignalData) {
     console.log('[SIGNALING] Received answer from peer:', signal.from);
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
+    
+    // Store the remote peer code from the signal sender
     this.remotePeerCode = signal.from;
     
     const peerConnection = this.connectionManager.getPeerConnection();
@@ -66,13 +53,15 @@ export class SignalingHandler {
       throw new ConnectionError("No peer connection established");
     }
 
-    try {
+    if (peerConnection.signalingState === 'have-local-offer') {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
       console.log('[SIGNALING] Set remote description (answer)');
       await this.processPendingCandidates();
-    } catch (error) {
-      console.error('[SIGNALING] Error handling answer:', error);
-      throw error;
+    } else {
+      throw new ConnectionError(
+        "Received answer in invalid state",
+        { state: peerConnection.signalingState }
+      );
     }
   }
 
@@ -136,12 +125,5 @@ export class SignalingHandler {
       console.error('[SIGNALING] Handler error:', error);
       throw error;
     }
-  }
-
-  reset() {
-    this.hasReceivedOffer = false;
-    this.isProcessingOffer = false;
-    this.pendingCandidates = [];
-    this.remotePeerCode = '';
   }
 }
