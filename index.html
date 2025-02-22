@@ -28,21 +28,16 @@
     <!-- Web App Manifest -->
     <link rel="manifest" href="/manifest.json">
     
-    <!-- Security Headers -->
+    <!-- Security Headers - Minimally Restrictive -->
     <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self' blob: wss: ws:;
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.gpteng.co blob:;
-      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-      font-src 'self' https://fonts.gstatic.com;
-      img-src 'self' data: blob: https:;
-      connect-src 'self' https://cdn.gpteng.co https://*.supabase.co wss://* ws://* blob: http://localhost:* stun: turn:;
-      frame-src 'self';
-      media-src 'self' blob:;
-      worker-src 'self' blob:;
-      child-src 'self' blob:;
-      base-uri 'self';
-      form-action 'self';
-      upgrade-insecure-requests;">
+      default-src * data: blob: 'unsafe-inline' 'unsafe-eval';
+      script-src * data: blob: 'unsafe-inline' 'unsafe-eval';
+      connect-src * data: blob: 'unsafe-inline';
+      img-src * data: blob: 'unsafe-inline';
+      frame-src * data: blob:;
+      style-src * data: blob: 'unsafe-inline';
+      font-src * data: blob:;
+      frame-ancestors 'self';">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
     <meta http-equiv="Permissions-Policy" content="accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()">
