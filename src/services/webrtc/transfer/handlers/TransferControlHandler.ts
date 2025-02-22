@@ -18,12 +18,12 @@ export class TransferControlHandler {
       
       if (!transfer) {
         console.warn(`[STATE] Cannot pause: ${filename} does not exist in transfer store`);
-        return;
+        return false;
       }
 
       if (this.store.isPaused()) {
         console.log(`[STATE] Transfer ${filename} is already paused`);
-        return;
+        return true;
       }
 
       this.store.updateState({
@@ -39,8 +39,10 @@ export class TransferControlHandler {
       }
 
       console.log(`[STATE] Successfully paused transfer for: ${filename}`);
+      return true;
     } catch (error) {
       console.error('[STATE] Error handling pause:', error);
+      return false;
     }
   }
 
@@ -51,12 +53,12 @@ export class TransferControlHandler {
       
       if (!transfer) {
         console.warn(`[STATE] Cannot resume: ${filename} does not exist in transfer store`);
-        return;
+        return false;
       }
 
       if (!this.store.isPaused()) {
         console.log(`[STATE] Transfer ${filename} is not paused`);
-        return;
+        return true;
       }
 
       this.store.updateState({
@@ -72,8 +74,10 @@ export class TransferControlHandler {
       }
 
       console.log(`[STATE] Successfully resumed transfer for: ${filename}`);
+      return true;
     } catch (error) {
       console.error('[STATE] Error handling resume:', error);
+      return false;
     }
   }
 
@@ -81,7 +85,7 @@ export class TransferControlHandler {
     try {
       if (this.processingCancel) {
         console.log('[STATE] Already processing a cancel request, skipping duplicate');
-        return;
+        return false;
       }
 
       this.processingCancel = true;
@@ -90,12 +94,12 @@ export class TransferControlHandler {
       const transfer = this.store.getTransfer(filename);
       if (!transfer) {
         console.warn(`[STATE] Cannot cancel: ${filename} does not exist in transfer store`);
-        return;
+        return false;
       }
 
       if (this.store.isCancelled()) {
         console.log(`[STATE] Transfer ${filename} is already cancelled`);
-        return;
+        return true;
       }
 
       const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
@@ -120,9 +124,11 @@ export class TransferControlHandler {
       }, 100);
 
       console.log(`[STATE] Successfully cancelled transfer for: ${filename}`);
+      return true;
     } catch (error) {
       console.error('[STATE] Error handling cancel:', error);
       this.reset();
+      return false;
     } finally {
       this.processingCancel = false;
     }

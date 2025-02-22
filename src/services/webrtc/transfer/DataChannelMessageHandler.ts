@@ -25,17 +25,21 @@ export class DataChannelMessageHandler {
       // Handle control messages first
       if (paused) {
         console.log(`[TRANSFER] Processing pause message for ${filename}`);
-        this.stateManager.handlePause({ filename });
-        this.transferManager.handlePause();
-        console.log('[TRANSFER] Pause state updated successfully');
+        const pauseSuccess = this.stateManager.handlePause({ filename });
+        if (pauseSuccess) {
+          this.transferManager.handlePause();
+          console.log('[TRANSFER] Pause state updated successfully');
+        }
         return;
       }
 
       if (resumed) {
         console.log(`[TRANSFER] Processing resume message for ${filename}`);
-        this.stateManager.handleResume({ filename });
-        this.transferManager.handleResume();
-        console.log('[TRANSFER] Resume state updated successfully');
+        const resumeSuccess = this.stateManager.handleResume({ filename });
+        if (resumeSuccess) {
+          this.transferManager.handleResume();
+          console.log('[TRANSFER] Resume state updated successfully');
+        }
         return;
       }
 
@@ -47,14 +51,11 @@ export class DataChannelMessageHandler {
       }
 
       // Handle file chunks
-      const isPaused = this.transferManager.isPauseActive();
-      console.log(`[TRANSFER] Transfer state - isPaused: ${isPaused}`);
-      
-      if (!isPaused) {
-        await this.processChunk(filename, chunk, chunkIndex, totalChunks, fileSize);
-      } else {
-        console.log('[TRANSFER] Skipping chunk processing while paused');
+      if (!this.shouldProcessChunk(filename, chunkIndex || 0)) {
+        return;
       }
+
+      await this.processChunk(filename, chunk, chunkIndex, totalChunks, fileSize);
 
     } catch (error) {
       console.error('[TRANSFER] Error processing message:', error);
@@ -89,26 +90,25 @@ export class DataChannelMessageHandler {
     totalChunks: number | undefined,
     fileSize: number | undefined
   ) {
-    if (!this.shouldProcessChunk(filename, chunkIndex || 0)) {
+    if (!chunk || typeof chunkIndex !== 'number' || !totalChunks || !fileSize) {
+      console.warn('[TRANSFER] Invalid chunk data received');
       return;
     }
 
-    if (chunk && typeof chunkIndex === 'number' && totalChunks && fileSize) {
-      console.log(`[TRANSFER] Processing chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
-      
-      const completeFile = await this.transferManager.processReceivedChunk(
-        filename,
-        chunk,
-        chunkIndex,
-        totalChunks,
-        fileSize
-      );
+    console.log(`[TRANSFER] Processing chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
+    
+    const completeFile = await this.transferManager.processReceivedChunk(
+      filename,
+      chunk,
+      chunkIndex,
+      totalChunks,
+      fileSize
+    );
 
-      if (completeFile) {
-        console.log(`[TRANSFER] Completed transfer of ${filename}`);
-        this.stateManager.reset();
-        this.onReceiveFile(completeFile, filename);
-      }
+    if (completeFile) {
+      console.log(`[TRANSFER] Completed transfer of ${filename}`);
+      this.stateManager.reset();
+      this.onReceiveFile(completeFile, filename);
     }
   }
 }
