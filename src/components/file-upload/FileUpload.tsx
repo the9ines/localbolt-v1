@@ -8,7 +8,7 @@ import { FileList } from "./FileList";
 import { TransferProgressBar } from "./TransferProgressBar";
 
 interface FileUploadProps {
-  webrtc?: WebRTCService;
+  readonly webrtc?: WebRTCService;
 }
 
 export const FileUpload = ({ webrtc }: FileUploadProps) => {
@@ -41,6 +41,9 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     onProgressUpdate: handleProgress
   });
 
+  const isTransferActive = progress !== null;
+  const hasFiles = files.length > 0;
+
   return (
     <div className="space-y-4">
       <DragDropArea
@@ -49,21 +52,26 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         onDragOut={handleDragOut}
         onDrag={handleDrag}
         onDrop={handleDrop}
-        onFileSelect={(e) => handleFiles(Array.from(e.target.files || []))}
+        onFileSelect={(e) => {
+          const selectedFiles = Array.from(e.target.files || []);
+          if (selectedFiles.length > 0) {
+            handleFiles(selectedFiles);
+          }
+        }}
       />
 
-      {(files.length > 0 || progress) && (
+      {(hasFiles || isTransferActive) && (
         <div className="space-y-4 animate-fade-up">
-          {files.length > 0 && (
+          {hasFiles && (
             <FileList 
               files={files} 
               onRemove={removeFile}
-              disabled={progress !== null}
+              disabled={isTransferActive}
               activeTransfer={progress?.filename}
             />
           )}
 
-          {progress && progress.status && (
+          {isTransferActive && progress?.status && (
             <TransferProgressBar
               progress={progress}
               onCancel={cancelTransfer}
@@ -75,7 +83,7 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
           <Button
             onClick={startTransfer}
             className="w-full bg-neon text-black hover:bg-neon/90"
-            disabled={progress !== null}
+            disabled={isTransferActive}
           >
             Start Transfer
           </Button>
