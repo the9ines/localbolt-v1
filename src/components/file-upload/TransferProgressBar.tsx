@@ -6,13 +6,13 @@ import type { TransferProgress } from "@/services/webrtc/FileTransferService";
 import { calculateProgress, formatBytes } from "@/services/webrtc/transfer/utils/transfer-utils";
 
 interface TransferProgressBarProps {
-  progress: TransferProgress;
-  onCancel?: () => void;
-  onPause?: () => void;
-  onResume?: () => void;
+  readonly progress: TransferProgress;
+  readonly onCancel?: () => void;
+  readonly onPause?: () => void;
+  readonly onResume?: () => void;
 }
 
-export function TransferProgressBar({ progress, onCancel, onPause, onResume }: TransferProgressBarProps) {
+export function TransferProgressBar({ progress, onCancel, onPause, onResume }: Readonly<TransferProgressBarProps>) {
   const isPaused = progress.status === 'paused';
   const percent = calculateProgress(progress.loaded, progress.total);
   const bytesTransferred = formatBytes(progress.loaded);

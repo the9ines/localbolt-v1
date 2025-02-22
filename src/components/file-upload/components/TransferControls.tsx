@@ -1,7 +1,6 @@
 
-import { Button } from "@/components/ui/button";
 import type { TransferProgress } from "@/services/webrtc/FileTransferService";
-import WebRTCService from "@/services/webrtc/WebRTCService";
+import type WebRTCService from "@/services/webrtc/WebRTCService";
 import { useToast } from "@/hooks/use-toast";
 
 interface TransferControlsProps {
