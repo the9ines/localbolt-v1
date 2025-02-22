@@ -92,42 +92,58 @@ class WebRTCService {
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
-    const connectionPromise = new Promise<void>(async (resolve, reject) => {
-      try {
-        this.remotePeerCode = remotePeerCode;
-        const peerConnection = await this.connectionManager.createPeerConnection();
-        
-        const dataChannel = peerConnection.createDataChannel('fileTransfer', {
-          ordered: true,
-          maxRetransmits: 3
-        });
-        
-        this.dataChannelManager.setupDataChannel(dataChannel);
-        
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        console.log('[SIGNALING] Created and set local description (offer)');
-        
-        await this.signalingService.sendSignal('offer', {
-          offer,
-          publicKey: this.encryptionService.getPublicKey(),
-          peerCode: this.localPeerCode
-        }, remotePeerCode);
-
-        peerConnection.onconnectionstatechange = () => {
-          const state = peerConnection.connectionState;
-          if (state === 'connected') {
-            console.log('[WEBRTC] Connection established successfully');
-            this.retryHandler.resetAttempts();
-            resolve();
-          } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
-            console.log('[WEBRTC] Connection state changed to:', state);
-            reject(new ConnectionError("Connection failed or closed"));
+    const connectionPromise = new Promise<void>((resolve, reject) => {
+      this.remotePeerCode = remotePeerCode;
+      
+      // Use Promise chain instead of async/await in the executor
+      this.connectionManager.createPeerConnection()
+        .then(peerConnection => {
+          const dataChannel = peerConnection.createDataChannel('fileTransfer', {
+            ordered: true,
+            maxRetransmits: 3
+          });
+          
+          this.dataChannelManager.setupDataChannel(dataChannel);
+          
+          return peerConnection.createOffer();
+        })
+        .then(offer => {
+          const peerConnection = this.connectionManager.getPeerConnection();
+          if (!peerConnection) {
+            throw new ConnectionError("No peer connection available");
           }
-        };
-      } catch (error) {
-        reject(new ConnectionError("Failed to initiate connection", error));
-      }
+          
+          return peerConnection.setLocalDescription(offer)
+            .then(() => {
+              console.log('[SIGNALING] Created and set local description (offer)');
+              return this.signalingService.sendSignal('offer', {
+                offer,
+                publicKey: this.encryptionService.getPublicKey(),
+                peerCode: this.localPeerCode
+              }, remotePeerCode);
+            });
+        })
+        .then(() => {
+          const peerConnection = this.connectionManager.getPeerConnection();
+          if (!peerConnection) {
+            throw new ConnectionError("No peer connection available");
+          }
+
+          peerConnection.onconnectionstatechange = () => {
+            const state = peerConnection.connectionState;
+            if (state === 'connected') {
+              console.log('[WEBRTC] Connection established successfully');
+              this.retryHandler.resetAttempts();
+              resolve();
+            } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
+              console.log('[WEBRTC] Connection state changed to:', state);
+              reject(new ConnectionError("Connection failed or closed"));
+            }
+          };
+        })
+        .catch(error => {
+          reject(new ConnectionError("Failed to initiate connection", error));
+        });
     });
 
     const timeoutPromise = new Promise<void>((_, reject) => {
