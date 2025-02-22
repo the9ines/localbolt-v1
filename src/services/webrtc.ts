@@ -1,5 +1,3 @@
-
-import { supabase } from "@/integrations/supabase/client";
 import { box, randomBytes } from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import { 
@@ -29,6 +27,7 @@ class WebRTCService {
   private remotePeerPublicKey: Uint8Array | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private connectionTimeout: number = 30000; // 30 seconds timeout
+  private isInitialized: boolean = false;
 
   constructor(
     localPeerCode: string, 
@@ -40,7 +39,20 @@ class WebRTCService {
     this.onReceiveFile = onReceiveFile;
     this.onError = onError;
     this.keyPair = box.keyPair();
-    this.setupSignalingListener();
+  }
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      await this.setupSignalingListener();
+      this.isInitialized = true;
+    } catch (error) {
+      this.onError(new SignalingError("Failed to initialize WebRTC service", error));
+      throw error;
+    }
   }
 
   private async setupSignalingListener() {
