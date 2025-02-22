@@ -15,15 +15,24 @@ export class TransferControlHandler {
   handlePause({ filename }: TransferControlMessage): boolean {
     try {
       console.log(`[STATE] Processing pause request for ${filename}`);
-      const transfer = this.store.getTransfer(filename);
-      
-      if (!transfer) {
-        console.warn(`[STATE] Cannot pause: ${filename} does not exist in transfer store`);
-        return false;
-      }
 
+      // Return early if already paused
       if (this.store.isPaused()) {
         console.log(`[STATE] Transfer ${filename} is already paused`);
+        return true;
+      }
+
+      const transfer = this.store.getTransfer(filename);
+      if (!transfer) {
+        // Still update global pause state even if transfer not found
+        this.store.updateState({
+          isPaused: true,
+          currentTransfer: null
+        });
+        
+        // Emit pause status for UI update
+        this.progressEmitter.emit(filename, 'paused');
+        console.log(`[STATE] Set global pause state for ${filename}`);
         return true;
       }
 
@@ -50,15 +59,24 @@ export class TransferControlHandler {
   handleResume({ filename }: TransferControlMessage): boolean {
     try {
       console.log(`[STATE] Processing resume request for ${filename}`);
-      const transfer = this.store.getTransfer(filename);
       
-      if (!transfer) {
-        console.warn(`[STATE] Cannot resume: ${filename} does not exist in transfer store`);
-        return false;
-      }
-
+      // Return early if not paused
       if (!this.store.isPaused()) {
         console.log(`[STATE] Transfer ${filename} is not paused`);
+        return true;
+      }
+
+      const transfer = this.store.getTransfer(filename);
+      if (!transfer) {
+        // Still update global pause state even if transfer not found
+        this.store.updateState({
+          isPaused: false,
+          currentTransfer: null
+        });
+        
+        // Emit resume status for UI update
+        this.progressEmitter.emit(filename, 'transferring');
+        console.log(`[STATE] Cleared global pause state for ${filename}`);
         return true;
       }
 
@@ -92,50 +110,31 @@ export class TransferControlHandler {
       this.processingCancel = true;
       console.log(`[STATE] Processing cancel request for ${filename}`);
 
+      // Handle case when no transfer exists but cancellation still needed
       const transfer = this.store.getTransfer(filename);
-      if (!transfer && !this.store.isCancelled()) {
-        // If no transfer exists but we haven't marked as cancelled yet,
-        // we should still process the cancellation to update the UI
-        this.store.updateState({
-          isCancelled: true,
-          isPaused: false,
-          currentTransfer: null
-        });
-        
-        const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
-        this.progressEmitter.emit(filename, status);
-        this.canceledTransfers.add(filename);
-        console.log(`[STATE] Processed cancel for non-existent transfer: ${filename}`);
-        return;
-      }
-
-      if (this.store.isCancelled()) {
-        console.log(`[STATE] Transfer ${filename} is already cancelled`);
-        return;
-      }
-
-      const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
-      console.log(`[STATE] Setting transfer to ${status} state for: ${filename}`);
-
-      // Update state before removing the transfer
+      
+      // Always update cancelled state and emit status regardless of transfer existence
       this.store.updateState({
         isCancelled: true,
         isPaused: false,
         currentTransfer: null
       });
 
-      // Send progress update
+      const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
+      
       if (transfer?.progress) {
         this.progressEmitter.emit(filename, status, transfer.progress);
       } else {
         this.progressEmitter.emit(filename, status);
       }
-      
-      // Remove the transfer and mark as canceled
-      this.store.deleteTransfer(filename);
-      this.canceledTransfers.add(filename);
 
+      if (transfer) {
+        this.store.deleteTransfer(filename);
+      }
+
+      this.canceledTransfers.add(filename);
       console.log(`[STATE] Successfully cancelled transfer for: ${filename}`);
+
     } catch (error) {
       console.error('[STATE] Error handling cancel:', error);
       this.reset();
