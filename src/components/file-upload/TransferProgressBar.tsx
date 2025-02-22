@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { File, Pause, Play, X } from "lucide-react";
@@ -42,6 +41,10 @@ const formatSize = (bytes: number): string => {
 };
 
 export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: TransferProgressProps) => {
+  const isPaused = progress.status === 'paused';
+  
+  const showControls = progress.status === 'transferring' || progress.status === 'paused';
+
   const getStatusText = () => {
     switch (progress.status) {
       case 'canceled_by_sender':
@@ -53,19 +56,6 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         return 'Transfer paused';
       default:
         return `${Math.round((progress.loaded / progress.total) * 100)}%`;
-    }
-  };
-
-  const isPaused = progress.status === 'paused';
-  const isFinished = progress.status === 'error' || 
-                    progress.status === 'canceled_by_sender' || 
-                    progress.status === 'canceled_by_receiver';
-                    
-  const handlePauseResume = () => {
-    if (isPaused && onResume) {
-      onResume();
-    } else if (!isPaused && onPause) {
-      onPause();
     }
   };
 
@@ -83,30 +73,34 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
           className="h-2 flex-1 bg-neon/20"
         />
         
-        <div className="flex items-center gap-1">
-          {onPause && onResume && !isFinished && (
+        {showControls && (
+          <div className="flex items-center gap-1">
+            {onPause && onResume && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={isPaused ? onResume : onPause}
+                className="h-8 w-8"
+                title={isPaused ? "Resume transfer" : "Pause transfer"}
+              >
+                {isPaused ? (
+                  <Play className="h-4 w-4" />
+                ) : (
+                  <Pause className="h-4 w-4" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
-              onClick={handlePauseResume}
+              onClick={onCancel}
               className="h-8 w-8"
+              title="Cancel transfer"
             >
-              {isPaused ? (
-                <Play className="h-4 w-4" />
-              ) : (
-                <Pause className="h-4 w-4" />
-              )}
+              <X className="h-4 w-4" />
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onCancel}
-            className="h-8 w-8"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       {progress.stats && (
