@@ -35,7 +35,12 @@ export class FileTransferService implements IFileTransferService {
       onReceiveFile
     );
     this.sendFileService = new SendFileService(dataChannel, this.chunkProcessor, this.stateManager);
-    this.transferControlService = new TransferControlService(dataChannel, this.stateManager, this.transferManager);
+    this.transferControlService = new TransferControlService(
+      dataChannel, 
+      this.stateManager, 
+      this.transferManager,
+      onProgress
+    );
     this.setupDataChannel();
   }
 

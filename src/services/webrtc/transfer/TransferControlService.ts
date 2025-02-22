@@ -1,11 +1,15 @@
 
 import type { FileChunkMessage } from '../types/transfer';
+import type { TransferProgress } from '../types/transfer';
+import { TransferStateManager } from './TransferStateManager';
+import { TransferManager } from './TransferManager';
 
 export class TransferControlService {
   constructor(
     private dataChannel: RTCDataChannel,
     private stateManager: TransferStateManager,
-    private transferManager: TransferManager
+    private transferManager: TransferManager,
+    private onProgress?: (progress: TransferProgress) => void
   ) {}
 
   cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
