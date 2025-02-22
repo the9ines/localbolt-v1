@@ -18,15 +18,25 @@ export type SignalHandler = (signal: SignalData) => void;
 
 export class SignalingService {
   private channelSubscription: ReturnType<typeof supabase.channel> | null = null;
+  private isInitialized = false;
 
   constructor(
     private readonly localPeerId: string,
     private readonly onSignal: SignalHandler
-  ) {
-    this.setupChannel().catch(error => {
+  ) {}
+
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      await this.setupChannel();
+      this.isInitialized = true;
+    } catch (error) {
       console.error('[SIGNALING] Failed to setup channel:', error);
       throw new SignalingError('Failed to initialize signaling service', error);
-    });
+    }
   }
 
   private async setupChannel(): Promise<void> {
@@ -70,6 +80,10 @@ export class SignalingService {
   }
 
   async sendSignal(type: SignalData['type'], data: SignalData['data'], remotePeerId: string): Promise<void> {
+    if (!this.isInitialized) {
+      throw new SignalingError('SignalingService not initialized');
+    }
+
     if (!this.channelSubscription) {
       throw new SignalingError('No active channel subscription');
     }
@@ -102,6 +116,7 @@ export class SignalingService {
         await this.channelSubscription.unsubscribe();
         this.channelSubscription = null;
       }
+      this.isInitialized = false;
     } catch (error) {
       console.error('[SIGNALING] Cleanup error:', error);
     }
