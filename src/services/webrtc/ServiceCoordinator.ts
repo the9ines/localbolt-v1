@@ -1,4 +1,3 @@
-
 import { WebRTCError } from '@/types/webrtc-errors';
 import type { TransferProgress } from './types/transfer';
 import { ConnectionManager } from './ConnectionManager';
@@ -32,6 +31,13 @@ export class ServiceCoordinator {
   ) {
     this.sessionManager = new SessionManager(onError);
     this.initializeServices();
+  }
+
+  setProgressCallback(callback: (progress: TransferProgress) => void) {
+    this.onProgress = callback;
+    if (this.dataChannelManager) {
+      this.dataChannelManager.setProgressCallback(callback);
+    }
   }
 
   private initializeServices() {

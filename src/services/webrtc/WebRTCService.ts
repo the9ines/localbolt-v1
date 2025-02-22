@@ -21,6 +21,10 @@ class WebRTCService {
     );
   }
 
+  setProgressCallback(callback: (progress: TransferProgress) => void) {
+    this.coordinator.setProgressCallback(callback);
+  }
+
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
     this.coordinator.setConnectionStateHandler(handler);
   }
