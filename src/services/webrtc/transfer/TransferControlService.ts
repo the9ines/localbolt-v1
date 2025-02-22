@@ -30,38 +30,37 @@ export class TransferControlService {
     console.log(`[TRANSFER] Initiating pause for ${filename}`);
     
     // First update local state
-    this.stateManager.handlePause({ filename });
-    this.transferManager.handlePause();
-
-    // Then send pause message to peer
-    const message: FileChunkMessage = {
-      type: 'file-chunk',
-      filename,
-      paused: true
-    };
+    const success = this.stateManager.handlePause({ filename });
     
-    try {
-      this.dataChannel.send(JSON.stringify(message));
+    if (success) {
+      // Then notify peer about pause
+      const message: FileChunkMessage = {
+        type: 'file-chunk',
+        filename,
+        paused: true
+      };
       
-      // Get current progress and emit with paused status
-      const currentTransfer = this.stateManager.getCurrentTransfer();
-      if (currentTransfer?.progress && this.onProgress) {
-        console.log('[TRANSFER] Emitting paused state with progress:', currentTransfer.progress);
-        this.onProgress({
-          ...currentTransfer.progress,
-          filename,
-          status: 'paused',
-          currentChunk: currentTransfer.progress.currentChunk,
-          totalChunks: currentTransfer.progress.totalChunks,
-          loaded: currentTransfer.progress.loaded,
-          total: currentTransfer.progress.total
-        });
+      try {
+        this.dataChannel.send(JSON.stringify(message));
+        
+        // Get latest progress and emit with paused status
+        const currentTransfer = this.stateManager.getCurrentTransfer();
+        if (currentTransfer?.progress && this.onProgress) {
+          console.log('[TRANSFER] Emitting paused state with progress:', currentTransfer.progress);
+          this.onProgress({
+            ...currentTransfer.progress,
+            filename,
+            status: 'paused'
+          });
+        }
+        
+        // Finally pause the transfer manager
+        this.transferManager.handlePause();
+        console.log('[TRANSFER] Pause initiated successfully');
+      } catch (error) {
+        console.error('[TRANSFER] Error during pause:', error);
+        this.stateManager.reset();
       }
-      
-      console.log('[TRANSFER] Pause initiated successfully');
-    } catch (error) {
-      console.error('[TRANSFER] Error during pause:', error);
-      this.stateManager.reset();
     }
   }
 
@@ -69,38 +68,37 @@ export class TransferControlService {
     console.log(`[TRANSFER] Initiating resume for ${filename}`);
     
     // First update local state
-    this.stateManager.handleResume({ filename });
-    this.transferManager.handleResume();
-
-    // Then send resume message to peer
-    const message: FileChunkMessage = {
-      type: 'file-chunk',
-      filename,
-      resumed: true
-    };
+    const success = this.stateManager.handleResume({ filename });
     
-    try {
-      this.dataChannel.send(JSON.stringify(message));
+    if (success) {
+      // Then notify peer about resume
+      const message: FileChunkMessage = {
+        type: 'file-chunk',
+        filename,
+        resumed: true
+      };
       
-      // Get current progress and emit with transferring status
-      const currentTransfer = this.stateManager.getCurrentTransfer();
-      if (currentTransfer?.progress && this.onProgress) {
-        console.log('[TRANSFER] Emitting resumed state with progress:', currentTransfer.progress);
-        this.onProgress({
-          ...currentTransfer.progress,
-          filename,
-          status: 'transferring',
-          currentChunk: currentTransfer.progress.currentChunk,
-          totalChunks: currentTransfer.progress.totalChunks,
-          loaded: currentTransfer.progress.loaded,
-          total: currentTransfer.progress.total
-        });
+      try {
+        this.dataChannel.send(JSON.stringify(message));
+        
+        // Get latest progress and emit with transferring status
+        const currentTransfer = this.stateManager.getCurrentTransfer();
+        if (currentTransfer?.progress && this.onProgress) {
+          console.log('[TRANSFER] Emitting resumed state with progress:', currentTransfer.progress);
+          this.onProgress({
+            ...currentTransfer.progress,
+            filename,
+            status: 'transferring'
+          });
+        }
+        
+        // Finally resume the transfer manager
+        this.transferManager.handleResume();
+        console.log('[TRANSFER] Resume initiated successfully');
+      } catch (error) {
+        console.error('[TRANSFER] Error during resume:', error);
+        this.stateManager.reset();
       }
-      
-      console.log('[TRANSFER] Resume initiated successfully');
-    } catch (error) {
-      console.error('[TRANSFER] Error during resume:', error);
-      this.stateManager.reset();
     }
   }
 }

@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { TransferProgress } from '@/services/webrtc/FileTransferService';
@@ -25,17 +26,27 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
       currentState: transferProgress?.status,
     });
 
-    // Preserve existing values when updating state
-    setTransferProgress(prev => {
-      if (!prev) return progress;
+    // Always update with new progress data
+    setTransferProgress(prevProgress => {
+      if (!prevProgress) return progress;
+      
+      // For pause/resume status updates, preserve the existing progress values
+      if (progress.status === 'paused' || progress.status === 'transferring') {
+        return {
+          ...prevProgress,
+          status: progress.status
+        };
+      }
+      
+      // For progress updates, merge with existing state
       return {
-        ...prev,
+        ...prevProgress,
         ...progress,
-        // Keep the existing loaded/total values if the new ones aren't provided
-        loaded: progress.loaded ?? prev.loaded,
-        total: progress.total ?? prev.total,
-        currentChunk: progress.currentChunk ?? prev.currentChunk,
-        totalChunks: progress.totalChunks ?? prev.totalChunks,
+        // Ensure we always have the latest progress values
+        loaded: progress.loaded ?? prevProgress.loaded,
+        total: progress.total ?? prevProgress.total,
+        currentChunk: progress.currentChunk ?? prevProgress.currentChunk,
+        totalChunks: progress.totalChunks ?? prevProgress.totalChunks,
       };
     });
     
@@ -68,7 +79,6 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     if (webrtc && transferProgress) {
       console.log('[PROGRESS] Canceling transfer:', transferProgress.filename);
       
-      // Update local state first
       setTransferProgress(prev => prev ? {
         ...prev,
         status: 'canceled_by_receiver'
@@ -87,17 +97,17 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     if (webrtc && transferProgress) {
       console.log('[PROGRESS] Pausing transfer:', transferProgress.filename);
       
-      // Update local state first, preserving all existing values
+      // First send the pause command to ensure other side gets notified
+      webrtc.pauseTransfer(transferProgress.filename);
+      
+      // Then update local state
       setTransferProgress(prev => {
         if (!prev) return null;
         return {
           ...prev,
-          status: 'paused',
+          status: 'paused'
         };
       });
-      
-      // Then send the pause command
-      webrtc.pauseTransfer(transferProgress.filename);
     }
   }, [webrtc, transferProgress]);
 
@@ -105,17 +115,17 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     if (webrtc && transferProgress) {
       console.log('[PROGRESS] Resuming transfer:', transferProgress.filename);
       
-      // Update local state first, preserving all existing values
+      // First send the resume command to ensure other side gets notified
+      webrtc.resumeTransfer(transferProgress.filename);
+      
+      // Then update local state
       setTransferProgress(prev => {
         if (!prev) return null;
         return {
           ...prev,
-          status: 'transferring',
+          status: 'transferring'
         };
       });
-      
-      // Then send the resume command
-      webrtc.resumeTransfer(transferProgress.filename);
     }
   }, [webrtc, transferProgress]);
 
