@@ -13,6 +13,7 @@ export class DataChannelMessageHandler {
 
   async handleMessage(event: MessageEvent) {
     try {
+      console.log('[TRANSFER] Received message:', event.data);
       const message: FileChunkMessage = JSON.parse(event.data);
       const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled, cancelledBy, paused, resumed } = message;
 
@@ -22,29 +23,34 @@ export class DataChannelMessageHandler {
       }
 
       // Handle control messages first
+      if (paused) {
+        console.log(`[TRANSFER] Processing pause message for ${filename}`);
+        this.stateManager.handlePause({ filename });
+        this.transferManager.handlePause();
+        console.log('[TRANSFER] Pause state updated successfully');
+        return;
+      }
+
+      if (resumed) {
+        console.log(`[TRANSFER] Processing resume message for ${filename}`);
+        this.stateManager.handleResume({ filename });
+        this.transferManager.handleResume();
+        console.log('[TRANSFER] Resume state updated successfully');
+        return;
+      }
+
       if (cancelled) {
-        console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
+        console.log(`[TRANSFER] Processing cancel message for ${filename} by ${cancelledBy}`);
         this.stateManager.handleCancel({ filename, isReceiver: cancelledBy === 'receiver' });
         this.transferManager.cancelTransfer(filename, cancelledBy === 'receiver');
         return;
       }
 
-      if (paused) {
-        console.log(`[TRANSFER] Transfer paused for ${filename}`);
-        this.stateManager.handlePause({ filename });
-        this.transferManager.handlePause();
-        return;
-      }
-
-      if (resumed) {
-        console.log(`[TRANSFER] Transfer resumed for ${filename}`);
-        this.stateManager.handleResume({ filename });
-        this.transferManager.handleResume();
-        return;
-      }
-
-      // Handle file chunks only if not paused
-      if (!this.transferManager.isPauseActive()) {
+      // Handle file chunks
+      const isPaused = this.transferManager.isPauseActive();
+      console.log(`[TRANSFER] Transfer state - isPaused: ${isPaused}`);
+      
+      if (!isPaused) {
         await this.processChunk(filename, chunk, chunkIndex, totalChunks, fileSize);
       } else {
         console.log('[TRANSFER] Skipping chunk processing while paused');
@@ -58,12 +64,17 @@ export class DataChannelMessageHandler {
   }
 
   private shouldProcessChunk(filename: string, chunkIndex: number): boolean {
-    if (!this.transferManager.isTransferActive(filename) && chunkIndex !== 0) {
+    const isActive = this.transferManager.isTransferActive(filename);
+    const isPaused = this.transferManager.isPauseActive();
+    
+    console.log(`[TRANSFER] Chunk processing check - filename: ${filename}, active: ${isActive}, paused: ${isPaused}`);
+    
+    if (!isActive && chunkIndex !== 0) {
       console.log(`[TRANSFER] Ignoring chunk for inactive transfer: ${filename}`);
       return false;
     }
 
-    if (this.transferManager.isPauseActive()) {
+    if (isPaused) {
       console.log(`[TRANSFER] Ignoring chunk while paused: ${filename}`);
       return false;
     }
@@ -83,7 +94,7 @@ export class DataChannelMessageHandler {
     }
 
     if (chunk && typeof chunkIndex === 'number' && totalChunks && fileSize) {
-      console.log(`[TRANSFER] Receiving chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
+      console.log(`[TRANSFER] Processing chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
       
       const completeFile = await this.transferManager.processReceivedChunk(
         filename,

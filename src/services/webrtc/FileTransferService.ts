@@ -59,15 +59,25 @@ export class FileTransferService {
       return;
     }
 
-    console.log(`[TRANSFER] Pausing transfer of ${filename}`);
+    console.log(`[TRANSFER] Initiating pause for ${filename}`);
     const message: FileChunkMessage = {
       type: 'file-chunk',
       filename,
       paused: true
     };
-    this.dataChannel.send(JSON.stringify(message));
-    this.stateManager.handlePause({ filename });
-    this.transferManager.handlePause(); // Add this line to pause the transfer manager
+    
+    try {
+      console.log('[TRANSFER] Sending pause message:', message);
+      this.dataChannel.send(JSON.stringify(message));
+      
+      console.log('[TRANSFER] Updating local state for pause');
+      this.stateManager.handlePause({ filename });
+      this.transferManager.handlePause();
+      
+      console.log('[TRANSFER] Pause initiated successfully');
+    } catch (error) {
+      console.error('[TRANSFER] Error during pause:', error);
+    }
   }
 
   resumeTransfer(filename: string) {
@@ -76,15 +86,25 @@ export class FileTransferService {
       return;
     }
 
-    console.log(`[TRANSFER] Resuming transfer of ${filename}`);
+    console.log(`[TRANSFER] Initiating resume for ${filename}`);
     const message: FileChunkMessage = {
       type: 'file-chunk',
       filename,
       resumed: true
     };
-    this.dataChannel.send(JSON.stringify(message));
-    this.stateManager.handleResume({ filename });
-    this.transferManager.handleResume(); // Add this line to resume the transfer manager
+    
+    try {
+      console.log('[TRANSFER] Sending resume message:', message);
+      this.dataChannel.send(JSON.stringify(message));
+      
+      console.log('[TRANSFER] Updating local state for resume');
+      this.stateManager.handleResume({ filename });
+      this.transferManager.handleResume();
+      
+      console.log('[TRANSFER] Resume initiated successfully');
+    } catch (error) {
+      console.error('[TRANSFER] Error during resume:', error);
+    }
   }
 
   async sendFile(file: File) {
