@@ -1,29 +1,58 @@
-
 import type { TransferProgress, FileChunkMessage } from '../types/transfer';
 import { ChunkProcessor } from './ChunkProcessor';
-import { TransferProgressTracker } from './progress/TransferProgressTracker';
-import { TransferBuffer } from './buffer/TransferBuffer';
+import { TransferError } from '@/types/webrtc-errors';
 
 export class TransferManager {
-  private progressTracker: TransferProgressTracker;
-  private buffer: TransferBuffer;
+  private chunksBuffer: { [key: string]: Blob[] } = {};
+  private activeTransfers: Set<string> = new Set();
+  private chunkProcessor: ChunkProcessor;
+  private transferProgress: { [key: string]: TransferProgress } = {};
   private isPaused: boolean = false;
 
   constructor(
     private dataChannel: RTCDataChannel,
-    private chunkProcessor: ChunkProcessor,
-    onProgress?: (progress: TransferProgress) => void
+    chunkProcessor: ChunkProcessor,
+    private onProgress?: (progress: TransferProgress) => void
   ) {
-    this.progressTracker = new TransferProgressTracker(onProgress);
-    this.buffer = new TransferBuffer();
+    this.chunkProcessor = chunkProcessor;
   }
 
   getCurrentProgress(filename: string): TransferProgress {
-    return this.progressTracker.getCurrentProgress(filename);
+    return this.transferProgress[filename] || {
+      filename,
+      currentChunk: 0,
+      totalChunks: 0,
+      loaded: 0,
+      total: 0
+    };
+  }
+
+  private updateProgress(
+    filename: string,
+    currentChunk: number,
+    totalChunks: number,
+    loaded: number,
+    total: number,
+    status: TransferProgress['status'] = 'transferring'
+  ) {
+    const progress: TransferProgress = {
+      filename,
+      currentChunk,
+      totalChunks,
+      loaded,
+      total,
+      status
+    };
+
+    this.transferProgress[filename] = progress;
+
+    if (this.onProgress) {
+      this.onProgress(progress);
+    }
   }
 
   cancelTransfer(filename: string, isReceiver: boolean) {
-    this.buffer.cleanupTransfer(filename);
+    this.activeTransfers.delete(filename);
     
     const message: FileChunkMessage = {
       type: 'file-chunk',
@@ -37,13 +66,15 @@ export class TransferManager {
   }
 
   handleCleanup(filename: string) {
-    if (this.buffer.isTransferActive(filename)) {
-      const currentProgress = this.progressTracker.getCurrentProgress(filename);
-      this.buffer.cleanupTransfer(filename);
-      this.progressTracker.updateProgress(
+    if (this.chunksBuffer[filename]) {
+      const totalChunks = this.chunksBuffer[filename].length;
+      delete this.chunksBuffer[filename];
+      delete this.transferProgress[filename];
+      
+      this.updateProgress(
         filename,
         0,
-        currentProgress.totalChunks,
+        totalChunks,
         0,
         0,
         'canceled_by_sender'
@@ -52,16 +83,16 @@ export class TransferManager {
   }
 
   isTransferActive(filename: string): boolean {
-    return this.buffer.isTransferActive(filename);
+    return this.activeTransfers.has(filename);
   }
 
   handlePause() {
-    console.log('[TRANSFER-MANAGER] Transfer manager paused');
+    console.log('[TRANSFER] Transfer manager paused');
     this.isPaused = true;
   }
 
   handleResume() {
-    console.log('[TRANSFER-MANAGER] Transfer manager resumed');
+    console.log('[TRANSFER] Transfer manager resumed');
     this.isPaused = false;
   }
 
@@ -76,52 +107,41 @@ export class TransferManager {
     totalChunks: number,
     fileSize: number
   ): Promise<Blob | null> {
-    if (!this.buffer.isTransferActive(filename)) {
-      console.log('[TRANSFER-MANAGER] Initializing new transfer:', {
-        filename,
-        totalChunks,
-        fileSize
-      });
-      this.buffer.initializeTransfer(filename);
+    if (!this.chunksBuffer[filename]) {
+      this.chunksBuffer[filename] = [];
+      this.activeTransfers.add(filename);
     }
 
     try {
       if (this.isPaused) {
-        console.log('[TRANSFER-MANAGER] Skipping chunk processing while paused');
+        console.log('[TRANSFER] Skipping chunk processing while paused');
         return null;
       }
 
       const decryptedChunk = await this.chunkProcessor.decryptChunk(chunk);
-      this.buffer.storeChunk(filename, chunkIndex, decryptedChunk);
+      this.chunksBuffer[filename][chunkIndex] = decryptedChunk;
 
-      const chunks = this.buffer.getStoredChunks(filename);
-      const received = chunks.filter(Boolean).length;
-      const loaded = received * (fileSize / totalChunks);
+      const received = this.chunksBuffer[filename].filter(Boolean).length;
       
-      console.log('[TRANSFER-MANAGER] Chunk processed:', {
-        filename,
-        chunkIndex,
-        received,
-        totalChunks,
-        loaded,
-        fileSize
-      });
-      
-      this.progressTracker.updateProgress(
+      this.updateProgress(
         filename,
         received,
         totalChunks,
-        loaded,
+        received * (fileSize / totalChunks),
         fileSize
       );
 
       if (received === totalChunks) {
-        console.log('[TRANSFER-MANAGER] Transfer complete:', filename);
-        return this.buffer.completeTransfer(filename);
+        const completeFile = new Blob(this.chunksBuffer[filename]);
+        this.activeTransfers.delete(filename);
+        delete this.chunksBuffer[filename];
+        delete this.transferProgress[filename];
+        return completeFile;
       }
     } catch (error) {
-      console.error('[TRANSFER-MANAGER] Error processing chunk:', error);
-      this.buffer.cleanupTransfer(filename);
+      this.activeTransfers.delete(filename);
+      delete this.chunksBuffer[filename];
+      delete this.transferProgress[filename];
       throw error;
     }
 

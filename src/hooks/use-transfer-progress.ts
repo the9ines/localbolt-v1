@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { TransferProgress } from '@/services/webrtc/FileTransferService';
@@ -8,6 +9,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Clear progress after a delay when transfer is complete or canceled
     if (transferProgress?.status && 
         transferProgress.status !== 'transferring' && 
         transferProgress.status !== 'paused') {
@@ -21,27 +23,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
   const handleProgress = useCallback((progress: TransferProgress) => {
     console.log('[PROGRESS] Received progress update:', progress);
-    
-    setTransferProgress(prevProgress => {
-      if (!prevProgress) return progress;
-      
-      const updatedProgress = {
-        ...prevProgress,
-        ...progress,
-        // Always keep latest progress values if they exist
-        loaded: progress.loaded ?? prevProgress.loaded,
-        total: progress.total ?? prevProgress.total,
-        currentChunk: progress.currentChunk ?? prevProgress.currentChunk,
-        totalChunks: progress.totalChunks ?? prevProgress.totalChunks,
-        // Keep the filename consistent
-        filename: progress.filename || prevProgress.filename,
-        // Update status if provided
-        status: progress.status || prevProgress.status
-      };
-      
-      console.log('[PROGRESS] Updated progress state:', updatedProgress);
-      return updatedProgress;
-    });
+    setTransferProgress(progress);
     
     if (progress.status) {
       switch (progress.status) {

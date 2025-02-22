@@ -7,8 +7,6 @@ import { DataChannelManager } from './DataChannelManager';
 export class WebRTCEventManager {
   private connectionStateListener?: (state: RTCPeerConnectionState) => void;
   private isDisconnecting: boolean = false;
-  private connectionStabilityTimeout: number | null = null;
-  private lastConnectionState: RTCPeerConnectionState = 'new';
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -22,35 +20,17 @@ export class WebRTCEventManager {
     this.connectionManager.setConnectionStateChangeHandler((state: RTCPeerConnectionState) => {
       console.log('[CONNECTION] State changed:', state);
       
-      // Clear any existing stability timeout
-      if (this.connectionStabilityTimeout !== null) {
-        window.clearTimeout(this.connectionStabilityTimeout);
-        this.connectionStabilityTimeout = null;
-      }
-
-      if (state === 'connected' && this.lastConnectionState !== 'connected') {
-        // Wait for connection to stabilize before confirming connected state
-        this.connectionStabilityTimeout = window.setTimeout(() => {
-          console.log('[CONNECTION] Connection stabilized');
-          if (this.connectionStateListener && !this.isDisconnecting) {
-            this.lastConnectionState = state;
-            this.connectionStateListener(state);
-          }
-        }, 1000);
-      } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
         console.log('[CONNECTION] Peer disconnected, cleaning up connection state');
-        // Only force disconnect if it wasn't already disconnecting
-        if (!this.isDisconnecting) {
-          this.forceDisconnect();
-        }
+        this.forceDisconnect();
+      } else if (!this.isDisconnecting && this.connectionStateListener) {
+        this.connectionStateListener(state);
       }
-
-      this.lastConnectionState = state;
     });
 
     this.dataChannelManager.setStateChangeHandler((state: RTCDataChannelState) => {
       console.log('[DATACHANNEL] State changed:', state);
-      if ((state === 'closed' || state === 'closing') && !this.isDisconnecting) {
+      if (state === 'closed' || state === 'closing') {
         console.log('[DATACHANNEL] Channel closed/closing, initiating disconnect');
         this.forceDisconnect();
       }
@@ -59,21 +39,11 @@ export class WebRTCEventManager {
 
   setConnectionStateListener(handler: (state: RTCPeerConnectionState) => void) {
     this.connectionStateListener = handler;
-    // If we already have a stable connection, notify immediately
-    if (this.lastConnectionState === 'connected' && !this.isDisconnecting) {
-      handler(this.lastConnectionState);
-    }
   }
 
   private forceDisconnect() {
     if (this.isDisconnecting) return;
     this.isDisconnecting = true;
-
-    // Clear any pending stability timeout
-    if (this.connectionStabilityTimeout !== null) {
-      window.clearTimeout(this.connectionStabilityTimeout);
-      this.connectionStabilityTimeout = null;
-    }
 
     // Immediately notify of disconnection
     if (this.connectionStateListener) {
@@ -89,7 +59,7 @@ export class WebRTCEventManager {
     setTimeout(() => {
       console.log('[CONNECTION] Resetting disconnect state');
       this.isDisconnecting = false;
-    }, 1000);
+    }, 100);
   }
 
   handleDisconnect() {
