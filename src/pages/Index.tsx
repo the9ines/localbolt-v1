@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useRef } from "react";
 import { FileUpload } from "@/components/file-upload/FileUpload";
 import { PeerConnection } from "@/components/PeerConnection";
 import { Header } from "@/components/Header";
@@ -27,6 +28,7 @@ const FeatureCard = ({ icon: Icon, title, description }: FeatureCardProps) => (
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
+  const transferSectionRef = useRef<HTMLDivElement>(null);
 
   const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
     console.log('[UI] Connection change:', connected, !!service);
@@ -34,6 +36,13 @@ const Index = () => {
     if (service) {
       setWebrtc(service);
     }
+  };
+
+  const scrollToTransfer = () => {
+    transferSectionRef.current?.scrollIntoView({ 
+      behavior: 'smooth',
+      block: 'center'
+    });
   };
 
   const features = [
@@ -85,6 +94,7 @@ const Index = () => {
             <Button 
               size="lg" 
               className="bg-neon text-black hover:bg-neon/90 hover:scale-105 transition-all duration-300"
+              onClick={scrollToTransfer}
             >
               Start Sharing <ArrowRight className="ml-2" />
             </Button>
@@ -96,7 +106,10 @@ const Index = () => {
             ))}
           </div>
 
-          <Card className="relative overflow-hidden p-8 max-w-3xl mx-auto space-y-6 bg-dark-accent/30 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.5)] animate-fade-up">
+          <Card 
+            ref={transferSectionRef}
+            className="relative overflow-hidden p-8 max-w-3xl mx-auto space-y-6 bg-dark-accent/30 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.5)] animate-fade-up"
+          >
             <div className="absolute inset-0 bg-gradient-to-br from-neon/5 via-transparent to-transparent opacity-50" />
             
             <div className="relative space-y-4 text-center">
