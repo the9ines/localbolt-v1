@@ -1,5 +1,6 @@
 import { box, randomBytes } from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
+import { supabase } from "@/integrations/supabase/client";
 import { 
   WebRTCError, 
   ConnectionError, 
@@ -65,12 +66,7 @@ class WebRTCService {
         })
         .subscribe();
     } catch (error) {
-      const signalingError = new SignalingError(
-        "Failed to setup signaling channel",
-        error
-      );
-      console.error('[SIGNALING] Setup error:', signalingError);
-      this.onError(signalingError);
+      throw new SignalingError("Failed to setup signaling channel", error);
     }
   }
 
