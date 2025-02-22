@@ -1,0 +1,6 @@
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://localbolt.site/sitemap.xml
