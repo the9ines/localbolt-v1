@@ -15,12 +15,11 @@ interface FeatureCardProps {
 }
 
 const FeatureCard = ({ icon: Icon, title, description }: FeatureCardProps) => (
-  <Card className="group relative overflow-hidden p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 transition-all duration-500 hover:border-neon/50 hover:shadow-[0_8px_30px_rgba(20,255,106,0.15)]">
-    <div className="absolute inset-0 bg-gradient-to-br from-neon/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+  <Card className="relative overflow-hidden p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 transition-all duration-300 hover:bg-dark-accent/70">
     <div className="flex flex-col items-center text-center">
-      <Icon className="w-8 h-8 text-neon mb-4 relative z-10 transition-transform duration-500 group-hover:scale-110" />
-      <h2 className="text-lg font-semibold mb-2 relative z-10">{title}</h2>
-      <p className="text-sm text-gray-400 relative z-10">{description}</p>
+      <Icon className="w-8 h-8 text-white mb-4" />
+      <h2 className="text-lg font-semibold mb-2">{title}</h2>
+      <p className="text-sm text-gray-400">{description}</p>
     </div>
   </Card>
 );
@@ -78,13 +77,6 @@ const Index = () => {
         
         <main className="container mx-auto px-4 py-16 space-y-20">
           <div className="text-center space-y-6 animate-fade-up max-w-3xl mx-auto">
-            <div className="inline-flex items-center px-3 py-1 rounded-full border border-neon/20 bg-neon/5 text-neon text-sm mb-4">
-              <span className="relative flex h-2 w-2 mr-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-neon"></span>
-              </span>
-              Secure File Transfer
-            </div>
             <h1 className="text-5xl sm:text-6xl font-bold tracking-tight bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent">
               Private, Server-Free File Sharing
             </h1>
