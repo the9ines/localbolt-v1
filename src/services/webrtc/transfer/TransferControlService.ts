@@ -43,20 +43,24 @@ export class TransferControlService {
     try {
       this.dataChannel.send(JSON.stringify(message));
       
-      // Get current progress to preserve it
+      // Get current progress and emit with paused status
       const currentTransfer = this.stateManager.getCurrentTransfer();
       if (currentTransfer?.progress && this.onProgress) {
+        console.log('[TRANSFER] Emitting paused state with progress:', currentTransfer.progress);
         this.onProgress({
           ...currentTransfer.progress,
           filename,
-          status: 'paused'
+          status: 'paused',
+          currentChunk: currentTransfer.progress.currentChunk,
+          totalChunks: currentTransfer.progress.totalChunks,
+          loaded: currentTransfer.progress.loaded,
+          total: currentTransfer.progress.total
         });
       }
       
       console.log('[TRANSFER] Pause initiated successfully');
     } catch (error) {
       console.error('[TRANSFER] Error during pause:', error);
-      // Reset state if message sending fails
       this.stateManager.reset();
     }
   }
@@ -78,20 +82,24 @@ export class TransferControlService {
     try {
       this.dataChannel.send(JSON.stringify(message));
       
-      // Get current progress to preserve it
+      // Get current progress and emit with transferring status
       const currentTransfer = this.stateManager.getCurrentTransfer();
       if (currentTransfer?.progress && this.onProgress) {
+        console.log('[TRANSFER] Emitting resumed state with progress:', currentTransfer.progress);
         this.onProgress({
           ...currentTransfer.progress,
           filename,
-          status: 'transferring'
+          status: 'transferring',
+          currentChunk: currentTransfer.progress.currentChunk,
+          totalChunks: currentTransfer.progress.totalChunks,
+          loaded: currentTransfer.progress.loaded,
+          total: currentTransfer.progress.total
         });
       }
       
       console.log('[TRANSFER] Resume initiated successfully');
     } catch (error) {
       console.error('[TRANSFER] Error during resume:', error);
-      // Reset state if message sending fails
       this.stateManager.reset();
     }
   }

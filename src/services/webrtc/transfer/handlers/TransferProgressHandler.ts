@@ -5,6 +5,7 @@ import { ProgressEmitter } from '../ProgressEmitter';
 
 export class TransferProgressHandler {
   private lastProgress: Map<string, TransferState['progress']> = new Map();
+  private progressUpdateTimeout: number | null = null;
 
   constructor(
     private store: TransferStore,
@@ -19,8 +20,9 @@ export class TransferProgressHandler {
     totalChunks: number
   ) {
     try {
-      console.log(`[STATE] Updating progress for ${filename}: ${currentChunk}/${totalChunks}`);
+      console.log(`[STATE] Updating progress for ${filename}: ${currentChunk}/${totalChunks}, loaded: ${loaded}/${total}`);
       
+      // Get or create transfer object
       const transfer = this.store.getTransfer(filename) || {
         filename,
         total,
@@ -42,23 +44,32 @@ export class TransferProgressHandler {
         this.store.updateState({ currentTransfer: transfer });
       }
 
-      // Get current transfer state
-      const isPaused = this.store.isPaused();
-      const status = isPaused ? 'paused' : 'transferring';
+      // Clear any existing timeout
+      if (this.progressUpdateTimeout) {
+        window.clearTimeout(this.progressUpdateTimeout);
+      }
 
-      console.log('[STATE] Emitting progress update:', {
-        filename,
-        status,
-        progress: progressUpdate,
-        isPaused
-      });
-      
-      // Always emit with the current state and preserved progress
-      this.progressEmitter.emit(
-        filename,
-        status,
-        progressUpdate
-      );
+      // Throttle progress updates to prevent UI flooding
+      this.progressUpdateTimeout = window.setTimeout(() => {
+        const isPaused = this.store.isPaused();
+        const status = isPaused ? 'paused' : 'transferring';
+
+        console.log('[STATE] Emitting progress update:', {
+          filename,
+          status,
+          progress: progressUpdate,
+          isPaused,
+          currentChunk,
+          totalChunks
+        });
+        
+        this.progressEmitter.emit(
+          filename,
+          status,
+          progressUpdate
+        );
+      }, 16); // ~60fps throttle
+
     } catch (error) {
       console.error('[STATE] Error updating transfer progress:', error);
     }
