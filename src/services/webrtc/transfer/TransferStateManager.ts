@@ -68,7 +68,12 @@ export class TransferStateManager {
 
       // Always emit full progress state when pausing
       if (currentTransfer.progress) {
-        this.updateProgress(filename, 'paused', currentTransfer.progress);
+        // Force a progress update with paused status
+        this.updateProgress(filename, 'paused', {
+          ...currentTransfer.progress,
+          loaded: currentTransfer.progress.loaded,
+          total: currentTransfer.progress.total
+        });
       }
     } catch (error) {
       console.error('[STATE] Error handling pause:', error);
@@ -93,7 +98,12 @@ export class TransferStateManager {
 
       // Always emit full progress state when resuming
       if (currentTransfer.progress) {
-        this.updateProgress(filename, 'transferring', currentTransfer.progress);
+        // Force a progress update with transferring status
+        this.updateProgress(filename, 'transferring', {
+          ...currentTransfer.progress,
+          loaded: currentTransfer.progress.loaded,
+          total: currentTransfer.progress.total
+        });
       }
     } catch (error) {
       console.error('[STATE] Error handling resume:', error);
@@ -107,10 +117,32 @@ export class TransferStateManager {
         return;
       }
 
+      const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
+      console.log(`[STATE] Setting transfer to ${status} state for:`, filename);
+
+      // Store the current progress before nullifying the transfer
+      const currentProgress = this.state.currentTransfer.progress;
+
       this.state.isCancelled = true;
       this.state.isPaused = false;
       this.state.currentTransfer = null;
-      this.updateProgress(filename, isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender');
+
+      // Emit final progress update with cancel status and last known progress
+      this.updateProgress(filename, status, currentProgress);
+
+      // Force an additional null progress update after a short delay to ensure cleanup
+      setTimeout(() => {
+        if (this.onProgress) {
+          this.onProgress({
+            status,
+            filename,
+            currentChunk: 0,
+            totalChunks: 0,
+            loaded: 0,
+            total: 0
+          });
+        }
+      }, 100);
     } catch (error) {
       console.error('[STATE] Error handling cancel:', error);
       this.reset();
@@ -130,6 +162,7 @@ export class TransferStateManager {
         return;
       }
 
+      // Update the progress
       currentTransfer.progress = {
         loaded,
         total,
@@ -140,6 +173,7 @@ export class TransferStateManager {
       // Use requestAnimationFrame for smoother UI updates
       requestAnimationFrame(() => {
         if (currentTransfer.progress) {
+          // Include pause state in progress updates
           this.updateProgress(
             filename,
             this.state.isPaused ? 'paused' : 'transferring',
@@ -158,6 +192,18 @@ export class TransferStateManager {
       isCancelled: false,
       currentTransfer: null
     };
+    
+    // Ensure any active progress indicators are cleared
+    if (this.onProgress) {
+      this.onProgress({
+        status: 'error',
+        filename: '',
+        currentChunk: 0,
+        totalChunks: 0,
+        loaded: 0,
+        total: 0
+      });
+    }
   }
 
   private updateProgress(
