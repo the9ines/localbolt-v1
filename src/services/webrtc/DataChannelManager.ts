@@ -1,4 +1,3 @@
-
 import { FileTransferService } from './FileTransferService';
 import { EncryptionService } from './EncryptionService';
 import { WebRTCError } from '@/types/webrtc-errors';
@@ -12,12 +11,14 @@ export interface IDataChannelManager {
   pauseTransfer(filename: string): void;
   resumeTransfer(filename: string): void;
   disconnect(): void;
+  setProgressCallback(callback: (progress: TransferProgress) => void): void;
 }
 
 export class DataChannelManager implements IDataChannelManager {
   private fileTransferService: FileTransferService | null = null;
   private stateChangeHandler: ((state: RTCDataChannelState) => void) | undefined;
   private isDisconnecting: boolean = false;
+  private progressCallback: ((progress: TransferProgress) => void) | undefined;
 
   constructor(
     private encryptionService: EncryptionService,
@@ -26,6 +27,7 @@ export class DataChannelManager implements IDataChannelManager {
     private onError: (error: WebRTCError) => void
   ) {
     console.log('[DATACHANNEL] Initializing DataChannelManager');
+    this.progressCallback = onProgress;
   }
 
   setupDataChannel(channel: RTCDataChannel): void {
@@ -35,7 +37,7 @@ export class DataChannelManager implements IDataChannelManager {
       channel,
       this.encryptionService,
       this.onReceiveFile,
-      this.onProgress
+      this.progressCallback || (() => {})
     );
 
     channel.onclose = () => {
@@ -109,6 +111,18 @@ export class DataChannelManager implements IDataChannelManager {
       this.stateChangeHandler = undefined;
     } finally {
       this.isDisconnecting = false;
+    }
+  }
+
+  setProgressCallback(callback: (progress: TransferProgress) => void): void {
+    this.progressCallback = callback;
+    if (this.fileTransferService) {
+      this.fileTransferService = new FileTransferService(
+        this.fileTransferService['dataChannel'],
+        this.encryptionService,
+        this.onReceiveFile,
+        callback
+      );
     }
   }
 }
