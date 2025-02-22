@@ -11,13 +11,10 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
   useEffect(() => {
     if (!transferProgress?.status) return;
 
+    // Automatically clear progress for completed or canceled transfers
     if (transferProgress.status !== 'transferring' && 
         transferProgress.status !== 'paused') {
-      const timer = setTimeout(() => {
-        setTransferProgress(null);
-      }, 3000);
-
-      return () => clearTimeout(timer);
+      setTransferProgress(null);
     }
   }, [transferProgress]);
 
@@ -33,12 +30,14 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
           title: "Transfer Canceled",
           description: "The sender has canceled the transfer",
         });
+        setTransferProgress(null); // Immediately clear progress on cancel
         break;
       case 'canceled_by_receiver':
         toast({
           title: "Transfer Canceled",
           description: "You have canceled the transfer",
         });
+        setTransferProgress(null); // Immediately clear progress on cancel
         break;
       case 'error':
         toast({
@@ -46,6 +45,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
           description: "The transfer was terminated due to an error",
           variant: "destructive",
         });
+        setTransferProgress(null); // Immediately clear progress on error
         break;
     }
   }, [toast]);
@@ -55,6 +55,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
     console.log('[PROGRESS] Canceling transfer:', transferProgress.filename);
     webrtc.cancelTransfer(transferProgress.filename, true);
+    setTransferProgress(null); // Immediately clear progress on cancel
     toast({
       title: "Transfer Canceled",
       description: "You have canceled the file transfer",

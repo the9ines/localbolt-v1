@@ -19,7 +19,7 @@ export const PeerCodeInput = ({ peerCode, copied, onCopy }: PeerCodeInputProps) 
           id="peer-code"
           value={peerCode}
           readOnly
-          className="font-mono bg-dark-accent text-neon text-center"
+          className="font-mono bg-dark-accent text-neon text-left"
         />
         <Button
           variant="outline"
