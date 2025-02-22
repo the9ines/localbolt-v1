@@ -19,4 +19,5 @@ export interface TransferControl {
 export interface TransferControlMessage {
   filename: string;
   isReceiver?: boolean;
+  cancelledBy?: 'sender' | 'receiver';
 }

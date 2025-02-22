@@ -50,13 +50,17 @@ export class TransferControlHandler {
   handleCancel(message: TransferControlMessage): void {
     if (message.filename) {
       this.stateService.updateState({ isCancelled: true });
+      
+      // Default to 'canceled_by_sender' if cancelledBy is not specified
+      const cancelStatus = message.isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
+      
       this.stateService.updateProgress(
         message.filename,
         0,
         0,
         0,
         0,
-        message.cancelledBy === 'receiver' ? 'canceled_by_receiver' : 'canceled_by_sender'
+        cancelStatus
       );
       this.stateService.removeTransfer(message.filename);
     }
