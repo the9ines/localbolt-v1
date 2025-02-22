@@ -44,8 +44,7 @@ export class ConnectionManager {
       iceCandidatePoolSize: 10,
       iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
-      rtcpMuxPolicy: 'require',
-      iceServersPolicy: 'all',
+      rtcpMuxPolicy: 'require'
     };
 
     this.peerConnection = new RTCPeerConnection(configuration);
