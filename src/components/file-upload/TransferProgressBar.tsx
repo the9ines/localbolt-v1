@@ -1,12 +1,12 @@
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { PauseIcon, PlayIcon, StopIcon } from "lucide-react";
-import type { TransferProgress } from "@/services/webrtc/types/transfer";
+import { Pause, Play, Square } from "lucide-react";
+import type { TransferProgress as TransferProgressType } from "@/services/webrtc/FileTransferService";
 import { calculateProgress, formatBytes } from "@/services/webrtc/transfer/utils/transfer-utils";
 
 interface TransferProgressBarProps {
-  progress: TransferProgress;
+  progress: TransferProgressType;
   onCancel?: () => void;
   onPause?: () => void;
   onResume?: () => void;
@@ -39,7 +39,7 @@ export function TransferProgressBar({ progress, onCancel, onPause, onResume }: T
                 onClick={onResume}
                 title="Resume transfer"
               >
-                <PlayIcon className="h-4 w-4" />
+                <Play className="h-4 w-4" />
               </Button>
             ) : (
               <Button 
@@ -48,7 +48,7 @@ export function TransferProgressBar({ progress, onCancel, onPause, onResume }: T
                 onClick={onPause}
                 title="Pause transfer"
               >
-                <PauseIcon className="h-4 w-4" />
+                <Pause className="h-4 w-4" />
               </Button>
             )}
             <Button 
@@ -57,7 +57,7 @@ export function TransferProgressBar({ progress, onCancel, onPause, onResume }: T
               onClick={onCancel}
               title="Cancel transfer"
             >
-              <StopIcon className="h-4 w-4" />
+              <Square className="h-4 w-4" />
             </Button>
           </div>
         )}
