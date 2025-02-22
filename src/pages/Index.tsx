@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { FileUpload } from "@/components/file-upload/FileUpload";
 import { PeerConnection } from "@/components/PeerConnection";
@@ -17,9 +16,11 @@ interface FeatureCardProps {
 const FeatureCard = ({ icon: Icon, title, description }: FeatureCardProps) => (
   <Card className="group relative overflow-hidden p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 transition-all duration-500 hover:border-neon/50 hover:shadow-[0_8px_30px_rgba(20,255,106,0.15)]">
     <div className="absolute inset-0 bg-gradient-to-br from-neon/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-    <Icon className="w-8 h-8 text-neon mb-4 relative z-10 transition-transform duration-500 group-hover:scale-110" />
-    <h2 className="text-lg font-semibold mb-2 relative z-10">{title}</h2>
-    <p className="text-sm text-gray-400 relative z-10">{description}</p>
+    <div className="flex flex-col items-center text-center">
+      <Icon className="w-8 h-8 text-neon mb-4 relative z-10 transition-transform duration-500 group-hover:scale-110" />
+      <h2 className="text-lg font-semibold mb-2 relative z-10">{title}</h2>
+      <p className="text-sm text-gray-400 relative z-10">{description}</p>
+    </div>
   </Card>
 );
 
