@@ -49,7 +49,6 @@ export class TransferStateManager {
         }
       };
 
-      // Initialize transfer state
       this.store.setTransfer(newTransfer);
       this.store.updateState({
         isPaused: false,
@@ -70,6 +69,13 @@ export class TransferStateManager {
     // Set pause state first
     this.store.updateState({ isPaused: true });
     
+    // Get current transfer state to include in pause update
+    const currentTransfer = this.store.getCurrentTransfer();
+    if (currentTransfer && currentTransfer.progress) {
+      // Emit paused state with current progress
+      this.progressEmitter.emit(message.filename, 'paused', currentTransfer.progress);
+    }
+    
     // Let control handler update the progress
     return this.controlHandler.handlePause(message);
   }
@@ -78,6 +84,13 @@ export class TransferStateManager {
     console.log('[STATE] Handling resume request', message);
     // Set resume state first
     this.store.updateState({ isPaused: false });
+    
+    // Get current transfer state to include in resume update
+    const currentTransfer = this.store.getCurrentTransfer();
+    if (currentTransfer && currentTransfer.progress) {
+      // Emit transferring state with current progress
+      this.progressEmitter.emit(message.filename, 'transferring', currentTransfer.progress);
+    }
     
     // Let control handler update the progress
     return this.controlHandler.handleResume(message);
