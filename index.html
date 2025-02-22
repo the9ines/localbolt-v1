@@ -30,12 +30,12 @@
     
     <!-- Security Headers -->
     <meta http-equiv="Content-Security-Policy" content="
-      default-src 'self';
+      default-src 'self' blob: wss: ws:;
       script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.gpteng.co blob:;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: blob: https:;
-      connect-src 'self' https://cdn.gpteng.co https://*.supabase.co wss://* blob:;
+      connect-src 'self' https://cdn.gpteng.co https://*.supabase.co wss://* ws://* blob: http://localhost:* stun: turn:;
       frame-src 'self';
       media-src 'self' blob:;
       worker-src 'self' blob:;
