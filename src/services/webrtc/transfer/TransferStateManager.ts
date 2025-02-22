@@ -1,23 +1,12 @@
 
 import type { TransferProgress } from '../types/transfer';
-import type { TransferControl, TransferControlMessage } from '../types/transfer-control';
-
-interface TransferState {
-  filename: string;
-  total: number;
-  progress?: {
-    loaded: number;
-    total: number;
-    currentChunk: number;
-    totalChunks: number;
-  };
-}
+import type { TransferControl, TransferControlMessage, TransferState } from '../types/transfer-control';
 
 export class TransferStateManager {
   private state: TransferControl = {
     isPaused: false,
     isCancelled: false,
-    currentTransfer: null as TransferState | null
+    currentTransfer: null
   };
 
   constructor(private onProgress?: (progress: TransferProgress) => void) {}
@@ -36,20 +25,23 @@ export class TransferStateManager {
 
   startTransfer(filename: string, total: number) {
     try {
+      const newTransfer: TransferState = {
+        filename,
+        total,
+        progress: {
+          loaded: 0,
+          total,
+          currentChunk: 0,
+          totalChunks: 0
+        }
+      };
+
       this.state = {
         isPaused: false,
         isCancelled: false,
-        currentTransfer: {
-          filename,
-          total,
-          progress: {
-            loaded: 0,
-            total,
-            currentChunk: 0,
-            totalChunks: 0
-          }
-        }
+        currentTransfer: newTransfer
       };
+      
       // Emit initial state
       this.updateProgress(filename, 'transferring');
     } catch (error) {
@@ -147,11 +139,13 @@ export class TransferStateManager {
 
       // Use requestAnimationFrame for smoother UI updates
       requestAnimationFrame(() => {
-        this.updateProgress(
-          filename,
-          this.state.isPaused ? 'paused' : 'transferring',
-          currentTransfer.progress
-        );
+        if (currentTransfer.progress) {
+          this.updateProgress(
+            filename,
+            this.state.isPaused ? 'paused' : 'transferring',
+            currentTransfer.progress
+          );
+        }
       });
     } catch (error) {
       console.error('[STATE] Error updating transfer progress:', error);
