@@ -9,6 +9,10 @@
     <meta name="author" content="Lovable" />
     <meta property="og:image" content="/og-image.png" />
     
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/src/index.css" as="style">
+    <link rel="preload" href="/src/main.tsx" as="script">
+    
     <!-- Favicons -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -43,6 +47,14 @@
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
     <meta http-equiv="Permissions-Policy" content="accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()">
     <title>LocalBolt ⚡ P2P File Sharing – No Login Required</title>
+    
+    <!-- Defer non-critical CSS -->
+    <link 
+      rel="stylesheet" 
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      media="print" 
+      onload="this.media='all'"
+    >
   </head>
 
   <body>
@@ -52,11 +64,15 @@
       src="https://cdn.gpteng.co/gptengineer.js" 
       type="module" 
       crossorigin="anonymous"
+      async
+      defer
       onerror="console.error('Failed to load GPT Engineer script');">
     </script>
     <script 
       type="module" 
       src="/src/main.tsx"
+      async
+      defer
       onerror="console.error('Failed to load main application');">
     </script>
   </body>
