@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -23,6 +22,10 @@ class WebRTCService {
   private connectionPromise?: Promise<void>;
   private isInitiator: boolean = false;
   private connectionAttemptTimestamp: number = 0;
+  private autoReconnectEnabled: boolean = true;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 3;
+  private reconnectTimeout?: NodeJS.Timeout;
 
   constructor(
     private localPeerCode: string,
@@ -36,7 +39,7 @@ class WebRTCService {
     this.onProgressCallback = onProgress;
     
     this.initializeServices();
-    this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
+    this.retryHandler = new WebRTCRetryHandler(this.onError, this.handleReconnect.bind(this));
   }
 
   private initializeServices() {
@@ -81,11 +84,46 @@ class WebRTCService {
     );
   }
 
+  private async handleReconnect() {
+    if (!this.autoReconnectEnabled || !this.remotePeerCode || this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('[WEBRTC] Not attempting reconnection:', {
+        autoReconnectEnabled: this.autoReconnectEnabled,
+        remotePeerCode: this.remotePeerCode,
+        attempts: this.reconnectAttempts
+      });
+      return;
+    }
+
+    this.reconnectAttempts++;
+    console.log(`[WEBRTC] Attempting reconnection (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
+    try {
+      await this.connect(this.remotePeerCode);
+      this.reconnectAttempts = 0;
+    } catch (error) {
+      console.error('[WEBRTC] Reconnection attempt failed:', error);
+      
+      const backoffTime = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
+      this.reconnectTimeout = setTimeout(() => this.handleReconnect(), backoffTime);
+    }
+  }
+
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
-    this.eventManager.setConnectionStateListener(handler);
+    this.eventManager.setConnectionStateListener((state) => {
+      handler(state);
+      
+      if (state === 'disconnected' || state === 'failed') {
+        console.log('[WEBRTC] Connection lost, initiating recovery...');
+        this.handleReconnect();
+      }
+    });
   }
 
   private handleError(error: WebRTCError) {
+    console.error('[WEBRTC] Error occurred:', error);
+    if (error.name === 'ConnectionError') {
+      this.handleReconnect();
+    }
     this.retryHandler.handleError(error, this.remotePeerCode);
   }
 
@@ -94,7 +132,6 @@ class WebRTCService {
   }
 
   private shouldInitiateConnection(remotePeerCode: string): boolean {
-    // Deterministic initiator selection based on peer code comparison
     return this.localPeerCode > remotePeerCode;
   }
 
@@ -109,22 +146,33 @@ class WebRTCService {
     this.isConnectionInProgress = true;
     this.connectionPromise = new Promise<void>(async (resolve, reject) => {
       try {
+        if (this.reconnectTimeout) {
+          clearTimeout(this.reconnectTimeout);
+          this.reconnectTimeout = undefined;
+        }
+
         this.remotePeerCode = remotePeerCode;
         this.isInitiator = this.shouldInitiateConnection(remotePeerCode);
         
         if (!this.isInitiator) {
           console.log('[WEBRTC] Not initiator, waiting for offer from peer');
-          // Set a timeout for receiving the offer
           setTimeout(() => {
             if (!this.connectionManager.getPeerConnection()?.remoteDescription) {
               reject(new ConnectionError("No offer received"));
             }
-          }, 10000); // 10 second timeout for receiving offer
+          }, 10000);
           return;
         }
 
         const peerConnection = await this.connectionManager.createPeerConnection();
         
+        peerConnection.oniceconnectionstatechange = () => {
+          console.log('[ICE] Connection state changed:', peerConnection.iceConnectionState);
+          if (peerConnection.iceConnectionState === 'disconnected') {
+            this.handleReconnect();
+          }
+        };
+
         const dataChannel = peerConnection.createDataChannel('fileTransfer', {
           ordered: true,
           maxRetransmits: 3
@@ -144,9 +192,12 @@ class WebRTCService {
 
         peerConnection.onconnectionstatechange = () => {
           const state = peerConnection.connectionState;
+          console.log('[WEBRTC] Connection state changed to:', state);
+          
           if (state === 'connected') {
             console.log('[WEBRTC] Connection established successfully');
             this.retryHandler.resetAttempts();
+            this.reconnectAttempts = 0;
             resolve();
           } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
             console.log('[WEBRTC] Connection state changed to:', state);
@@ -163,7 +214,7 @@ class WebRTCService {
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new ConnectionError("Connection timeout"));
-      }, 30000); // 30 second total timeout
+      }, 30000);
     });
 
     try {
@@ -193,6 +244,15 @@ class WebRTCService {
 
   disconnect() {
     console.log('[WEBRTC] Disconnecting');
+    
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = undefined;
+    }
+    
+    this.autoReconnectEnabled = false;
+    this.reconnectAttempts = 0;
+    
     this.eventManager.handleDisconnect();
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
@@ -220,7 +280,12 @@ class WebRTCService {
   }
 
   private handleSignal = async (signal: SignalData) => {
-    await this.signalingHandler.handleSignal(signal);
+    try {
+      await this.signalingHandler.handleSignal(signal);
+    } catch (error) {
+      console.error('[SIGNALING] Error handling signal:', error);
+      this.handleError(error as WebRTCError);
+    }
   };
 }
 
