@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import WebRTCService from "@/services/webrtc/WebRTCService";
@@ -16,6 +17,13 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
+
+  // Clear progress when WebRTC instance changes (including disconnection)
+  useEffect(() => {
+    if (!webrtc) {
+      setProgress(null);
+    }
+  }, [webrtc]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -59,6 +67,30 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleProgress = (transferProgress: TransferProgress) => {
+    console.log('[TRANSFER] Progress update in UI:', transferProgress);
+    if (transferProgress.status === 'canceled_by_sender' || 
+        transferProgress.status === 'canceled_by_receiver' || 
+        transferProgress.status === 'error') {
+      // Clear progress after a delay for error/canceled states
+      setTimeout(() => setProgress(null), 3000);
+    } else {
+      setProgress(transferProgress);
+    }
+  };
+
+  const handlePauseTransfer = () => {
+    if (webrtc && progress) {
+      webrtc.pauseTransfer(progress.filename);
+    }
+  };
+
+  const handleResumeTransfer = () => {
+    if (webrtc && progress) {
+      webrtc.resumeTransfer(progress.filename);
+    }
+  };
+
   const cancelTransfer = () => {
     if (webrtc && progress) {
       webrtc.cancelTransfer(progress.filename);
@@ -94,15 +126,13 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         currentChunk: 0,
         totalChunks,
         loaded: 0,
-        total: file.size
+        total: file.size,
+        status: 'transferring'
       });
 
-      webrtc.setProgressCallback((transferProgress: TransferProgress) => {
-        console.log('[TRANSFER] Progress update in UI:', transferProgress);
-        setProgress(transferProgress);
-      });
-
+      webrtc.setProgressCallback(handleProgress);
       await webrtc.sendFile(file);
+      
       console.log('Transfer completed for:', file.name);
 
       toast({
@@ -123,7 +153,9 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         });
       }
     } finally {
-      setProgress(null);
+      if (!webrtc) {
+        setProgress(null);
+      }
     }
   };
 
@@ -146,10 +178,12 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
             disabled={progress !== null}
           />
 
-          {progress && (
+          {progress && progress.status && (
             <TransferProgressBar
               progress={progress}
               onCancel={cancelTransfer}
+              onPause={handlePauseTransfer}
+              onResume={handleResumeTransfer}
             />
           )}
 
