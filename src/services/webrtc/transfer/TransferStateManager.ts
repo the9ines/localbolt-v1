@@ -49,6 +49,7 @@ export class TransferStateManager {
         }
       };
 
+      // Initialize transfer state
       this.store.setTransfer(newTransfer);
       this.store.updateState({
         isPaused: false,
@@ -65,10 +66,20 @@ export class TransferStateManager {
   }
 
   handlePause(message: TransferControlMessage): boolean {
+    console.log('[STATE] Handling pause request', message);
+    // Set pause state first
+    this.store.updateState({ isPaused: true });
+    
+    // Let control handler update the progress
     return this.controlHandler.handlePause(message);
   }
 
   handleResume(message: TransferControlMessage): boolean {
+    console.log('[STATE] Handling resume request', message);
+    // Set resume state first
+    this.store.updateState({ isPaused: false });
+    
+    // Let control handler update the progress
     return this.controlHandler.handleResume(message);
   }
 
