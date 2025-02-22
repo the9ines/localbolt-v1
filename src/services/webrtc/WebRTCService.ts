@@ -19,6 +19,8 @@ class WebRTCService {
   private eventManager: WebRTCEventManager;
   private retryHandler: WebRTCRetryHandler;
   private onProgressCallback?: (progress: TransferProgress) => void;
+  private isInitiator: boolean = false;
+  private connectionAttemptTimestamp: number = 0;
 
   constructor(
     private localPeerCode: string,
@@ -89,12 +91,31 @@ class WebRTCService {
     return this.signalingHandler.getRemotePeerCode();
   }
 
+  private shouldInitiateConnection(remotePeerCode: string): boolean {
+    // Use lexicographic comparison of peer codes to determine initiator
+    // This ensures only one peer tries to initiate
+    const currentTime = Date.now();
+    if (currentTime - this.connectionAttemptTimestamp < 1000) {
+      // If less than 1 second has passed since last attempt, use consistent rule
+      return this.localPeerCode > remotePeerCode;
+    }
+    this.connectionAttemptTimestamp = currentTime;
+    return true;
+  }
+
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
     const connectionPromise = new Promise<void>(async (resolve, reject) => {
       try {
         this.remotePeerCode = remotePeerCode;
+        this.isInitiator = this.shouldInitiateConnection(remotePeerCode);
+        
+        if (!this.isInitiator) {
+          console.log('[WEBRTC] Waiting for offer from peer');
+          return;
+        }
+
         const peerConnection = await this.connectionManager.createPeerConnection();
         
         const dataChannel = peerConnection.createDataChannel('fileTransfer', {
@@ -166,6 +187,7 @@ class WebRTCService {
     this.encryptionService.reset();
     this.remotePeerCode = '';
     this.retryHandler.resetAttempts();
+    this.isInitiator = false;
   }
 
   public pauseTransfer(filename: string): void {
