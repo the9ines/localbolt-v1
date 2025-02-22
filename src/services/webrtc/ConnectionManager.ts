@@ -19,33 +19,44 @@ export class ConnectionManager {
 
   async createPeerConnection(): Promise<RTCPeerConnection> {
     console.log('[WEBRTC] Creating peer connection');
-    this.peerConnection = new RTCPeerConnection({
+    
+    const configuration: RTCConfiguration = {
       iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
-        {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
+        { 
+          urls: [
+            'stun:stun.l.google.com:19302',
+            'stun:stun1.l.google.com:19302',
+            'stun:stun2.l.google.com:19302',
+            'stun:stun3.l.google.com:19302',
+            'stun:stun4.l.google.com:19302',
+          ]
         },
         {
-          urls: 'turn:openrelay.metered.ca:443',
+          urls: [
+            'turn:openrelay.metered.ca:80',
+            'turn:openrelay.metered.ca:443',
+            'turn:openrelay.metered.ca:443?transport=tcp'
+          ],
           username: 'openrelayproject',
-          credential: 'openrelayproject',
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
+          credential: 'openrelayproject'
         }
       ],
       iceCandidatePoolSize: 10,
       iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
-      rtcpMuxPolicy: 'require'
+      rtcpMuxPolicy: 'require',
+      iceServersPolicy: 'all',
+    };
+
+    this.peerConnection = new RTCPeerConnection(configuration);
+    
+    // Add additional connection monitoring
+    this.peerConnection.addEventListener('icegatheringstatechange', () => {
+      console.log('[ICE] Gathering state:', this.peerConnection?.iceGatheringState);
+    });
+
+    this.peerConnection.addEventListener('signalingstatechange', () => {
+      console.log('[SIGNALING] State:', this.peerConnection?.signalingState);
     });
 
     this.setupConnectionListeners();
@@ -59,12 +70,14 @@ export class ConnectionManager {
       if (event.candidate) {
         console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
         this.onIceCandidate(event.candidate);
+      } else {
+        console.log('[ICE] Finished gathering candidates');
       }
     };
 
     this.peerConnection.oniceconnectionstatechange = () => {
       const state = this.peerConnection?.iceConnectionState;
-      console.log('[ICE] Connection state:', state);
+      console.log('[ICE] Connection state changed:', state);
       
       if (state === 'checking') {
         console.log('[ICE] Negotiating connection...');
@@ -78,7 +91,7 @@ export class ConnectionManager {
 
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection?.connectionState;
-      console.log('[WEBRTC] Connection state:', state);
+      console.log('[WEBRTC] Connection state changed:', state);
       
       if (state) {
         if (this.connectionStateChangeCallback) {
@@ -112,7 +125,7 @@ export class ConnectionManager {
     }
 
     const signalingState = this.peerConnection.signalingState;
-    console.log('[ICE] Current signaling state:', signalingState);
+    console.log('[ICE] Adding candidate in signaling state:', signalingState);
 
     if (signalingState === 'stable' || signalingState === 'have-remote-offer' || signalingState === 'have-local-offer') {
       try {
