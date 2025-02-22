@@ -1,7 +1,7 @@
 
 import { useEffect } from "react";
 import WebRTCService from "@/services/webrtc/WebRTCService";
-import { TransferProgressBar } from "./file-upload/TransferProgressBar";
+import { TransferProgressBar } from "./file-upload/TransferProgress";
 import { PeerCodeInput } from "./peer-connection/PeerCodeInput";
 import { TargetPeerInput } from "./peer-connection/TargetPeerInput";
 import { ConnectionStatus } from "./peer-connection/ConnectionStatus";
