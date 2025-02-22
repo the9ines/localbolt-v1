@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -26,6 +25,7 @@ class WebRTCService {
   private isConnectionInProgress: boolean = false;
   private connectionPromise?: Promise<void>;
   private isInitiator: boolean = false;
+  private connectionTimeoutId?: NodeJS.Timeout;
 
   constructor(
     private localPeerCode: string,
@@ -40,7 +40,7 @@ class WebRTCService {
     
     this.initializeServices();
     this.connectionStateManager = new ConnectionStateManager(this.onError, this.connect.bind(this));
-    this.retryHandler = new WebRTCRetryHandler(this.onError, this.handleReconnect.bind(this));
+    this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
   }
 
   private initializeServices() {
@@ -120,6 +120,10 @@ class WebRTCService {
 
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
+    if (this.connectionTimeoutId) {
+      clearTimeout(this.connectionTimeoutId);
+    }
+
     this.isConnectionInProgress = true;
     this.connectionPromise = new Promise<void>(async (resolve, reject) => {
       try {
@@ -142,21 +146,22 @@ class WebRTCService {
       }
     });
 
-    const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => {
-        reject(new ConnectionError("Connection timeout"));
-      }, 30000);
-    });
+    this.connectionTimeoutId = setTimeout(() => {
+      if (this.isConnectionInProgress) {
+        this.disconnect();
+        this.onError(new ConnectionError("Connection timeout"));
+      }
+    }, 60000);
 
     try {
-      await Promise.race([this.connectionPromise, timeoutPromise]);
-    } catch (error) {
-      this.disconnect();
-      throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
+      await this.connectionPromise;
     } finally {
-      this.isConnectionInProgress = false;
-      this.connectionPromise = undefined;
+      if (this.connectionTimeoutId) {
+        clearTimeout(this.connectionTimeoutId);
+      }
     }
+    
+    return this.connectionPromise;
   }
 
   disconnect() {
