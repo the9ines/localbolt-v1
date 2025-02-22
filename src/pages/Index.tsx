@@ -1,11 +1,20 @@
 
-import { useState } from "react";
-import { FileUpload } from "@/components/file-upload/FileUpload";
-import { PeerConnection } from "@/components/PeerConnection";
+import { useState, Suspense, lazy } from "react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
-import WebRTCService from "@/services/webrtc/WebRTCService";
 import { Shield, Wifi, Database, Zap } from "lucide-react";
+import WebRTCService from "@/services/webrtc/WebRTCService";
+
+// Lazy load components that are not immediately visible
+const FileUpload = lazy(() => import("@/components/file-upload/FileUpload"));
+const PeerConnection = lazy(() => import("@/components/PeerConnection"));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="animate-pulse p-8 flex items-center justify-center">
+    <div className="w-8 h-8 border-4 border-neon border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -72,11 +81,15 @@ const Index = () => {
               </p>
             </div>
 
-            <PeerConnection onConnectionChange={handleConnectionChange} />
+            <Suspense fallback={<LoadingFallback />}>
+              <PeerConnection onConnectionChange={handleConnectionChange} />
+            </Suspense>
             
             {isConnected && webrtc && (
               <div className="animate-fade-in">
-                <FileUpload webrtc={webrtc} />
+                <Suspense fallback={<LoadingFallback />}>
+                  <FileUpload webrtc={webrtc} />
+                </Suspense>
               </div>
             )}
           </Card>
