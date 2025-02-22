@@ -43,18 +43,12 @@ const formatSize = (bytes: number): string => {
 
 export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: TransferProgressProps) => {
   const calculateProgress = () => {
-    // Ensure we have valid numbers to work with
-    const loaded = typeof progress.loaded === 'number' ? progress.loaded : 0;
-    const total = typeof progress.total === 'number' ? progress.total : 1;
-    
-    // Calculate percentage, ensuring we don't divide by zero
-    const percentage = total > 0 ? (loaded / total) * 100 : 0;
-    
-    // Return a valid number between 0 and 100
-    return Math.min(100, Math.max(0, percentage));
+    if (!progress.total) return 0;
+    return Math.min(100, Math.max(0, (progress.loaded / progress.total) * 100));
   };
 
   const getStatusText = () => {
+    const percentage = Math.round(calculateProgress());
     switch (progress.status) {
       case 'canceled_by_sender':
       case 'canceled_by_receiver':
@@ -62,14 +56,23 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
       case 'error':
         return 'Transfer terminated due to an error';
       default:
-        return `${Math.round(calculateProgress())}%`;
+        return `${percentage}%`;
     }
   };
 
+  // Explicitly check for 'paused' status
   const isPaused = progress.status === 'paused';
   const isFinished = progress.status === 'error' || 
                     progress.status === 'canceled_by_sender' || 
                     progress.status === 'canceled_by_receiver';
+
+  const handlePauseResume = () => {
+    if (isPaused && onResume) {
+      onResume();
+    } else if (!isPaused && onPause) {
+      onPause();
+    }
+  };
 
   return (
     <div className="space-y-2 w-full">
@@ -90,9 +93,8 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
             <Button
               variant="ghost"
               size="icon"
-              onClick={isPaused ? onResume : onPause}
+              onClick={handlePauseResume}
               className="h-8 w-8"
-              aria-label={isPaused ? "Resume transfer" : "Pause transfer"}
             >
               {isPaused ? (
                 <Play className="h-4 w-4" />
