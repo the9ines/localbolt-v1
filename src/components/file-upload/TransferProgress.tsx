@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { File, Pause, Play, X } from "lucide-react";
@@ -49,21 +48,15 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         return 'Transfer canceled';
       case 'error':
         return 'Transfer terminated due to an error';
-      case 'paused':
-        return `${getProgressPercentage()}% (Paused)`;
       default:
-        return `${getProgressPercentage()}%`;
+        const percentage = Math.round((progress.loaded / progress.total) * 100) || 0;
+        return `${percentage}%`;
     }
   };
 
-  const getProgressPercentage = () => {
-    if (!progress.total || !progress.loaded) return 0;
-    return Math.round((progress.loaded / progress.total) * 100);
-  };
-
   const getProgressValue = () => {
-    if (!progress.totalChunks || !progress.currentChunk) return 0;
-    return (progress.currentChunk / progress.totalChunks) * 100;
+    const value = (progress.loaded / progress.total) * 100;
+    return isNaN(value) ? 0 : value;
   };
 
   const isPaused = progress.status === 'paused';
