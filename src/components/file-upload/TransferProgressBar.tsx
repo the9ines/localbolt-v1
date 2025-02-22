@@ -2,11 +2,11 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Pause, Play, Square } from "lucide-react";
-import type { TransferProgress as TransferProgressType } from "@/services/webrtc/FileTransferService";
+import type { TransferProgress } from "@/services/webrtc/FileTransferService";
 import { calculateProgress, formatBytes } from "@/services/webrtc/transfer/utils/transfer-utils";
 
 interface TransferProgressBarProps {
-  progress: TransferProgressType;
+  progress: TransferProgress;
   onCancel?: () => void;
   onPause?: () => void;
   onResume?: () => void;

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { DragDropArea } from "./DragDropArea";
 import { FileList } from "./FileList";
-import { TransferProgressBar } from "./TransferProgress";
+import { TransferProgressBar } from "./TransferProgressBar";
 
 interface FileUploadProps {
   webrtc?: WebRTCService;
