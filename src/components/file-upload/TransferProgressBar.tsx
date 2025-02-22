@@ -12,7 +12,7 @@ interface TransferProgressBarProps {
   readonly onResume?: () => void;
 }
 
-export function TransferProgressBar({ progress, onCancel, onPause, onResume }: Readonly<TransferProgressBarProps>) {
+export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: Readonly<TransferProgressBarProps>) => {
   const isPaused = progress.status === 'paused';
   const percent = calculateProgress(progress.loaded, progress.total);
   const bytesTransferred = formatBytes(progress.loaded);
@@ -22,7 +22,7 @@ export function TransferProgressBar({ progress, onCancel, onPause, onResume }: R
 
   return (
     <div className="space-y-2 p-4 border rounded-lg bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex justify-between items-center space-x-4">
         <div className="flex-1 space-y-1">
           <div className="text-sm font-medium">{progress.filename}</div>
           <div className="text-xs text-muted-foreground">
@@ -31,7 +31,7 @@ export function TransferProgressBar({ progress, onCancel, onPause, onResume }: R
           <Progress value={percent} className="h-2" />
         </div>
         {showControls && (
-          <div className="flex gap-2">
+          <div className="flex space-x-2">
             {isPaused ? (
               <Button 
                 variant="outline" 
@@ -64,4 +64,4 @@ export function TransferProgressBar({ progress, onCancel, onPause, onResume }: R
       </div>
     </div>
   );
-}
+};
