@@ -11,7 +11,7 @@ export class TransferControlHandler {
     private progressEmitter: ProgressEmitter
   ) {}
 
-  handlePause({ filename }: TransferControlMessage) {
+  handlePause({ filename }: TransferControlMessage): boolean {
     try {
       console.log(`[STATE] Processing pause request for ${filename}`);
       const transfer = this.store.getTransfer(filename);
@@ -46,7 +46,7 @@ export class TransferControlHandler {
     }
   }
 
-  handleResume({ filename }: TransferControlMessage) {
+  handleResume({ filename }: TransferControlMessage): boolean {
     try {
       console.log(`[STATE] Processing resume request for ${filename}`);
       const transfer = this.store.getTransfer(filename);
@@ -81,11 +81,11 @@ export class TransferControlHandler {
     }
   }
 
-  handleCancel({ filename, isReceiver }: TransferControlMessage) {
+  handleCancel({ filename, isReceiver }: TransferControlMessage): void {
     try {
       if (this.processingCancel) {
         console.log('[STATE] Already processing a cancel request, skipping duplicate');
-        return false;
+        return;
       }
 
       this.processingCancel = true;
@@ -94,12 +94,12 @@ export class TransferControlHandler {
       const transfer = this.store.getTransfer(filename);
       if (!transfer) {
         console.warn(`[STATE] Cannot cancel: ${filename} does not exist in transfer store`);
-        return false;
+        return;
       }
 
       if (this.store.isCancelled()) {
         console.log(`[STATE] Transfer ${filename} is already cancelled`);
-        return true;
+        return;
       }
 
       const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
@@ -124,17 +124,15 @@ export class TransferControlHandler {
       }, 100);
 
       console.log(`[STATE] Successfully cancelled transfer for: ${filename}`);
-      return true;
     } catch (error) {
       console.error('[STATE] Error handling cancel:', error);
       this.reset();
-      return false;
     } finally {
       this.processingCancel = false;
     }
   }
 
-  reset() {
+  reset(): void {
     console.log('[STATE] Resetting transfer state');
     this.store.clear();
     this.progressEmitter.emit('', 'error');

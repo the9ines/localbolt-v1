@@ -64,15 +64,15 @@ export class TransferStateManager {
     }
   }
 
-  handlePause(message: TransferControlMessage) {
-    this.controlHandler.handlePause(message);
+  handlePause(message: TransferControlMessage): boolean {
+    return this.controlHandler.handlePause(message);
   }
 
-  handleResume(message: TransferControlMessage) {
-    this.controlHandler.handleResume(message);
+  handleResume(message: TransferControlMessage): boolean {
+    return this.controlHandler.handleResume(message);
   }
 
-  handleCancel(message: TransferControlMessage) {
+  handleCancel(message: TransferControlMessage): void {
     this.controlHandler.handleCancel(message);
   }
 
