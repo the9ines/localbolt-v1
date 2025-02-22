@@ -6,6 +6,9 @@ export class ConnectionManager {
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private readonly connectionTimeout: number = 30000; // 30 seconds timeout
   private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
+  private reconnectAttempts: number = 0;
+  private readonly maxReconnectAttempts: number = 3;
+  private reconnectTimeout: number | null = null;
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
@@ -18,7 +21,13 @@ export class ConnectionManager {
   }
 
   async createPeerConnection(): Promise<RTCPeerConnection> {
-    console.log('[WEBRTC] Creating peer connection');
+    console.log('[CONNECTION] Creating peer connection');
+    
+    if (this.peerConnection) {
+      console.log('[CONNECTION] Cleaning up existing connection');
+      this.peerConnection.close();
+    }
+    
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -57,28 +66,28 @@ export class ConnectionManager {
 
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
+        console.log('[ICE] New ICE candidate:', event.candidate.candidate);
         this.onIceCandidate(event.candidate);
       }
     };
 
     this.peerConnection.oniceconnectionstatechange = () => {
       const state = this.peerConnection?.iceConnectionState;
-      console.log('[ICE] Connection state:', state);
+      console.log('[ICE] Connection state changed:', state);
       
       if (state === 'checking') {
         console.log('[ICE] Negotiating connection...');
       } else if (state === 'connected' || state === 'completed') {
         console.log('[ICE] Connection established');
-      } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
-        console.error('[ICE] Connection failed:', state);
-        this.onError(new ConnectionError("ICE connection failed", { state }));
+        this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      } else if (state === 'failed' || state === 'disconnected') {
+        this.handleConnectionFailure(state);
       }
     };
 
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection?.connectionState;
-      console.log('[WEBRTC] Connection state:', state);
+      console.log('[CONNECTION] State changed:', state);
       
       if (state) {
         if (this.connectionStateChangeCallback) {
@@ -86,13 +95,8 @@ export class ConnectionManager {
         }
       }
       
-      if (state === 'connecting') {
-        console.log('[WEBRTC] Establishing connection...');
-      } else if (state === 'connected') {
-        console.log('[WEBRTC] Connection established successfully');
-      } else if (state === 'failed' || state === 'closed') {
-        console.error('[WEBRTC] Connection failed:', state);
-        this.onError(new ConnectionError("WebRTC connection failed", { state }));
+      if (state === 'failed' || state === 'disconnected') {
+        this.handleConnectionFailure(state);
       }
     };
 
@@ -102,6 +106,35 @@ export class ConnectionManager {
         this.onDataChannel(event.channel);
       }
     };
+  }
+
+  private handleConnectionFailure(state: string) {
+    console.log('[CONNECTION] Handling connection failure:', state);
+    
+    // Clear any existing reconnection timeout
+    if (this.reconnectTimeout !== null) {
+      window.clearTimeout(this.reconnectTimeout);
+    }
+
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000); // Exponential backoff
+      
+      console.log(`[CONNECTION] Attempting reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+      
+      this.reconnectTimeout = window.setTimeout(async () => {
+        try {
+          await this.createPeerConnection();
+          console.log('[CONNECTION] Reconnection attempt initiated');
+        } catch (error) {
+          console.error('[CONNECTION] Reconnection attempt failed:', error);
+          this.onError(new ConnectionError("Reconnection failed", { state, attempts: this.reconnectAttempts }));
+        }
+      }, delay);
+    } else {
+      console.error('[CONNECTION] Max reconnection attempts reached');
+      this.onError(new ConnectionError(`Connection ${state}`, { state }));
+    }
   }
 
   async addIceCandidate(candidate: RTCIceCandidateInit) {
@@ -141,7 +174,6 @@ export class ConnectionManager {
           console.log('[ICE] Added pending ICE candidate');
         } catch (error) {
           console.error('[ICE] Failed to add pending ICE candidate:', error);
-          // Re-queue the candidate if we're not ready
           if (this.peerConnection.signalingState !== 'closed') {
             this.pendingIceCandidates.unshift(candidate);
             break;
@@ -152,12 +184,19 @@ export class ConnectionManager {
   }
 
   disconnect() {
+    if (this.reconnectTimeout !== null) {
+      window.clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
     if (this.peerConnection) {
-      console.log('[WEBRTC] Closing connection');
+      console.log('[CONNECTION] Closing connection');
       this.peerConnection.close();
       this.peerConnection = null;
     }
+    
     this.pendingIceCandidates = [];
+    this.reconnectAttempts = 0;
   }
 
   getPeerConnection(): RTCPeerConnection | null {
