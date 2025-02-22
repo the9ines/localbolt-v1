@@ -49,9 +49,21 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         return 'Transfer canceled';
       case 'error':
         return 'Transfer terminated due to an error';
+      case 'paused':
+        return `${getProgressPercentage()}% (Paused)`;
       default:
-        return `${Math.round((progress.loaded / progress.total) * 100)}%`;
+        return `${getProgressPercentage()}%`;
     }
+  };
+
+  const getProgressPercentage = () => {
+    if (!progress.total || !progress.loaded) return 0;
+    return Math.round((progress.loaded / progress.total) * 100);
+  };
+
+  const getProgressValue = () => {
+    if (!progress.totalChunks || !progress.currentChunk) return 0;
+    return (progress.currentChunk / progress.totalChunks) * 100;
   };
 
   const isPaused = progress.status === 'paused';
@@ -69,7 +81,7 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
       
       <div className="flex items-center gap-2 w-full">
         <Progress 
-          value={(progress.currentChunk / progress.totalChunks) * 100}
+          value={getProgressValue()}
           className="h-2 flex-1 bg-neon/20"
         />
         
