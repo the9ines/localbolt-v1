@@ -7,6 +7,8 @@ import { EncryptionService } from './EncryptionService';
 export class SignalingHandler {
   private pendingCandidates: RTCIceCandidateInit[] = [];
   private remotePeerCode: string = '';
+  private hasReceivedOffer: boolean = false;
+  private isProcessingOffer: boolean = false;
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -17,35 +19,51 @@ export class SignalingHandler {
   ) {}
 
   private async handleOffer(signal: SignalData) {
-    console.log('[SIGNALING] Received offer from peer:', signal.from);
-    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-    
-    // Store the remote peer code from the signal sender
-    this.remotePeerCode = signal.from;
-    
-    const peerConnection = await this.connectionManager.createPeerConnection();
-    const offerDesc = new RTCSessionDescription(signal.data.offer);
-    await peerConnection.setRemoteDescription(offerDesc);
-    console.log('[SIGNALING] Set remote description (offer)');
-    
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    console.log('[SIGNALING] Created and sending answer');
-    
-    await this.signalingService.sendSignal('answer', {
-      answer,
-      publicKey: this.encryptionService.getPublicKey(),
-      peerCode: this.localPeerCode
-    }, signal.from);
+    if (this.isProcessingOffer) {
+      console.log('[SIGNALING] Already processing an offer, ignoring new offer');
+      return;
+    }
 
-    await this.processPendingCandidates();
+    try {
+      this.isProcessingOffer = true;
+      console.log('[SIGNALING] Received offer from peer:', signal.from);
+      
+      // If we've already received an offer and our peer code is greater,
+      // we ignore this offer as we should be the one sending the offer
+      if (this.hasReceivedOffer && this.localPeerCode > signal.from) {
+        console.log('[SIGNALING] Ignoring offer - we should be the initiator');
+        return;
+      }
+
+      this.hasReceivedOffer = true;
+      this.encryptionService.setRemotePublicKey(signal.data.publicKey);
+      this.remotePeerCode = signal.from;
+      
+      const peerConnection = await this.connectionManager.createPeerConnection();
+      const offerDesc = new RTCSessionDescription(signal.data.offer);
+      
+      await peerConnection.setRemoteDescription(offerDesc);
+      console.log('[SIGNALING] Set remote description (offer)');
+      
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      console.log('[SIGNALING] Created and sending answer');
+      
+      await this.signalingService.sendSignal('answer', {
+        answer,
+        publicKey: this.encryptionService.getPublicKey(),
+        peerCode: this.localPeerCode
+      }, signal.from);
+
+      await this.processPendingCandidates();
+    } finally {
+      this.isProcessingOffer = false;
+    }
   }
 
   private async handleAnswer(signal: SignalData) {
     console.log('[SIGNALING] Received answer from peer:', signal.from);
     this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-    
-    // Store the remote peer code from the signal sender
     this.remotePeerCode = signal.from;
     
     const peerConnection = this.connectionManager.getPeerConnection();
@@ -125,5 +143,12 @@ export class SignalingHandler {
       console.error('[SIGNALING] Handler error:', error);
       throw error;
     }
+  }
+
+  reset() {
+    this.hasReceivedOffer = false;
+    this.isProcessingOffer = false;
+    this.pendingCandidates = [];
+    this.remotePeerCode = '';
   }
 }
