@@ -5,6 +5,7 @@ import { ProgressEmitter } from '../ProgressEmitter';
 
 export class TransferControlHandler {
   private processingCancel: boolean = false;
+  private canceledTransfers: Set<string> = new Set();
 
   constructor(
     private store: TransferStore,
@@ -83,8 +84,8 @@ export class TransferControlHandler {
 
   handleCancel({ filename, isReceiver }: TransferControlMessage): void {
     try {
-      if (this.processingCancel) {
-        console.log('[STATE] Already processing a cancel request, skipping duplicate');
+      if (this.processingCancel || this.canceledTransfers.has(filename)) {
+        console.log('[STATE] Already processed cancel for:', filename);
         return;
       }
 
@@ -92,8 +93,19 @@ export class TransferControlHandler {
       console.log(`[STATE] Processing cancel request for ${filename}`);
 
       const transfer = this.store.getTransfer(filename);
-      if (!transfer) {
-        console.warn(`[STATE] Cannot cancel: ${filename} does not exist in transfer store`);
+      if (!transfer && !this.store.isCancelled()) {
+        // If no transfer exists but we haven't marked as cancelled yet,
+        // we should still process the cancellation to update the UI
+        this.store.updateState({
+          isCancelled: true,
+          isPaused: false,
+          currentTransfer: null
+        });
+        
+        const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
+        this.progressEmitter.emit(filename, status);
+        this.canceledTransfers.add(filename);
+        console.log(`[STATE] Processed cancel for non-existent transfer: ${filename}`);
         return;
       }
 
@@ -112,16 +124,16 @@ export class TransferControlHandler {
         currentTransfer: null
       });
 
-      // Send progress update before removing the transfer
-      this.progressEmitter.emit(filename, status, transfer.progress);
-      
-      // Remove the transfer last
-      this.store.deleteTransfer(filename);
-
-      // Send a final progress update after a short delay
-      setTimeout(() => {
+      // Send progress update
+      if (transfer?.progress) {
+        this.progressEmitter.emit(filename, status, transfer.progress);
+      } else {
         this.progressEmitter.emit(filename, status);
-      }, 100);
+      }
+      
+      // Remove the transfer and mark as canceled
+      this.store.deleteTransfer(filename);
+      this.canceledTransfers.add(filename);
 
       console.log(`[STATE] Successfully cancelled transfer for: ${filename}`);
     } catch (error) {
@@ -137,5 +149,6 @@ export class TransferControlHandler {
     this.store.clear();
     this.progressEmitter.emit('', 'error');
     this.processingCancel = false;
+    this.canceledTransfers.clear();
   }
 }
