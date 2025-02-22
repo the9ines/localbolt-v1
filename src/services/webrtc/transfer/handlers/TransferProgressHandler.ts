@@ -1,18 +1,13 @@
 
 import type { TransferState } from '../../types/transfer-control';
-import { TransferStore } from '../TransferStore';
+import { TransferStateService } from '../services/TransferStateService';
 import { ProgressEmitter } from '../ProgressEmitter';
-import { ProgressManagerService } from '../services/ProgressManagerService';
 
 export class TransferProgressHandler {
-  private progressManager: ProgressManagerService;
-
   constructor(
-    private store: TransferStore,
+    private stateService: TransferStateService,
     private progressEmitter: ProgressEmitter
-  ) {
-    this.progressManager = new ProgressManagerService(store, progressEmitter);
-  }
+  ) {}
 
   updateProgress(
     filename: string,
@@ -21,13 +16,13 @@ export class TransferProgressHandler {
     currentChunk: number,
     totalChunks: number
   ) {
-    this.progressManager.updateProgress(
+    this.stateService.updateProgress(
       filename,
       loaded,
       total,
       currentChunk,
       totalChunks,
-      this.store.isPaused() ? 'paused' : 'transferring'
+      this.stateService.isPaused() ? 'paused' : 'transferring'
     );
   }
 }
