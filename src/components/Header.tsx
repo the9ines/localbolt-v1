@@ -10,10 +10,7 @@ export const Header = () => {
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center space-x-2">
             <Zap className="w-8 h-8 text-neon" />
-            <div className="flex items-baseline">
-              <span className="text-xl font-semibold">LocalBolt</span>
-              <span className="text-neon text-sm ml-2">Beta 0.3.35</span>
-            </div>
+            <span className="text-xl font-semibold">LocalBolt</span>
           </div>
           
           <Card className="glass flex items-center px-4 py-1.5 space-x-2">
