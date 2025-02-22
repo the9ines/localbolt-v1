@@ -19,6 +19,8 @@ class WebRTCService {
   private eventManager: WebRTCEventManager;
   private retryHandler: WebRTCRetryHandler;
   private onProgressCallback?: (progress: TransferProgress) => void;
+  private isConnectionInProgress: boolean = false;
+  private connectionPromise?: Promise<void>;
   private isInitiator: boolean = false;
   private connectionAttemptTimestamp: number = 0;
 
@@ -92,27 +94,32 @@ class WebRTCService {
   }
 
   private shouldInitiateConnection(remotePeerCode: string): boolean {
-    // Use lexicographic comparison of peer codes to determine initiator
-    // This ensures only one peer tries to initiate
-    const currentTime = Date.now();
-    if (currentTime - this.connectionAttemptTimestamp < 1000) {
-      // If less than 1 second has passed since last attempt, use consistent rule
-      return this.localPeerCode > remotePeerCode;
-    }
-    this.connectionAttemptTimestamp = currentTime;
-    return true;
+    // Deterministic initiator selection based on peer code comparison
+    return this.localPeerCode > remotePeerCode;
   }
 
   async connect(remotePeerCode: string): Promise<void> {
+    if (this.isConnectionInProgress) {
+      console.log('[WEBRTC] Connection already in progress, waiting...');
+      return this.connectionPromise;
+    }
+
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
-    const connectionPromise = new Promise<void>(async (resolve, reject) => {
+    this.isConnectionInProgress = true;
+    this.connectionPromise = new Promise<void>(async (resolve, reject) => {
       try {
         this.remotePeerCode = remotePeerCode;
         this.isInitiator = this.shouldInitiateConnection(remotePeerCode);
         
         if (!this.isInitiator) {
-          console.log('[WEBRTC] Waiting for offer from peer');
+          console.log('[WEBRTC] Not initiator, waiting for offer from peer');
+          // Set a timeout for receiving the offer
+          setTimeout(() => {
+            if (!this.connectionManager.getPeerConnection()?.remoteDescription) {
+              reject(new ConnectionError("No offer received"));
+            }
+          }, 10000); // 10 second timeout for receiving offer
           return;
         }
 
@@ -148,20 +155,25 @@ class WebRTCService {
         };
       } catch (error) {
         reject(new ConnectionError("Failed to initiate connection", error));
+      } finally {
+        this.isConnectionInProgress = false;
       }
     });
 
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new ConnectionError("Connection timeout"));
-      }, 30000);
+      }, 30000); // 30 second total timeout
     });
 
     try {
-      await Promise.race([connectionPromise, timeoutPromise]);
+      await Promise.race([this.connectionPromise, timeoutPromise]);
     } catch (error) {
       this.disconnect();
       throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
+    } finally {
+      this.isConnectionInProgress = false;
+      this.connectionPromise = undefined;
     }
   }
 
@@ -185,9 +197,12 @@ class WebRTCService {
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
     this.encryptionService.reset();
+    this.signalingHandler.reset();
     this.remotePeerCode = '';
     this.retryHandler.resetAttempts();
     this.isInitiator = false;
+    this.isConnectionInProgress = false;
+    this.connectionPromise = undefined;
   }
 
   public pauseTransfer(filename: string): void {
