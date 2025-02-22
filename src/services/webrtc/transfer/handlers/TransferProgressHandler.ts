@@ -21,11 +21,11 @@ export class TransferProgressHandler {
     try {
       console.log(`[STATE] Updating progress for ${filename}: ${currentChunk}/${totalChunks}`);
       
-      const transfer = this.store.getTransfer(filename);
-      if (!transfer) {
-        console.warn(`[STATE] Cannot update progress: ${filename} does not exist in transfer store`);
-        return;
-      }
+      const transfer = this.store.getTransfer(filename) || {
+        filename,
+        total,
+        progress: null
+      };
 
       // Create new progress object
       const progressUpdate = { loaded, total, currentChunk, totalChunks };
@@ -42,31 +42,23 @@ export class TransferProgressHandler {
         this.store.updateState({ currentTransfer: transfer });
       }
 
-      // Use requestAnimationFrame to throttle progress updates
-      requestAnimationFrame(() => {
-        // Get the actual progress values from storage
-        const currentTransfer = this.store.getTransfer(filename);
-        const currentProgress = currentTransfer?.progress || this.lastProgress.get(filename);
-        
-        if (!currentProgress) {
-          console.warn('[STATE] No progress data found for emit');
-          return;
-        }
+      // Get current transfer state
+      const isPaused = this.store.isPaused();
+      const status = isPaused ? 'paused' : 'transferring';
 
-        console.log('[STATE] Emitting progress update:', {
-          filename,
-          status: this.store.isPaused() ? 'paused' : 'transferring',
-          progress: currentProgress,
-          isPaused: this.store.isPaused()
-        });
-        
-        // Always emit with the current state and preserved progress
-        this.progressEmitter.emit(
-          filename,
-          this.store.isPaused() ? 'paused' : 'transferring',
-          currentProgress // Use the preserved progress values
-        );
+      console.log('[STATE] Emitting progress update:', {
+        filename,
+        status,
+        progress: progressUpdate,
+        isPaused
       });
+      
+      // Always emit with the current state and preserved progress
+      this.progressEmitter.emit(
+        filename,
+        status,
+        progressUpdate
+      );
     } catch (error) {
       console.error('[STATE] Error updating transfer progress:', error);
     }

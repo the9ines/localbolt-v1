@@ -55,6 +55,8 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         return 'Transfer canceled';
       case 'error':
         return 'Transfer terminated due to an error';
+      case 'paused':
+        return `${percentage}%`;
       default:
         return `${percentage}%`;
     }
@@ -67,10 +69,13 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
                     progress.status === 'canceled_by_receiver';
 
   const handlePauseResume = () => {
-    if (isPaused && onResume) {
-      onResume();
-    } else if (!isPaused && onPause) {
-      onPause();
+    console.log('[UI] Handling pause/resume. Current status:', progress.status);
+    if (isPaused) {
+      console.log('[UI] Resuming transfer');
+      onResume?.();
+    } else {
+      console.log('[UI] Pausing transfer');
+      onPause?.();
     }
   };
 
@@ -96,7 +101,7 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
               onClick={handlePauseResume}
               className="h-8 w-8"
             >
-              {isPaused ? (
+              {progress.status === 'paused' ? (
                 <Play className="h-4 w-4" />
               ) : (
                 <Pause className="h-4 w-4" />
