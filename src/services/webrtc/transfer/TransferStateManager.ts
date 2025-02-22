@@ -11,12 +11,15 @@ export class TransferStateManager {
   private stateService: TransferStateService;
   private progressHandler: TransferProgressHandler;
   private controlHandler: TransferControlHandler;
+  private store: TransferStore;
+  private progressEmitter: ProgressEmitter;
 
   constructor(onProgress?: (progress: TransferProgress) => void) {
-    const progressEmitter = new ProgressEmitter(onProgress);
-    this.stateService = new TransferStateService(progressEmitter);
-    this.progressHandler = new TransferProgressHandler(this.stateService);
-    this.controlHandler = new TransferControlHandler(this.stateService);
+    this.store = new TransferStore();
+    this.progressEmitter = new ProgressEmitter(onProgress);
+    this.stateService = new TransferStateService(this.progressEmitter);
+    this.progressHandler = new TransferProgressHandler(this.store, this.progressEmitter);
+    this.controlHandler = new TransferControlHandler(this.store, this.progressEmitter);
   }
 
   getCurrentTransfer() {

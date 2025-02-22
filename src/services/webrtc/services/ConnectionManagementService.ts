@@ -1,5 +1,4 @@
-
-import { ConnectionError } from '@/types/webrtc-errors';
+import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { ConnectionManager } from '../ConnectionManager';
 import { DataChannelManager } from '../DataChannelManager';
 import { SignalingService } from '../SignalingService';
