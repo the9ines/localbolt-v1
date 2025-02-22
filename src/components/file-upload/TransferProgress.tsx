@@ -61,8 +61,9 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         return 'Transfer canceled';
       case 'error':
         return 'Transfer terminated due to an error';
+      case 'paused':
+        return `${Math.round(calculateProgress())}% (Paused)`;
       default:
-        // Always show the actual progress percentage
         return `${Math.round(calculateProgress())}%`;
     }
   };
