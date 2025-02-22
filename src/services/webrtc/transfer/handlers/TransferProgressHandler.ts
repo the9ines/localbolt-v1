@@ -25,22 +25,30 @@ export class TransferProgressHandler {
         return;
       }
 
-      transfer.progress = { loaded, total, currentChunk, totalChunks };
+      // Create new progress object
+      const progressUpdate = { loaded, total, currentChunk, totalChunks };
+      
+      // Update transfer progress
+      transfer.progress = progressUpdate;
       this.store.setTransfer(transfer);
 
       if (this.store.getCurrentTransfer()?.filename === filename) {
         this.store.updateState({ currentTransfer: transfer });
       }
 
+      // Always emit progress update with current state
       requestAnimationFrame(() => {
-        if (transfer.progress) {
-          console.log('[STATE] Emitting progress update');
-          this.progressEmitter.emit(
-            filename,
-            this.store.isPaused() ? 'paused' : 'transferring',
-            transfer.progress
-          );
-        }
+        console.log('[STATE] Emitting progress update:', {
+          filename,
+          status: this.store.isPaused() ? 'paused' : 'transferring',
+          progress: progressUpdate
+        });
+        
+        this.progressEmitter.emit(
+          filename,
+          this.store.isPaused() ? 'paused' : 'transferring',
+          progressUpdate
+        );
       });
     } catch (error) {
       console.error('[STATE] Error updating transfer progress:', error);
