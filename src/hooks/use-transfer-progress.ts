@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import type { TransferProgress } from '@/services/webrtc/FileTransferService';
@@ -11,7 +10,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
   useEffect(() => {
     if (!transferProgress?.status) return;
 
-    // Immediately clear progress for completed, error, or canceled transfers
+    // Only clear progress for completed or error states
     if (transferProgress.status === 'canceled_by_sender' || 
         transferProgress.status === 'canceled_by_receiver' ||
         transferProgress.status === 'error') {
@@ -25,7 +24,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     if (progress.status === 'canceled_by_sender' || 
         progress.status === 'canceled_by_receiver' || 
         progress.status === 'error') {
-      // Handle cancellation and error states immediately
+      // Handle cancellation and error states
       setTransferProgress(null);
       
       // Show appropriate toast message
@@ -49,8 +48,17 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
       return;
     }
 
-    // Update progress state for other status updates
-    setTransferProgress(progress);
+    // Update progress state while preserving existing progress during pause
+    setTransferProgress(prev => {
+      if (progress.status === 'paused' && prev) {
+        // Keep existing progress values when pausing
+        return {
+          ...prev,
+          status: 'paused'
+        };
+      }
+      return progress;
+    });
   }, [toast]);
 
   const handleCancelReceiving = useCallback(() => {
@@ -58,7 +66,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
     console.log('[PROGRESS] Canceling transfer:', transferProgress.filename);
     webrtc.cancelTransfer(transferProgress.filename, true);
-    setTransferProgress(null); // Immediately clear progress
+    setTransferProgress(null);
     
     toast({
       title: "Transfer Canceled",
@@ -72,7 +80,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     console.log('[PROGRESS] Pausing transfer:', transferProgress.filename);
     webrtc.pauseTransfer(transferProgress.filename);
     
-    // Update local state immediately for responsive UI
+    // Update status while preserving progress
     setTransferProgress(prev => 
       prev ? { ...prev, status: 'paused' } : null
     );
@@ -84,7 +92,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     console.log('[PROGRESS] Resuming transfer:', transferProgress.filename);
     webrtc.resumeTransfer(transferProgress.filename);
     
-    // Update local state immediately for responsive UI
+    // Update status while preserving progress
     setTransferProgress(prev => 
       prev ? { ...prev, status: 'transferring' } : null
     );
