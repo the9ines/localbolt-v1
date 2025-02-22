@@ -23,6 +23,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
   const handleProgress = useCallback((progress: TransferProgress) => {
     console.log('[PROGRESS] Received progress update:', progress);
+    // Always update the local state when we receive a progress update
     setTransferProgress(progress);
     
     if (progress.status) {
@@ -64,6 +65,11 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
   const handlePauseTransfer = useCallback(() => {
     if (webrtc && transferProgress) {
       console.log('[PROGRESS] Pausing transfer:', transferProgress.filename);
+      // Immediately update local state to show pause
+      setTransferProgress(prev => prev ? {
+        ...prev,
+        status: 'paused'
+      } : null);
       webrtc.pauseTransfer(transferProgress.filename);
     }
   }, [webrtc, transferProgress]);
@@ -71,6 +77,11 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
   const handleResumeTransfer = useCallback(() => {
     if (webrtc && transferProgress) {
       console.log('[PROGRESS] Resuming transfer:', transferProgress.filename);
+      // Immediately update local state to show resume
+      setTransferProgress(prev => prev ? {
+        ...prev,
+        status: 'transferring'
+      } : null);
       webrtc.resumeTransfer(transferProgress.filename);
     }
   }, [webrtc, transferProgress]);
