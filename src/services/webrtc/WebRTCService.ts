@@ -1,3 +1,4 @@
+
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -16,7 +17,7 @@ class WebRTCService {
   private connectionManager: ConnectionManager;
   private signalingHandler: SignalingHandler;
   private dataChannelManager: DataChannelManager;
-  private encryptionService: EncryptionService;
+  private readonly encryptionService: EncryptionService;
   private signalingService: SignalingService;
   private eventManager: WebRTCEventManager;
   private readonly retryHandler: WebRTCRetryHandler;
