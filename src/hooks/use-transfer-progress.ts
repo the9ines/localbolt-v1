@@ -10,9 +10,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
   useEffect(() => {
     // Clear progress after a delay when transfer is complete or canceled
-    if (transferProgress?.status && 
-        transferProgress.status !== 'transferring' && 
-        transferProgress.status !== 'paused') {
+    if (transferProgress?.status && transferProgress.status !== 'transferring') {
       const timer = setTimeout(() => {
         setTransferProgress(null);
       }, 3000);
@@ -22,7 +20,6 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
   }, [transferProgress]);
 
   const handleProgress = useCallback((progress: TransferProgress) => {
-    console.log('[PROGRESS] Received progress update:', progress);
     setTransferProgress(progress);
     
     if (progress.status) {
@@ -52,7 +49,6 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
   const handleCancelReceiving = useCallback(() => {
     if (webrtc && transferProgress) {
-      console.log('[PROGRESS] Canceling transfer:', transferProgress.filename);
       webrtc.cancelTransfer(transferProgress.filename, true);
       toast({
         title: "Transfer Canceled",
@@ -61,30 +57,9 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     }
   }, [webrtc, transferProgress, toast]);
 
-  const handlePauseTransfer = useCallback(() => {
-    if (webrtc && transferProgress) {
-      console.log('[PROGRESS] Pausing transfer:', transferProgress.filename);
-      webrtc.pauseTransfer(transferProgress.filename);
-    }
-  }, [webrtc, transferProgress]);
-
-  const handleResumeTransfer = useCallback(() => {
-    if (webrtc && transferProgress) {
-      console.log('[PROGRESS] Resuming transfer:', transferProgress.filename);
-      webrtc.resumeTransfer(transferProgress.filename);
-    }
-  }, [webrtc, transferProgress]);
-
-  const clearProgress = useCallback(() => {
-    setTransferProgress(null);
-  }, []);
-
   return {
     transferProgress,
     handleProgress,
-    handleCancelReceiving,
-    handlePauseTransfer,
-    handleResumeTransfer,
-    clearProgress
+    handleCancelReceiving
   };
 };

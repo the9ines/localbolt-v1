@@ -5,7 +5,7 @@ import { ConnectionManager } from './ConnectionManager';
 import { EncryptionService } from './EncryptionService';
 
 export class SignalingHandler {
-  private readonly pendingCandidates: RTCIceCandidateInit[] = [];
+  private pendingCandidates: RTCIceCandidateInit[] = [];
   private remotePeerCode: string = '';
 
   constructor(

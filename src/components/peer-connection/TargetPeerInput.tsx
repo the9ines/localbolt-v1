@@ -25,15 +25,11 @@ export const TargetPeerInput = ({
   
   return (
     <div className="space-y-2">
-      <label 
-        htmlFor="target-peer-input"
-        className="text-sm font-medium leading-none"
-      >
+      <label className="text-sm font-medium leading-none">
         Connect to Peer
       </label>
       <div className="flex space-x-2">
         <Input
-          id="target-peer-input"
           value={displayValue || ""}
           onChange={(e) => !isConnected && onTargetPeerCodeChange(e.target.value.toUpperCase())}
           placeholder="Enter Peer Code"
