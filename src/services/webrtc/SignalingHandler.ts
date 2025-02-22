@@ -19,15 +19,16 @@ export class SignalingHandler {
   private async handleOffer(signal: SignalData): Promise<void> {
     console.log('[SIGNALING] Received offer from peer:', signal.from);
     
-    if (!signal.data?.publicKey || !signal.data?.offer) {
+    const offerData = signal.data as { publicKey?: string; offer?: RTCSessionDescriptionInit };
+    if (!offerData.publicKey || !offerData.offer) {
       throw new ConnectionError('Invalid offer data received');
     }
     
-    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
+    this.encryptionService.setRemotePublicKey(offerData.publicKey);
     this.remotePeerCode = signal.from;
     
     const peerConnection = await this.connectionManager.createPeerConnection();
-    const offerDesc = new RTCSessionDescription(signal.data.offer);
+    const offerDesc = new RTCSessionDescription(offerData.offer);
     
     try {
       await peerConnection.setRemoteDescription(offerDesc);
@@ -52,11 +53,12 @@ export class SignalingHandler {
   private async handleAnswer(signal: SignalData): Promise<void> {
     console.log('[SIGNALING] Received answer from peer:', signal.from);
     
-    if (!signal.data?.publicKey || !signal.data?.answer) {
+    const answerData = signal.data as { publicKey?: string; answer?: RTCSessionDescriptionInit };
+    if (!answerData.publicKey || !answerData.answer) {
       throw new ConnectionError('Invalid answer data received');
     }
     
-    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
+    this.encryptionService.setRemotePublicKey(answerData.publicKey);
     this.remotePeerCode = signal.from;
     
     const peerConnection = this.connectionManager.getPeerConnection();
@@ -67,7 +69,7 @@ export class SignalingHandler {
     if (peerConnection.signalingState === 'have-local-offer') {
       try {
         await peerConnection.setRemoteDescription(
-          new RTCSessionDescription(signal.data.answer)
+          new RTCSessionDescription(answerData.answer)
         );
         console.log('[SIGNALING] Set remote description (answer)');
         await this.processPendingCandidates();
@@ -79,6 +81,30 @@ export class SignalingHandler {
         "Received answer in invalid state",
         { state: peerConnection.signalingState }
       );
+    }
+  }
+
+  private async handleIceCandidate(signal: SignalData): Promise<void> {
+    const candidateData = signal.data as RTCIceCandidateInit;
+    if (!candidateData) {
+      console.error('[ICE] Received invalid ICE candidate data');
+      return;
+    }
+
+    const peerConnection = this.connectionManager.getPeerConnection();
+    
+    if (!peerConnection || !peerConnection.remoteDescription) {
+      console.log('[ICE] Queuing candidate - no connection or remote description');
+      this.pendingCandidates.push(candidateData);
+      return;
+    }
+
+    try {
+      await this.connectionManager.addIceCandidate(candidateData);
+      console.log('[ICE] Added ICE candidate in state:', peerConnection.signalingState);
+    } catch (error) {
+      console.log('[ICE] Failed to add candidate, queuing:', error);
+      this.pendingCandidates.push(candidateData);
     }
   }
 
@@ -97,29 +123,6 @@ export class SignalingHandler {
       } catch (error) {
         console.error('[ICE] Failed to add pending candidate:', error);
       }
-    }
-  }
-
-  private async handleIceCandidate(signal: SignalData): Promise<void> {
-    if (!signal.data) {
-      console.error('[ICE] Received invalid ICE candidate data');
-      return;
-    }
-
-    const peerConnection = this.connectionManager.getPeerConnection();
-    
-    if (!peerConnection || !peerConnection.remoteDescription) {
-      console.log('[ICE] Queuing candidate - no connection or remote description');
-      this.pendingCandidates.push(signal.data);
-      return;
-    }
-
-    try {
-      await this.connectionManager.addIceCandidate(signal.data);
-      console.log('[ICE] Added ICE candidate in state:', peerConnection.signalingState);
-    } catch (error) {
-      console.log('[ICE] Failed to add candidate, queuing:', error);
-      this.pendingCandidates.push(signal.data);
     }
   }
 

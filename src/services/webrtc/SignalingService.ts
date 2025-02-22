@@ -4,7 +4,12 @@ import { SignalingError } from "@/types/webrtc-errors";
 
 export interface SignalData {
   readonly type: 'offer' | 'answer' | 'ice-candidate';
-  readonly data: unknown;
+  readonly data: {
+    offer?: RTCSessionDescriptionInit;
+    answer?: RTCSessionDescriptionInit;
+    publicKey?: string;
+    peerCode?: string;
+  } | RTCIceCandidateInit;
   readonly from: string;
   readonly to: string;
 }
@@ -12,26 +17,16 @@ export interface SignalData {
 export type SignalHandler = (signal: SignalData) => void;
 
 export class SignalingService {
-  private readonly channelSubscription: ReturnType<typeof supabase.channel> | null;
-  private readonly localPeerId: string;
-  private readonly onSignal: SignalHandler;
+  private channelSubscription: ReturnType<typeof supabase.channel> | null = null;
 
-  constructor(localPeerId: string, onSignal: SignalHandler) {
-    this.localPeerId = localPeerId;
-    this.onSignal = onSignal;
-    this.channelSubscription = null;
-    
-    // Initialize channel after construction
-    this.initializeChannel();
-  }
-
-  private async initializeChannel(): Promise<void> {
-    try {
-      await this.setupChannel();
-    } catch (error) {
+  constructor(
+    private readonly localPeerId: string,
+    private readonly onSignal: SignalHandler
+  ) {
+    this.setupChannel().catch(error => {
       console.error('[SIGNALING] Failed to setup channel:', error);
       throw new SignalingError('Failed to initialize signaling service', error);
-    }
+    });
   }
 
   private async setupChannel(): Promise<void> {
@@ -41,27 +36,21 @@ export class SignalingService {
         await this.channelSubscription.unsubscribe();
       }
 
-      const channel = supabase.channel('signals')
+      this.channelSubscription = supabase.channel('signals')
         .on('broadcast', { event: 'signal' }, ({ payload }) => {
-          if (this.validateSignalPayload(payload)) {
-            console.log('[SIGNALING] Received signal:', payload.type);
-            this.onSignal(payload);
-          } else {
+          if (!this.validateSignalPayload(payload)) {
             console.error('[SIGNALING] Received invalid signal payload');
+            return;
+          }
+          console.log('[SIGNALING] Received signal:', payload.type);
+          this.onSignal(payload as SignalData);
+        })
+        .subscribe((status) => {
+          if (status !== 'SUBSCRIBED') {
+            console.error('[SIGNALING] Channel subscription failed:', status);
+            throw new SignalingError(`Channel subscription failed: ${status}`);
           }
         });
-
-      const subscription = await channel.subscribe((status) => {
-        if (status !== 'SUBSCRIBED') {
-          console.error('[SIGNALING] Channel subscription failed:', status);
-          throw new SignalingError(`Channel subscription failed: ${status}`);
-        }
-      });
-
-      Object.defineProperty(this, 'channelSubscription', {
-        value: subscription,
-        writable: false
-      });
     } catch (error) {
       throw new SignalingError("Failed to setup signaling channel", error);
     }
@@ -80,7 +69,7 @@ export class SignalingService {
     );
   }
 
-  async sendSignal(type: SignalData['type'], data: unknown, remotePeerId: string): Promise<void> {
+  async sendSignal(type: SignalData['type'], data: SignalData['data'], remotePeerId: string): Promise<void> {
     if (!this.channelSubscription) {
       throw new SignalingError('No active channel subscription');
     }
@@ -111,10 +100,7 @@ export class SignalingService {
     try {
       if (this.channelSubscription) {
         await this.channelSubscription.unsubscribe();
-        Object.defineProperty(this, 'channelSubscription', {
-          value: null,
-          writable: false
-        });
+        this.channelSubscription = null;
       }
     } catch (error) {
       console.error('[SIGNALING] Cleanup error:', error);
