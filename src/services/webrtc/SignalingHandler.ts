@@ -1,4 +1,3 @@
-
 import { SignalingService, type SignalData } from './SignalingService';
 import { ConnectionError } from '@/types/webrtc-errors';
 import { ConnectionManager } from './ConnectionManager';
@@ -28,13 +27,6 @@ export class SignalingHandler {
       this.isProcessingOffer = true;
       console.log('[SIGNALING] Received offer from peer:', signal.from);
       
-      // If we've already received an offer and our peer code is greater,
-      // we ignore this offer as we should be the one sending the offer
-      if (this.hasReceivedOffer && this.localPeerCode > signal.from) {
-        console.log('[SIGNALING] Ignoring offer - we should be the initiator');
-        return;
-      }
-
       this.hasReceivedOffer = true;
       this.encryptionService.setRemotePublicKey(signal.data.publicKey);
       this.remotePeerCode = signal.from;
@@ -56,6 +48,9 @@ export class SignalingHandler {
       }, signal.from);
 
       await this.processPendingCandidates();
+    } catch (error) {
+      console.error('[SIGNALING] Error handling offer:', error);
+      throw error;
     } finally {
       this.isProcessingOffer = false;
     }
@@ -71,15 +66,13 @@ export class SignalingHandler {
       throw new ConnectionError("No peer connection established");
     }
 
-    if (peerConnection.signalingState === 'have-local-offer') {
+    try {
       await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
       console.log('[SIGNALING] Set remote description (answer)');
       await this.processPendingCandidates();
-    } else {
-      throw new ConnectionError(
-        "Received answer in invalid state",
-        { state: peerConnection.signalingState }
-      );
+    } catch (error) {
+      console.error('[SIGNALING] Error handling answer:', error);
+      throw error;
     }
   }
 
