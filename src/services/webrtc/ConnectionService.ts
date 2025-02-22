@@ -24,12 +24,12 @@ export class ConnectionService {
       
       this.connectionManager.createPeerConnection()
         .then(peerConnection => {
-          const dataChannel = peerConnection.createDataChannel('fileTransfer', {
-            ordered: true,
-            maxRetransmits: 3
-          });
-          
-          this.dataChannelManager.setupDataChannel(dataChannel);
+          this.dataChannelManager.setupDataChannel(
+            peerConnection.createDataChannel('fileTransfer', {
+              ordered: true,
+              maxRetransmits: 3
+            })
+          );
           
           return peerConnection.createOffer();
         })
