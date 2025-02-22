@@ -10,7 +10,9 @@ export class TransferProgressHandler {
   constructor(
     private store: TransferStore,
     private progressEmitter: ProgressEmitter
-  ) {}
+  ) {
+    console.log('[PROGRESS] TransferProgressHandler initialized');
+  }
 
   updateProgress(
     filename: string,
@@ -20,7 +22,22 @@ export class TransferProgressHandler {
     totalChunks: number
   ) {
     try {
-      console.log(`[STATE] Updating progress for ${filename}: ${currentChunk}/${totalChunks}, loaded: ${loaded}/${total}`);
+      // Log detailed progress information
+      console.log('[PROGRESS] Begin progress update:', {
+        filename,
+        loaded,
+        total,
+        currentChunk,
+        totalChunks,
+        percentage: ((loaded / total) * 100).toFixed(2) + '%'
+      });
+      
+      // Log current store state
+      console.log('[PROGRESS] Current store state:', {
+        isPaused: this.store.isPaused(),
+        currentTransfer: this.store.getCurrentTransfer(),
+        existingTransfer: this.store.getTransfer(filename)
+      });
       
       // Get or create transfer object
       const transfer = this.store.getTransfer(filename) || {
@@ -32,6 +49,8 @@ export class TransferProgressHandler {
       // Create new progress object
       const progressUpdate = { loaded, total, currentChunk, totalChunks };
       
+      console.log('[PROGRESS] Created progress update:', progressUpdate);
+      
       // Store the last progress
       this.lastProgress.set(filename, progressUpdate);
       
@@ -41,6 +60,7 @@ export class TransferProgressHandler {
 
       // Update current transfer if this is the active one
       if (this.store.getCurrentTransfer()?.filename === filename) {
+        console.log('[PROGRESS] Updating current transfer state');
         this.store.updateState({ currentTransfer: transfer });
       }
 
@@ -54,28 +74,45 @@ export class TransferProgressHandler {
         const isPaused = this.store.isPaused();
         const status = isPaused ? 'paused' : 'transferring';
 
-        console.log('[STATE] Emitting progress update:', {
+        const emitData = {
           filename,
           status,
           progress: progressUpdate,
           isPaused,
           currentChunk,
-          totalChunks
-        });
+          totalChunks,
+          timestamp: new Date().toISOString()
+        };
+        
+        console.log('[PROGRESS] Emitting progress update:', emitData);
         
         this.progressEmitter.emit(
           filename,
           status,
           progressUpdate
         );
+
+        // Log after emission
+        console.log('[PROGRESS] Progress update emitted successfully');
       }, 16); // ~60fps throttle
 
     } catch (error) {
-      console.error('[STATE] Error updating transfer progress:', error);
+      console.error('[PROGRESS] Error updating transfer progress:', {
+        error,
+        filename,
+        loaded,
+        total,
+        currentChunk,
+        totalChunks
+      });
+      // Re-throw to ensure error is propagated
+      throw error;
     }
   }
 
   getLastProgress(filename: string): TransferState['progress'] | undefined {
-    return this.lastProgress.get(filename);
+    const progress = this.lastProgress.get(filename);
+    console.log('[PROGRESS] Retrieved last progress for:', filename, progress);
+    return progress;
   }
 }
