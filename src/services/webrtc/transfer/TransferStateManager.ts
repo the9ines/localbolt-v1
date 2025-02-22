@@ -9,7 +9,7 @@ export class TransferStateManager {
     currentTransfer: null
   };
 
-  private activeTransfers: Set<string> = new Set();
+  private activeTransfers: Map<string, TransferState> = new Map();
 
   constructor(private onProgress?: (progress: TransferProgress) => void) {}
 
@@ -43,13 +43,14 @@ export class TransferStateManager {
         }
       };
 
+      this.activeTransfers.set(filename, newTransfer);
+
       this.state = {
         isPaused: false,
         isCancelled: false,
         currentTransfer: newTransfer
       };
       
-      this.activeTransfers.add(filename);
       console.log('[STATE] Transfer started, initial state:', this.state);
       this.updateProgress(filename, 'transferring');
     } catch (error) {
@@ -61,23 +62,20 @@ export class TransferStateManager {
   handlePause({ filename }: TransferControlMessage) {
     try {
       console.log(`[STATE] Processing pause request for ${filename}`);
-      if (!this.isTransferActive(filename)) {
-        console.warn(`[STATE] Cannot pause: ${filename} is not active`);
-        return;
-      }
+      const transfer = this.activeTransfers.get(filename);
 
-      const currentTransfer = this.state.currentTransfer;
-      if (!currentTransfer || currentTransfer.filename !== filename) {
-        console.warn('[STATE] Cannot pause: filename mismatch');
+      if (!transfer) {
+        console.warn(`[STATE] Cannot pause: ${filename} is not active`);
         return;
       }
 
       console.log(`[STATE] Setting transfer to paused state for: ${filename}`);
       this.state.isPaused = true;
+      this.state.currentTransfer = transfer;
 
-      if (currentTransfer.progress) {
+      if (transfer.progress) {
         console.log('[STATE] Updating progress with paused status');
-        this.updateProgress(filename, 'paused', currentTransfer.progress);
+        this.updateProgress(filename, 'paused', transfer.progress);
       }
     } catch (error) {
       console.error('[STATE] Error handling pause:', error);
@@ -87,23 +85,20 @@ export class TransferStateManager {
   handleResume({ filename }: TransferControlMessage) {
     try {
       console.log(`[STATE] Processing resume request for ${filename}`);
-      if (!this.isTransferActive(filename)) {
-        console.warn(`[STATE] Cannot resume: ${filename} is not active`);
-        return;
-      }
+      const transfer = this.activeTransfers.get(filename);
 
-      const currentTransfer = this.state.currentTransfer;
-      if (!currentTransfer || currentTransfer.filename !== filename) {
-        console.warn('[STATE] Cannot resume: filename mismatch');
+      if (!transfer) {
+        console.warn(`[STATE] Cannot resume: ${filename} is not active`);
         return;
       }
 
       console.log(`[STATE] Setting transfer to resumed state for: ${filename}`);
       this.state.isPaused = false;
+      this.state.currentTransfer = transfer;
 
-      if (currentTransfer.progress) {
+      if (transfer.progress) {
         console.log('[STATE] Updating progress with transferring status');
-        this.updateProgress(filename, 'transferring', currentTransfer.progress);
+        this.updateProgress(filename, 'transferring', transfer.progress);
       }
     } catch (error) {
       console.error('[STATE] Error handling resume:', error);
@@ -113,7 +108,9 @@ export class TransferStateManager {
   handleCancel({ filename, isReceiver }: TransferControlMessage) {
     try {
       console.log(`[STATE] Processing cancel request for ${filename}`);
-      if (!this.isTransferActive(filename)) {
+      const transfer = this.activeTransfers.get(filename);
+
+      if (!transfer) {
         console.warn(`[STATE] Cannot cancel: ${filename} is not active`);
         return;
       }
@@ -121,14 +118,12 @@ export class TransferStateManager {
       const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
       console.log(`[STATE] Setting transfer to ${status} state for: ${filename}`);
 
-      const currentProgress = this.state.currentTransfer?.progress;
-
       this.state.isCancelled = true;
       this.state.isPaused = false;
       this.state.currentTransfer = null;
       this.activeTransfers.delete(filename);
 
-      this.updateProgress(filename, status, currentProgress);
+      this.updateProgress(filename, status, transfer.progress);
 
       setTimeout(() => {
         if (this.onProgress) {
@@ -158,31 +153,32 @@ export class TransferStateManager {
   ) {
     try {
       console.log(`[STATE] Updating progress for ${filename}: ${currentChunk}/${totalChunks}`);
-      if (!this.isTransferActive(filename)) {
+      const transfer = this.activeTransfers.get(filename);
+
+      if (!transfer) {
         console.warn(`[STATE] Cannot update progress: ${filename} is not active`);
         return;
       }
 
-      const currentTransfer = this.state.currentTransfer;
-      if (!currentTransfer || currentTransfer.filename !== filename) {
-        console.warn('[STATE] Cannot update progress: filename mismatch');
-        return;
-      }
-
-      currentTransfer.progress = {
+      transfer.progress = {
         loaded,
         total,
         currentChunk,
         totalChunks
       };
 
+      // Update the current transfer state if it matches
+      if (this.state.currentTransfer?.filename === filename) {
+        this.state.currentTransfer = transfer;
+      }
+
       requestAnimationFrame(() => {
-        if (currentTransfer.progress) {
+        if (transfer.progress) {
           console.log('[STATE] Emitting progress update');
           this.updateProgress(
             filename,
             this.state.isPaused ? 'paused' : 'transferring',
-            currentTransfer.progress
+            transfer.progress
           );
         }
       });
