@@ -2,15 +2,17 @@
 import type { TransferProgress } from '../types/transfer';
 import type { TransferControl, TransferControlMessage } from '../types/transfer-control';
 
+interface TransferProgress {
+  loaded: number;
+  total: number;
+  currentChunk: number;
+  totalChunks: number;
+}
+
 interface TransferState {
   filename: string;
   total: number;
-  progress?: {
-    loaded: number;
-    total: number;
-    currentChunk: number;
-    totalChunks: number;
-  };
+  progress?: TransferProgress;
 }
 
 export class TransferStateManager {
