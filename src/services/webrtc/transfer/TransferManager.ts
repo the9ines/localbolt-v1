@@ -1,3 +1,4 @@
+
 import type { TransferProgress, FileChunkMessage } from '../types/transfer';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferError } from '@/types/webrtc-errors';
@@ -35,6 +36,15 @@ export class TransferManager {
     total: number,
     status: TransferProgress['status'] = 'transferring'
   ) {
+    console.log('[TRANSFER-MANAGER] Updating progress:', {
+      filename,
+      currentChunk,
+      totalChunks,
+      loaded,
+      total,
+      status
+    });
+
     const progress: TransferProgress = {
       filename,
       currentChunk,
@@ -47,6 +57,7 @@ export class TransferManager {
     this.transferProgress[filename] = progress;
 
     if (this.onProgress) {
+      console.log('[TRANSFER-MANAGER] Emitting progress update');
       this.onProgress(progress);
     }
   }
@@ -87,13 +98,43 @@ export class TransferManager {
   }
 
   handlePause() {
-    console.log('[TRANSFER] Transfer manager paused');
+    console.log('[TRANSFER-MANAGER] Transfer manager paused');
     this.isPaused = true;
+    
+    // Update progress status for all active transfers
+    for (const filename of this.activeTransfers) {
+      const progress = this.transferProgress[filename];
+      if (progress) {
+        this.updateProgress(
+          filename,
+          progress.currentChunk,
+          progress.totalChunks,
+          progress.loaded,
+          progress.total,
+          'paused'
+        );
+      }
+    }
   }
 
   handleResume() {
-    console.log('[TRANSFER] Transfer manager resumed');
+    console.log('[TRANSFER-MANAGER] Transfer manager resumed');
     this.isPaused = false;
+    
+    // Update progress status for all active transfers
+    for (const filename of this.activeTransfers) {
+      const progress = this.transferProgress[filename];
+      if (progress) {
+        this.updateProgress(
+          filename,
+          progress.currentChunk,
+          progress.totalChunks,
+          progress.loaded,
+          progress.total,
+          'transferring'
+        );
+      }
+    }
   }
 
   isPauseActive() {
@@ -108,13 +149,18 @@ export class TransferManager {
     fileSize: number
   ): Promise<Blob | null> {
     if (!this.chunksBuffer[filename]) {
+      console.log('[TRANSFER-MANAGER] Initializing new transfer:', {
+        filename,
+        totalChunks,
+        fileSize
+      });
       this.chunksBuffer[filename] = [];
       this.activeTransfers.add(filename);
     }
 
     try {
       if (this.isPaused) {
-        console.log('[TRANSFER] Skipping chunk processing while paused');
+        console.log('[TRANSFER-MANAGER] Skipping chunk processing while paused');
         return null;
       }
 
@@ -122,16 +168,27 @@ export class TransferManager {
       this.chunksBuffer[filename][chunkIndex] = decryptedChunk;
 
       const received = this.chunksBuffer[filename].filter(Boolean).length;
+      const loaded = received * (fileSize / totalChunks);
+      
+      console.log('[TRANSFER-MANAGER] Chunk processed:', {
+        filename,
+        chunkIndex,
+        received,
+        totalChunks,
+        loaded,
+        fileSize
+      });
       
       this.updateProgress(
         filename,
         received,
         totalChunks,
-        received * (fileSize / totalChunks),
+        loaded,
         fileSize
       );
 
       if (received === totalChunks) {
+        console.log('[TRANSFER-MANAGER] Transfer complete:', filename);
         const completeFile = new Blob(this.chunksBuffer[filename]);
         this.activeTransfers.delete(filename);
         delete this.chunksBuffer[filename];
@@ -139,6 +196,7 @@ export class TransferManager {
         return completeFile;
       }
     } catch (error) {
+      console.error('[TRANSFER-MANAGER] Error processing chunk:', error);
       this.activeTransfers.delete(filename);
       delete this.chunksBuffer[filename];
       delete this.transferProgress[filename];
