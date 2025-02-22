@@ -25,28 +25,26 @@ export class DataChannelMessageHandler {
       // Handle control messages first
       if (paused) {
         console.log(`[TRANSFER] Processing pause message for ${filename}`);
-        const pauseSuccess = this.stateManager.handlePause({ filename });
-        if (pauseSuccess) {
-          this.transferManager.handlePause();
-          console.log('[TRANSFER] Pause state updated successfully');
+        const success = this.handlePauseMessage(filename);
+        if (!success) {
+          console.log('[TRANSFER] Failed to process pause message');
         }
         return;
       }
 
       if (resumed) {
         console.log(`[TRANSFER] Processing resume message for ${filename}`);
-        const resumeSuccess = this.stateManager.handleResume({ filename });
-        if (resumeSuccess) {
-          this.transferManager.handleResume();
-          console.log('[TRANSFER] Resume state updated successfully');
+        const success = this.handleResumeMessage(filename);
+        if (!success) {
+          console.log('[TRANSFER] Failed to process resume message');
         }
         return;
       }
 
       if (cancelled) {
         console.log(`[TRANSFER] Processing cancel message for ${filename} by ${cancelledBy}`);
-        this.stateManager.handleCancel({ filename, isReceiver: cancelledBy === 'receiver' });
-        this.transferManager.cancelTransfer(filename, cancelledBy === 'receiver');
+        const isReceiver = cancelledBy === 'receiver';
+        this.handleCancelMessage(filename, isReceiver);
         return;
       }
 
@@ -62,6 +60,29 @@ export class DataChannelMessageHandler {
       this.stateManager.reset();
       throw new TransferError("Failed to process received data", error);
     }
+  }
+
+  private handlePauseMessage(filename: string): boolean {
+    const pauseSuccess = this.stateManager.handlePause({ filename });
+    if (pauseSuccess) {
+      this.transferManager.handlePause();
+      console.log('[TRANSFER] Pause state updated successfully');
+    }
+    return pauseSuccess;
+  }
+
+  private handleResumeMessage(filename: string): boolean {
+    const resumeSuccess = this.stateManager.handleResume({ filename });
+    if (resumeSuccess) {
+      this.transferManager.handleResume();
+      console.log('[TRANSFER] Resume state updated successfully');
+    }
+    return resumeSuccess;
+  }
+
+  private handleCancelMessage(filename: string, isReceiver: boolean): void {
+    this.stateManager.handleCancel({ filename, isReceiver });
+    this.transferManager.cancelTransfer(filename, isReceiver);
   }
 
   private shouldProcessChunk(filename: string, chunkIndex: number): boolean {
