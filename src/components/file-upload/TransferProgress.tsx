@@ -55,6 +55,9 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
   };
 
   const isPaused = progress.status === 'paused';
+  const isFinished = progress.status === 'error' || 
+                    progress.status === 'canceled_by_sender' || 
+                    progress.status === 'canceled_by_receiver';
 
   return (
     <div className="space-y-2 w-full">
@@ -71,15 +74,12 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         />
         
         <div className="flex items-center gap-1">
-          {onPause && onResume && (
+          {onPause && onResume && !isFinished && (
             <Button
               variant="ghost"
               size="icon"
               onClick={isPaused ? onResume : onPause}
               className="h-8 w-8"
-              disabled={progress.status === 'error' || 
-                       progress.status === 'canceled_by_sender' || 
-                       progress.status === 'canceled_by_receiver'}
             >
               {isPaused ? (
                 <Play className="h-4 w-4" />
