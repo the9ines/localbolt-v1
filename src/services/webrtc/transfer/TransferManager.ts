@@ -1,4 +1,3 @@
-
 import type { TransferProgress, FileChunkMessage } from '../types/transfer';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferError } from '@/types/webrtc-errors';
@@ -8,6 +7,7 @@ export class TransferManager {
   private activeTransfers: Set<string> = new Set();
   private chunkProcessor: ChunkProcessor;
   private transferProgress: { [key: string]: TransferProgress } = {};
+  private isPaused: boolean = false;
 
   constructor(
     private dataChannel: RTCDataChannel,
@@ -86,6 +86,20 @@ export class TransferManager {
     return this.activeTransfers.has(filename);
   }
 
+  handlePause() {
+    console.log('[TRANSFER] Transfer manager paused');
+    this.isPaused = true;
+  }
+
+  handleResume() {
+    console.log('[TRANSFER] Transfer manager resumed');
+    this.isPaused = false;
+  }
+
+  isPauseActive() {
+    return this.isPaused;
+  }
+
   async processReceivedChunk(
     filename: string,
     chunk: string,
@@ -99,6 +113,11 @@ export class TransferManager {
     }
 
     try {
+      if (this.isPaused) {
+        console.log('[TRANSFER] Skipping chunk processing while paused');
+        return null;
+      }
+
       const decryptedChunk = await this.chunkProcessor.decryptChunk(chunk);
       this.chunksBuffer[filename][chunkIndex] = decryptedChunk;
 
@@ -123,7 +142,6 @@ export class TransferManager {
       this.activeTransfers.delete(filename);
       delete this.chunksBuffer[filename];
       delete this.transferProgress[filename];
-      this.updateProgress(filename, 0, totalChunks, 0, fileSize, 'error');
       throw error;
     }
 

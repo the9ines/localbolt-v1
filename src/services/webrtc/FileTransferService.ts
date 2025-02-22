@@ -1,4 +1,3 @@
-
 import { TransferError } from '@/types/webrtc-errors';
 import { EncryptionService } from './EncryptionService';
 import { ChunkProcessor } from './transfer/ChunkProcessor';
@@ -68,6 +67,7 @@ export class FileTransferService {
     };
     this.dataChannel.send(JSON.stringify(message));
     this.stateManager.handlePause({ filename });
+    this.transferManager.handlePause(); // Add this line to pause the transfer manager
   }
 
   resumeTransfer(filename: string) {
@@ -84,6 +84,7 @@ export class FileTransferService {
     };
     this.dataChannel.send(JSON.stringify(message));
     this.stateManager.handleResume({ filename });
+    this.transferManager.handleResume(); // Add this line to resume the transfer manager
   }
 
   async sendFile(file: File) {
