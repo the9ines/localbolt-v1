@@ -17,47 +17,48 @@ export class TransferControlHandler {
   handlePause({ filename }: TransferControlMessage): boolean {
     try {
       console.log(`[STATE] Processing pause request for ${filename}`);
-
-      // Get or create transfer state
-      let transfer = this.store.getTransfer(filename);
-      const lastProgress = this.lastProgress.get(filename);
+      const currentProgress = this.lastProgress.get(filename);
       
-      // If there's no transfer in the store but we have progress, create a transfer
-      if (!transfer && lastProgress) {
+      // Always set isPaused first
+      this.store.updateState({ isPaused: true });
+
+      // Get or create transfer state using last known progress
+      let transfer = this.store.getTransfer(filename);
+      if (!transfer && currentProgress) {
         transfer = {
           filename,
-          total: lastProgress.total,
-          progress: lastProgress
+          total: currentProgress.total,
+          progress: currentProgress
         };
-        this.store.setTransfer(transfer);
-      }
-      // If we still don't have a transfer, create one with default values
-      else if (!transfer) {
+      } else if (!transfer) {
+        const activeTransfer = this.activeTransfers.get(filename);
         transfer = {
           filename,
-          total: 0,
-          progress: null
+          total: activeTransfer?.total || 0,
+          progress: activeTransfer?.progress || null
         };
-        this.store.setTransfer(transfer);
       }
 
-      // Update store state
+      // Update store and active transfers
+      this.store.setTransfer(transfer);
+      this.activeTransfers.set(filename, transfer);
       this.store.updateState({
         isPaused: true,
         currentTransfer: transfer
       });
 
-      // Emit progress update with current progress
-      const progressToUse = transfer.progress || lastProgress;
-      if (progressToUse) {
-        console.log('[STATE] Emitting pause with progress:', progressToUse);
-        this.progressEmitter.emit(filename, 'paused', progressToUse);
+      // Always emit progress update with most recent progress
+      if (currentProgress) {
+        console.log('[STATE] Emitting pause with progress:', currentProgress);
+        this.progressEmitter.emit(filename, 'paused', currentProgress);
+      } else if (transfer.progress) {
+        console.log('[STATE] Emitting pause with transfer progress:', transfer.progress);
+        this.progressEmitter.emit(filename, 'paused', transfer.progress);
       } else {
         console.log('[STATE] Emitting pause without progress');
         this.progressEmitter.emit(filename, 'paused');
       }
 
-      console.log(`[STATE] Successfully paused transfer for: ${filename}`);
       return true;
     } catch (error) {
       console.error('[STATE] Error handling pause:', error);
@@ -68,47 +69,48 @@ export class TransferControlHandler {
   handleResume({ filename }: TransferControlMessage): boolean {
     try {
       console.log(`[STATE] Processing resume request for ${filename}`);
-
-      // Get or create transfer state
-      let transfer = this.store.getTransfer(filename);
-      const lastProgress = this.lastProgress.get(filename);
+      const currentProgress = this.lastProgress.get(filename);
       
-      // If there's no transfer in the store but we have progress, create a transfer
-      if (!transfer && lastProgress) {
+      // Always set isPaused first
+      this.store.updateState({ isPaused: false });
+
+      // Get or create transfer state using last known progress
+      let transfer = this.store.getTransfer(filename);
+      if (!transfer && currentProgress) {
         transfer = {
           filename,
-          total: lastProgress.total,
-          progress: lastProgress
+          total: currentProgress.total,
+          progress: currentProgress
         };
-        this.store.setTransfer(transfer);
-      }
-      // If we still don't have a transfer, create one with default values
-      else if (!transfer) {
+      } else if (!transfer) {
+        const activeTransfer = this.activeTransfers.get(filename);
         transfer = {
           filename,
-          total: 0,
-          progress: null
+          total: activeTransfer?.total || 0,
+          progress: activeTransfer?.progress || null
         };
-        this.store.setTransfer(transfer);
       }
 
-      // Update store state
+      // Update store and active transfers
+      this.store.setTransfer(transfer);
+      this.activeTransfers.set(filename, transfer);
       this.store.updateState({
         isPaused: false,
         currentTransfer: transfer
       });
 
-      // Emit progress update with current progress
-      const progressToUse = transfer.progress || lastProgress;
-      if (progressToUse) {
-        console.log('[STATE] Emitting resume with progress:', progressToUse);
-        this.progressEmitter.emit(filename, 'transferring', progressToUse);
+      // Always emit progress update with most recent progress
+      if (currentProgress) {
+        console.log('[STATE] Emitting resume with progress:', currentProgress);
+        this.progressEmitter.emit(filename, 'transferring', currentProgress);
+      } else if (transfer.progress) {
+        console.log('[STATE] Emitting resume with transfer progress:', transfer.progress);
+        this.progressEmitter.emit(filename, 'transferring', transfer.progress);
       } else {
         console.log('[STATE] Emitting resume without progress');
         this.progressEmitter.emit(filename, 'transferring');
       }
 
-      console.log(`[STATE] Successfully resumed transfer for: ${filename}`);
       return true;
     } catch (error) {
       console.error('[STATE] Error handling resume:', error);
@@ -128,7 +130,7 @@ export class TransferControlHandler {
 
       // Get transfer state from store or active transfers
       const transfer = this.store.getTransfer(filename) || this.activeTransfers.get(filename);
-      const lastProgress = this.lastProgress.get(filename);
+      const currentProgress = this.lastProgress.get(filename);
       
       // Always update cancelled state
       this.store.updateState({
@@ -140,10 +142,10 @@ export class TransferControlHandler {
       const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
       
       // Emit progress update with most recent progress
-      if (transfer?.progress) {
+      if (currentProgress) {
+        this.progressEmitter.emit(filename, status, currentProgress);
+      } else if (transfer?.progress) {
         this.progressEmitter.emit(filename, status, transfer.progress);
-      } else if (lastProgress) {
-        this.progressEmitter.emit(filename, status, lastProgress);
       } else {
         this.progressEmitter.emit(filename, status);
       }
@@ -167,7 +169,9 @@ export class TransferControlHandler {
   }
 
   updateTransferProgress(filename: string, progress: TransferState['progress']): void {
-    // Store last known progress
+    console.log('[STATE] Updating transfer progress:', { filename, progress });
+    
+    // Always store the last progress
     this.lastProgress.set(filename, progress);
 
     // Get or create transfer state
@@ -178,11 +182,13 @@ export class TransferControlHandler {
         total: progress.total,
         progress: progress
       };
-      this.store.setTransfer(transfer);
     } else {
       transfer.progress = progress;
-      this.store.setTransfer(transfer);
     }
+
+    // Update both store and active transfers
+    this.store.setTransfer(transfer);
+    this.activeTransfers.set(filename, transfer);
 
     // Emit progress with current pause state
     const status = this.store.isPaused() ? 'paused' : 'transferring';
@@ -190,16 +196,17 @@ export class TransferControlHandler {
   }
 
   markTransferActive(filename: string, total?: number): void {
-    const lastProgress = this.lastProgress.get(filename);
+    const currentProgress = this.lastProgress.get(filename);
     
-    // Create or update transfer state
+    // Create or update transfer state with current progress
     const transfer = {
       filename,
-      total: total || lastProgress?.total || 0,
-      progress: lastProgress || null
+      total: total || currentProgress?.total || 0,
+      progress: currentProgress || null
     };
     
     this.store.setTransfer(transfer);
+    this.activeTransfers.set(filename, transfer);
   }
 
   reset(): void {
