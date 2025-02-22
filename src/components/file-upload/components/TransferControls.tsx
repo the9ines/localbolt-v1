@@ -4,12 +4,12 @@ import type WebRTCService from "@/services/webrtc/WebRTCService";
 import { useToast } from "@/hooks/use-toast";
 
 interface TransferControlsProps {
-  webrtc?: WebRTCService;
-  progress: TransferProgress | null;
-  files: File[];
-  setFiles: (files: File[]) => void;
-  setProgress: (progress: TransferProgress | null) => void;
-  onProgressUpdate: (progress: TransferProgress) => void;
+  readonly webrtc?: WebRTCService;
+  readonly progress: TransferProgress | null;
+  readonly files: readonly File[];
+  readonly setFiles: (files: File[]) => void;
+  readonly setProgress: (progress: TransferProgress | null) => void;
+  readonly onProgressUpdate: (progress: TransferProgress) => void;
 }
 
 export const TransferControls = ({
@@ -23,26 +23,27 @@ export const TransferControls = ({
   const { toast } = useToast();
 
   const handlePauseTransfer = () => {
-    if (webrtc && progress) {
-      webrtc.pauseTransfer(progress.filename);
-    }
+    const filename = progress?.filename;
+    if (!webrtc || !filename) return;
+    webrtc.pauseTransfer(filename);
   };
 
   const handleResumeTransfer = () => {
-    if (webrtc && progress) {
-      webrtc.resumeTransfer(progress.filename);
-    }
+    const filename = progress?.filename;
+    if (!webrtc || !filename) return;
+    webrtc.resumeTransfer(filename);
   };
 
   const cancelTransfer = () => {
-    if (webrtc && progress) {
-      webrtc.cancelTransfer(progress.filename);
-      setProgress(null);
-      toast({
-        title: "Transfer cancelled",
-        description: `Cancelled transfer of ${progress.filename}`,
-      });
-    }
+    const filename = progress?.filename;
+    if (!webrtc || !filename) return;
+
+    webrtc.cancelTransfer(filename);
+    setProgress(null);
+    toast({
+      title: "Transfer cancelled",
+      description: `Cancelled transfer of ${filename}`,
+    });
   };
 
   const startTransfer = async () => {
@@ -55,29 +56,30 @@ export const TransferControls = ({
       return;
     }
 
-    try {
-      const file = files[0];
-      if (!file) return;
+    const file = files[0];
+    if (!file) return;
 
+    try {
       console.log('Starting transfer for:', file.name);
       
       const CHUNK_SIZE = 16384;
       const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       
-      setProgress({
+      const initialProgress: TransferProgress = {
         filename: file.name,
         currentChunk: 0,
         totalChunks,
         loaded: 0,
         total: file.size,
         status: 'transferring'
-      });
-
+      };
+      
+      setProgress(initialProgress);
       webrtc.setProgressCallback(onProgressUpdate);
       await webrtc.sendFile(file);
       
       console.log('Transfer completed for:', file.name);
-
+      
       toast({
         title: "Transfer complete",
         description: `${file.name} has been sent successfully`,
@@ -85,11 +87,13 @@ export const TransferControls = ({
 
       setFiles(files.slice(1));
     } catch (error) {
-      console.error('Transfer error:', error);
-      if (error.message !== "Transfer cancelled by user") {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Transfer error:', errorMessage);
+      
+      if (errorMessage !== "Transfer cancelled by user") {
         toast({
           title: "Transfer failed",
-          description: `Failed to send file`,
+          description: "Failed to send file",
           variant: "destructive",
         });
       }
