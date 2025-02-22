@@ -7,9 +7,6 @@ Allow: /
 # Specify the sitemap location
 Sitemap: https://localbolt.site/sitemap.xml
 
-# Set a reasonable crawl rate
-Crawl-delay: 10
-
 # Disallow access to specific sensitive paths (if any)
 Disallow: /api/
 Disallow: /*.json$
