@@ -1,4 +1,3 @@
-
 import type { TransferControlMessage, TransferState } from '../../types/transfer-control';
 import { TransferStore } from '../TransferStore';
 import { ProgressEmitter } from '../ProgressEmitter';
@@ -17,22 +16,15 @@ export class TransferControlHandler {
     try {
       console.log(`[STATE] Processing pause request for ${filename}`);
 
-      // Check current pause state
-      if (this.store.isPaused()) {
-        console.log(`[STATE] Transfer ${filename} is already paused`);
-        return true;
-      }
-
-      // Get existing transfer or create new one
+      // Always set pause state regardless of current state
+      // This ensures both sides stay in sync
       let transfer = this.store.getTransfer(filename);
       
       if (!transfer) {
-        // Get from active transfers if exists
         transfer = this.activeTransfers.get(filename);
       }
       
       if (!transfer) {
-        // Create new transfer state if none exists
         transfer = {
           filename,
           total: 0,
@@ -49,7 +41,7 @@ export class TransferControlHandler {
         currentTransfer: transfer
       });
 
-      // Emit progress update
+      // Always emit progress update to ensure UI stays in sync
       if (transfer.progress) {
         console.log('[STATE] Updating progress with paused status');
         this.progressEmitter.emit(filename, 'paused', transfer.progress);
@@ -69,21 +61,15 @@ export class TransferControlHandler {
     try {
       console.log(`[STATE] Processing resume request for ${filename}`);
 
-      if (!this.store.isPaused()) {
-        console.log(`[STATE] Transfer ${filename} is not paused`);
-        return true;
-      }
-
-      // Get existing transfer or create new one
+      // Always update resume state regardless of current state
+      // This ensures both sides stay in sync
       let transfer = this.store.getTransfer(filename);
       
       if (!transfer) {
-        // Get from active transfers if exists
         transfer = this.activeTransfers.get(filename);
       }
       
       if (!transfer) {
-        // Create new transfer state if none exists
         transfer = {
           filename,
           total: 0,
@@ -100,7 +86,7 @@ export class TransferControlHandler {
         currentTransfer: transfer
       });
 
-      // Emit progress update
+      // Always emit progress update to ensure UI stays in sync
       if (transfer.progress) {
         console.log('[STATE] Updating progress with transferring status');
         this.progressEmitter.emit(filename, 'transferring', transfer.progress);
@@ -169,6 +155,10 @@ export class TransferControlHandler {
       transfer.progress = progress;
       this.store.setTransfer(transfer);
       this.activeTransfers.set(filename, transfer);
+      
+      // Emit progress with current pause state to keep UI in sync
+      const status = this.store.isPaused() ? 'paused' : 'transferring';
+      this.progressEmitter.emit(filename, status, progress);
     }
   }
 
