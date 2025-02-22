@@ -5,47 +5,58 @@ import { ConnectionManager } from './ConnectionManager';
 import { EncryptionService } from './EncryptionService';
 
 export class SignalingHandler {
-  private pendingCandidates: RTCIceCandidateInit[] = [];
+  private readonly pendingCandidates: RTCIceCandidateInit[] = [];
   private remotePeerCode: string = '';
 
   constructor(
-    private connectionManager: ConnectionManager,
-    private encryptionService: EncryptionService,
-    private signalingService: SignalingService,
-    private localPeerCode: string,
-    private onDataChannel: (channel: RTCDataChannel) => void
+    private readonly connectionManager: ConnectionManager,
+    private readonly encryptionService: EncryptionService,
+    private readonly signalingService: SignalingService,
+    private readonly localPeerCode: string,
+    private readonly onDataChannel: (channel: RTCDataChannel) => void
   ) {}
 
-  private async handleOffer(signal: SignalData) {
+  private async handleOffer(signal: SignalData): Promise<void> {
     console.log('[SIGNALING] Received offer from peer:', signal.from);
-    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
     
-    // Store the remote peer code from the signal sender
+    if (!signal.data?.publicKey || !signal.data?.offer) {
+      throw new ConnectionError('Invalid offer data received');
+    }
+    
+    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
     this.remotePeerCode = signal.from;
     
     const peerConnection = await this.connectionManager.createPeerConnection();
     const offerDesc = new RTCSessionDescription(signal.data.offer);
-    await peerConnection.setRemoteDescription(offerDesc);
-    console.log('[SIGNALING] Set remote description (offer)');
     
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    console.log('[SIGNALING] Created and sending answer');
-    
-    await this.signalingService.sendSignal('answer', {
-      answer,
-      publicKey: this.encryptionService.getPublicKey(),
-      peerCode: this.localPeerCode
-    }, signal.from);
+    try {
+      await peerConnection.setRemoteDescription(offerDesc);
+      console.log('[SIGNALING] Set remote description (offer)');
+      
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      console.log('[SIGNALING] Created and sending answer');
+      
+      await this.signalingService.sendSignal('answer', {
+        answer,
+        publicKey: this.encryptionService.getPublicKey(),
+        peerCode: this.localPeerCode
+      }, signal.from);
 
-    await this.processPendingCandidates();
+      await this.processPendingCandidates();
+    } catch (error) {
+      throw new ConnectionError('Failed to process offer', error);
+    }
   }
 
-  private async handleAnswer(signal: SignalData) {
+  private async handleAnswer(signal: SignalData): Promise<void> {
     console.log('[SIGNALING] Received answer from peer:', signal.from);
-    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
     
-    // Store the remote peer code from the signal sender
+    if (!signal.data?.publicKey || !signal.data?.answer) {
+      throw new ConnectionError('Invalid answer data received');
+    }
+    
+    this.encryptionService.setRemotePublicKey(signal.data.publicKey);
     this.remotePeerCode = signal.from;
     
     const peerConnection = this.connectionManager.getPeerConnection();
@@ -54,9 +65,15 @@ export class SignalingHandler {
     }
 
     if (peerConnection.signalingState === 'have-local-offer') {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
-      console.log('[SIGNALING] Set remote description (answer)');
-      await this.processPendingCandidates();
+      try {
+        await peerConnection.setRemoteDescription(
+          new RTCSessionDescription(signal.data.answer)
+        );
+        console.log('[SIGNALING] Set remote description (answer)');
+        await this.processPendingCandidates();
+      } catch (error) {
+        throw new ConnectionError('Failed to set remote description', error);
+      }
     } else {
       throw new ConnectionError(
         "Received answer in invalid state",
@@ -65,25 +82,30 @@ export class SignalingHandler {
     }
   }
 
-  private async processPendingCandidates() {
+  private async processPendingCandidates(): Promise<void> {
     console.log('[ICE] Processing pending candidates:', this.pendingCandidates.length);
     const peerConnection = this.connectionManager.getPeerConnection();
     if (!peerConnection) return;
 
-    while (this.pendingCandidates.length > 0) {
-      const candidate = this.pendingCandidates.shift();
-      if (candidate) {
-        try {
-          await this.connectionManager.addIceCandidate(candidate);
-          console.log('[ICE] Added pending candidate');
-        } catch (error) {
-          console.error('[ICE] Failed to add pending candidate:', error);
-        }
+    const candidates = [...this.pendingCandidates];
+    this.pendingCandidates.length = 0;
+
+    for (const candidate of candidates) {
+      try {
+        await this.connectionManager.addIceCandidate(candidate);
+        console.log('[ICE] Added pending candidate');
+      } catch (error) {
+        console.error('[ICE] Failed to add pending candidate:', error);
       }
     }
   }
 
-  private async handleIceCandidate(signal: SignalData) {
+  private async handleIceCandidate(signal: SignalData): Promise<void> {
+    if (!signal.data) {
+      console.error('[ICE] Received invalid ICE candidate data');
+      return;
+    }
+
     const peerConnection = this.connectionManager.getPeerConnection();
     
     if (!peerConnection || !peerConnection.remoteDescription) {
@@ -105,7 +127,7 @@ export class SignalingHandler {
     return this.remotePeerCode;
   }
 
-  async handleSignal(signal: SignalData) {
+  async handleSignal(signal: SignalData): Promise<void> {
     if (signal.to !== this.localPeerCode) return;
     console.log('[SIGNALING] Processing signal:', signal.type, 'from:', signal.from);
 
@@ -120,10 +142,12 @@ export class SignalingHandler {
         case 'ice-candidate':
           await this.handleIceCandidate(signal);
           break;
+        default:
+          console.warn('[SIGNALING] Unhandled signal type:', signal.type);
       }
     } catch (error) {
       console.error('[SIGNALING] Handler error:', error);
-      throw error;
+      throw error instanceof ConnectionError ? error : new ConnectionError('Signal handling failed', error);
     }
   }
 }
