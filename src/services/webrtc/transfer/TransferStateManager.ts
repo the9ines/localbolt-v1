@@ -43,6 +43,7 @@ export class TransferStateManager {
         }
       };
 
+      // Update both the transfer list and current state atomically
       this.store.setTransfer(newTransfer);
       this.store.updateState({
         isPaused: false,
@@ -61,23 +62,29 @@ export class TransferStateManager {
   handlePause({ filename }: TransferControlMessage) {
     try {
       console.log(`[STATE] Processing pause request for ${filename}`);
-      const transfer = this.store.getTransfer(filename);
 
+      // First check if we have this transfer in our store
+      const transfer = this.store.getTransfer(filename);
       if (!transfer) {
-        console.warn(`[STATE] Cannot pause: ${filename} is not active`);
+        console.warn(`[STATE] Cannot pause: ${filename} does not exist in transfer store`);
         return;
       }
 
-      console.log(`[STATE] Setting transfer to paused state for: ${filename}`);
+      // Update the state before checking if transfer is active
       this.store.updateState({
         isPaused: true,
         currentTransfer: transfer
       });
 
+      // Set the transfer again to ensure it's marked as active
+      this.store.setTransfer(transfer);
+
       if (transfer.progress) {
         console.log('[STATE] Updating progress with paused status');
         this.progressEmitter.emit(filename, 'paused', transfer.progress);
       }
+
+      console.log(`[STATE] Successfully paused transfer for: ${filename}`);
     } catch (error) {
       console.error('[STATE] Error handling pause:', error);
     }
@@ -86,23 +93,29 @@ export class TransferStateManager {
   handleResume({ filename }: TransferControlMessage) {
     try {
       console.log(`[STATE] Processing resume request for ${filename}`);
+      
+      // First check if we have this transfer in our store
       const transfer = this.store.getTransfer(filename);
-
       if (!transfer) {
-        console.warn(`[STATE] Cannot resume: ${filename} is not active`);
+        console.warn(`[STATE] Cannot resume: ${filename} does not exist in transfer store`);
         return;
       }
 
-      console.log(`[STATE] Setting transfer to resumed state for: ${filename}`);
+      // Update the state before checking if transfer is active
       this.store.updateState({
         isPaused: false,
         currentTransfer: transfer
       });
 
+      // Set the transfer again to ensure it's marked as active
+      this.store.setTransfer(transfer);
+
       if (transfer.progress) {
         console.log('[STATE] Updating progress with transferring status');
         this.progressEmitter.emit(filename, 'transferring', transfer.progress);
       }
+
+      console.log(`[STATE] Successfully resumed transfer for: ${filename}`);
     } catch (error) {
       console.error('[STATE] Error handling resume:', error);
     }
@@ -111,25 +124,30 @@ export class TransferStateManager {
   handleCancel({ filename, isReceiver }: TransferControlMessage) {
     try {
       console.log(`[STATE] Processing cancel request for ${filename}`);
+      
       const transfer = this.store.getTransfer(filename);
-
       if (!transfer) {
-        console.warn(`[STATE] Cannot cancel: ${filename} is not active`);
+        console.warn(`[STATE] Cannot cancel: ${filename} does not exist in transfer store`);
         return;
       }
 
       const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
       console.log(`[STATE] Setting transfer to ${status} state for: ${filename}`);
 
+      // Update state before removing the transfer
       this.store.updateState({
         isCancelled: true,
         isPaused: false,
         currentTransfer: null
       });
-      
-      this.store.deleteTransfer(filename);
-      this.progressEmitter.emit(filename, status, transfer.progress);
 
+      // Send progress update before removing the transfer
+      this.progressEmitter.emit(filename, status, transfer.progress);
+      
+      // Remove the transfer last
+      this.store.deleteTransfer(filename);
+
+      // Send a final progress update after a short delay
       setTimeout(() => {
         this.progressEmitter.emit(filename, status);
       }, 100);
@@ -148,13 +166,14 @@ export class TransferStateManager {
   ) {
     try {
       console.log(`[STATE] Updating progress for ${filename}: ${currentChunk}/${totalChunks}`);
+      
       const transfer = this.store.getTransfer(filename);
-
       if (!transfer) {
-        console.warn(`[STATE] Cannot update progress: ${filename} is not active`);
+        console.warn(`[STATE] Cannot update progress: ${filename} does not exist in transfer store`);
         return;
       }
 
+      // Update progress information
       transfer.progress = {
         loaded,
         total,
@@ -162,6 +181,7 @@ export class TransferStateManager {
         totalChunks
       };
 
+      // Update the transfer in store
       this.store.setTransfer(transfer);
 
       // Update current transfer if it matches
@@ -169,6 +189,7 @@ export class TransferStateManager {
         this.store.updateState({ currentTransfer: transfer });
       }
 
+      // Emit progress update on next animation frame
       requestAnimationFrame(() => {
         if (transfer.progress) {
           console.log('[STATE] Emitting progress update');
