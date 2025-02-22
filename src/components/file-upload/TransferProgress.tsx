@@ -1,7 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Pause, Play, X } from "lucide-react";
+import { File, Pause, Play, X } from "lucide-react";
 import type { TransferProgress as TransferProgressType } from "@/services/webrtc/FileTransferService";
 
 interface TransferProgressProps {
@@ -45,13 +45,10 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
   const getStatusText = () => {
     switch (progress.status) {
       case 'canceled_by_sender':
-        return 'Transfer canceled';
       case 'canceled_by_receiver':
         return 'Transfer canceled';
       case 'error':
         return 'Transfer terminated due to an error';
-      case 'paused':
-        return 'Transfer paused';
       default:
         return `${Math.round((progress.loaded / progress.total) * 100)}%`;
     }
@@ -61,9 +58,10 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
 
   return (
     <div className="space-y-2 w-full">
-      <div className="flex justify-between items-center text-sm w-full">
-        <span className="truncate flex-1">{progress.filename}</span>
-        <span className="ml-2">{getStatusText()}</span>
+      <div className="flex items-center gap-2 w-full bg-dark-accent rounded-lg p-3">
+        <File className="w-5 h-5 shrink-0 text-white/50" />
+        <span className="truncate flex-1 text-sm">{progress.filename}</span>
+        <span className="ml-2 text-sm">{getStatusText()}</span>
       </div>
       
       <div className="flex items-center gap-2 w-full">
@@ -72,7 +70,6 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
           className="h-2 flex-1 bg-neon/20"
         />
         
-        {/* Control buttons - always render container but conditionally show buttons */}
         <div className="flex items-center gap-1">
           {onPause && onResume && (
             <Button
