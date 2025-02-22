@@ -42,74 +42,61 @@ const formatSize = (bytes: number): string => {
 };
 
 export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: TransferProgressProps) => {
-  const calculateProgress = () => {
-    // Ensure we have valid numbers to work with
-    const loaded = typeof progress.loaded === 'number' ? progress.loaded : 0;
-    const total = typeof progress.total === 'number' ? progress.total : 1;
-    
-    // Calculate percentage, ensuring we don't divide by zero
-    const percentage = total > 0 ? (loaded / total) * 100 : 0;
-    
-    // Return a valid number between 0 and 100
-    return Math.min(100, Math.max(0, percentage));
-  };
-
-  const getStatusText = () => {
-    switch (progress.status) {
-      case 'canceled_by_sender':
-      case 'canceled_by_receiver':
-        return 'Transfer canceled';
-      case 'error':
-        return 'Transfer terminated due to an error';
-      default:
-        // Always show the actual progress percentage
-        return `${Math.round(calculateProgress())}%`;
-    }
-  };
-
   const isPaused = progress.status === 'paused';
-  const isFinished = progress.status === 'error' || 
-                    progress.status === 'canceled_by_sender' || 
-                    progress.status === 'canceled_by_receiver';
+  const isActive = progress.status === 'transferring' || progress.status === 'paused';
+  
+  // Calculate progress percentage using loaded/total values
+  const progressPercent = progress.total > 0 
+    ? Math.round((progress.loaded / progress.total) * 100) 
+    : 0;
 
   return (
     <div className="space-y-2 w-full">
       <div className="flex items-center gap-2 w-full bg-dark-accent rounded-lg p-3">
         <File className="w-5 h-5 shrink-0 text-white/50" />
-        <span className="truncate flex-1 text-sm">{progress.filename}</span>
-        <span className="ml-2 text-sm">{getStatusText()}</span>
+        <div className="flex flex-col flex-1 min-w-0">
+          <span className="truncate text-sm">{progress.filename}</span>
+          <span className="text-xs text-white/50">
+            {formatSize(progress.loaded)} of {formatSize(progress.total)} ({progressPercent}%)
+            {isPaused && " - Paused"}
+          </span>
+        </div>
       </div>
       
       <div className="flex items-center gap-2 w-full">
         <Progress 
-          value={calculateProgress()}
+          value={progressPercent}
           className="h-2 flex-1 bg-neon/20"
         />
         
-        <div className="flex items-center gap-1">
-          {onPause && onResume && !isFinished && (
+        {isActive && (
+          <div className="flex items-center gap-1">
+            {onPause && onResume && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={isPaused ? onResume : onPause}
+                className="h-8 w-8"
+                title={isPaused ? "Resume transfer" : "Pause transfer"}
+              >
+                {isPaused ? (
+                  <Play className="h-4 w-4" />
+                ) : (
+                  <Pause className="h-4 w-4" />
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
-              onClick={isPaused ? onResume : onPause}
+              onClick={onCancel}
               className="h-8 w-8"
+              title="Cancel transfer"
             >
-              {isPaused ? (
-                <Play className="h-4 w-4" />
-              ) : (
-                <Pause className="h-4 w-4" />
-              )}
+              <X className="h-4 w-4" />
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onCancel}
-            className="h-8 w-8"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       {progress.stats && (

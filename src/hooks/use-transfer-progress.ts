@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import type { TransferProgress } from '@/services/webrtc/FileTransferService';
@@ -48,13 +49,18 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
       return;
     }
 
-    // Update progress state while preserving existing progress during pause
+    // Preserve progress values during status changes
     setTransferProgress(prev => {
-      if (progress.status === 'paused' && prev) {
-        // Keep existing progress values when pausing
+      // For pause/resume status changes, maintain the current progress values
+      if ((progress.status === 'paused' || progress.status === 'transferring') && prev) {
         return {
           ...prev,
-          status: 'paused'
+          status: progress.status,
+          loaded: progress.loaded || prev.loaded,
+          total: progress.total || prev.total,
+          currentChunk: progress.currentChunk || prev.currentChunk,
+          totalChunks: progress.totalChunks || prev.totalChunks,
+          stats: progress.stats || prev.stats
         };
       }
       return progress;
@@ -80,10 +86,14 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     console.log('[PROGRESS] Pausing transfer:', transferProgress.filename);
     webrtc.pauseTransfer(transferProgress.filename);
     
-    // Update status while preserving progress
-    setTransferProgress(prev => 
-      prev ? { ...prev, status: 'paused' } : null
-    );
+    // Maintain current progress while updating status
+    setTransferProgress(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        status: 'paused'
+      };
+    });
   }, [webrtc, transferProgress]);
 
   const handleResumeTransfer = useCallback(() => {
@@ -92,10 +102,14 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     console.log('[PROGRESS] Resuming transfer:', transferProgress.filename);
     webrtc.resumeTransfer(transferProgress.filename);
     
-    // Update status while preserving progress
-    setTransferProgress(prev => 
-      prev ? { ...prev, status: 'transferring' } : null
-    );
+    // Maintain current progress while updating status
+    setTransferProgress(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        status: 'transferring'
+      };
+    });
   }, [webrtc, transferProgress]);
 
   const clearProgress = useCallback(() => {
