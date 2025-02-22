@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { File, Pause, Play, X } from "lucide-react";
@@ -41,6 +42,18 @@ const formatSize = (bytes: number): string => {
 };
 
 export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: TransferProgressProps) => {
+  const calculateProgress = () => {
+    // Ensure we have valid numbers to work with
+    const loaded = typeof progress.loaded === 'number' ? progress.loaded : 0;
+    const total = typeof progress.total === 'number' ? progress.total : 1;
+    
+    // Calculate percentage, ensuring we don't divide by zero
+    const percentage = total > 0 ? (loaded / total) * 100 : 0;
+    
+    // Return a valid number between 0 and 100
+    return Math.min(100, Math.max(0, percentage));
+  };
+
   const getStatusText = () => {
     switch (progress.status) {
       case 'canceled_by_sender':
@@ -49,14 +62,9 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
       case 'error':
         return 'Transfer terminated due to an error';
       default:
-        const percentage = Math.round((progress.loaded / progress.total) * 100) || 0;
-        return `${percentage}%`;
+        // Always show the actual progress percentage
+        return `${Math.round(calculateProgress())}%`;
     }
-  };
-
-  const getProgressValue = () => {
-    const value = (progress.loaded / progress.total) * 100;
-    return isNaN(value) ? 0 : value;
   };
 
   const isPaused = progress.status === 'paused';
@@ -74,7 +82,7 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
       
       <div className="flex items-center gap-2 w-full">
         <Progress 
-          value={getProgressValue()}
+          value={calculateProgress()}
           className="h-2 flex-1 bg-neon/20"
         />
         
