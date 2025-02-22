@@ -61,8 +61,6 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         return 'Transfer canceled';
       case 'error':
         return 'Transfer terminated due to an error';
-      case 'paused':
-        return `${Math.round(calculateProgress())}% (Paused)`;
       default:
         return `${Math.round(calculateProgress())}%`;
     }
@@ -94,6 +92,7 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
               size="icon"
               onClick={isPaused ? onResume : onPause}
               className="h-8 w-8"
+              aria-label={isPaused ? "Resume transfer" : "Pause transfer"}
             >
               {isPaused ? (
                 <Play className="h-4 w-4" />
