@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -95,7 +94,6 @@ class WebRTCService {
     const connectionPromise = new Promise<void>((resolve, reject) => {
       this.remotePeerCode = remotePeerCode;
       
-      // Use Promise chain instead of async/await in the executor
       this.connectionManager.createPeerConnection()
         .then(peerConnection => {
           const dataChannel = peerConnection.createDataChannel('fileTransfer', {
@@ -198,7 +196,7 @@ class WebRTCService {
     }
   }
 
-  private handleSignal = async (signal: SignalData) => {
+  private readonly handleSignal = async (signal: SignalData) => {
     await this.signalingHandler.handleSignal(signal);
   };
 }
