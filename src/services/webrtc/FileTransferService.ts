@@ -1,3 +1,4 @@
+
 import { TransferError } from '@/types/webrtc-errors';
 import { EncryptionService } from './EncryptionService';
 import { ChunkProcessor } from './transfer/ChunkProcessor';
@@ -54,12 +55,13 @@ export class FileTransferService {
   }
 
   pauseTransfer(filename: string) {
-    if (!this.stateManager.getCurrentTransfer()) {
-      console.warn('[TRANSFER] Cannot pause: no active transfer');
-      return;
-    }
-
     console.log(`[TRANSFER] Initiating pause for ${filename}`);
+    
+    // First update local state
+    this.stateManager.handlePause({ filename });
+    this.transferManager.handlePause();
+
+    // Then send pause message to peer
     const message: FileChunkMessage = {
       type: 'file-chunk',
       filename,
@@ -67,26 +69,35 @@ export class FileTransferService {
     };
     
     try {
-      console.log('[TRANSFER] Sending pause message:', message);
+      // Send pause control message before state updates
       this.dataChannel.send(JSON.stringify(message));
       
-      console.log('[TRANSFER] Updating local state for pause');
-      this.stateManager.handlePause({ filename });
-      this.transferManager.handlePause();
+      // Get current progress to preserve it
+      const currentTransfer = this.stateManager.getCurrentTransfer();
+      if (currentTransfer?.progress && this.onProgress) {
+        this.onProgress({
+          ...currentTransfer.progress,
+          filename,
+          status: 'paused'
+        });
+      }
       
       console.log('[TRANSFER] Pause initiated successfully');
     } catch (error) {
       console.error('[TRANSFER] Error during pause:', error);
+      // Reset state if message sending fails
+      this.stateManager.reset();
     }
   }
 
   resumeTransfer(filename: string) {
-    if (!this.stateManager.getCurrentTransfer()) {
-      console.warn('[TRANSFER] Cannot resume: no active transfer');
-      return;
-    }
-
     console.log(`[TRANSFER] Initiating resume for ${filename}`);
+    
+    // First update local state
+    this.stateManager.handleResume({ filename });
+    this.transferManager.handleResume();
+
+    // Then send resume message to peer
     const message: FileChunkMessage = {
       type: 'file-chunk',
       filename,
@@ -94,16 +105,24 @@ export class FileTransferService {
     };
     
     try {
-      console.log('[TRANSFER] Sending resume message:', message);
+      // Send resume control message before state updates
       this.dataChannel.send(JSON.stringify(message));
       
-      console.log('[TRANSFER] Updating local state for resume');
-      this.stateManager.handleResume({ filename });
-      this.transferManager.handleResume();
+      // Get current progress to preserve it
+      const currentTransfer = this.stateManager.getCurrentTransfer();
+      if (currentTransfer?.progress && this.onProgress) {
+        this.onProgress({
+          ...currentTransfer.progress,
+          filename,
+          status: 'transferring'
+        });
+      }
       
       console.log('[TRANSFER] Resume initiated successfully');
     } catch (error) {
       console.error('[TRANSFER] Error during resume:', error);
+      // Reset state if message sending fails
+      this.stateManager.reset();
     }
   }
 
