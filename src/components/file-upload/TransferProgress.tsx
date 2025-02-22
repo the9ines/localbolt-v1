@@ -56,35 +56,26 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
       case 'error':
         return 'Transfer terminated due to an error';
       case 'paused':
-        return `Paused - ${percentage}%`;
+        return `${percentage}%`;
       default:
         return `${percentage}%`;
     }
   };
 
-  // Explicitly check for 'paused' status
   const isPaused = progress.status === 'paused';
   const isFinished = progress.status === 'error' || 
                     progress.status === 'canceled_by_sender' || 
                     progress.status === 'canceled_by_receiver';
 
-  console.log('[UI] Progress state:', {
-    status: progress.status,
-    isPaused,
-    isFinished,
-    filename: progress.filename
-  });
-
   const handlePauseResume = () => {
-    console.log('[UI] Handling pause/resume. Current status:', progress.status, 'isPaused:', isPaused);
     if (isPaused && onResume) {
-      console.log('[UI] Resuming transfer');
       onResume();
     } else if (!isPaused && onPause) {
-      console.log('[UI] Pausing transfer');
       onPause();
     }
   };
+
+  if (!progress || isFinished) return null;
 
   return (
     <div className="space-y-2 w-full">
@@ -101,7 +92,7 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
         />
         
         <div className="flex items-center gap-1">
-          {onPause && onResume && !isFinished && (
+          {onPause && onResume && (
             <Button
               variant="ghost"
               size="icon"
