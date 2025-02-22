@@ -16,21 +16,18 @@
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
       script-src 'self' https://cdn.gpteng.co 'unsafe-inline' 'unsafe-eval';
-      style-src 'self' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: blob: https:;
-      font-src 'self';
-      connect-src 'self' https://cdn.gpteng.co wss: blob:;
+      connect-src 'self' https://cdn.gpteng.co https://*.supabase.co wss: blob:;
       frame-src 'self';
       media-src 'self' blob:;
       worker-src 'self' blob:;
       base-uri 'self';
       form-action 'self';
-      frame-ancestors 'none';
       upgrade-insecure-requests;
     ">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
-    <meta http-equiv="X-Frame-Options" content="DENY">
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
     <meta http-equiv="Permissions-Policy" content="accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()">
     <title>LocalBolt ⚡ P2P File Sharing – No Login Required</title>
