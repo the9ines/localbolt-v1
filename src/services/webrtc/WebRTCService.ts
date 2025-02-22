@@ -35,7 +35,7 @@ class WebRTCService {
     this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
   }
 
-  private initializeServices() {
+  private async initializeServices() {
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
@@ -61,6 +61,7 @@ class WebRTCService {
     );
 
     this.signalingService = new SignalingService(this.localPeerCode, this.handleSignal.bind(this));
+    await this.signalingService.initialize();
     
     this.signalingHandler = new SignalingHandler(
       this.connectionManager,
