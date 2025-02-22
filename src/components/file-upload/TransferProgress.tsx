@@ -69,7 +69,7 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
                     progress.status === 'canceled_by_receiver';
 
   const handlePauseResume = () => {
-    console.log('[UI] Handling pause/resume. Current status:', progress.status);
+    console.log('[UI] Handling pause/resume. Current status:', progress.status, 'isPaused:', isPaused);
     if (isPaused && onResume) {
       console.log('[UI] Resuming transfer');
       onResume();
@@ -78,6 +78,14 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
       onPause();
     }
   };
+
+  // Add debug logs to track state changes
+  console.log('[UI] Progress state:', {
+    status: progress.status,
+    isPaused,
+    isFinished,
+    filename: progress.filename
+  });
 
   return (
     <div className="space-y-2 w-full">
