@@ -21,31 +21,34 @@ export class DataChannelMessageHandler {
         return;
       }
 
-      // Handle control messages
+      // Handle control messages first
       if (cancelled) {
         console.log(`[TRANSFER] Transfer cancelled for ${filename} by ${cancelledBy}`);
         this.stateManager.handleCancel({ filename, isReceiver: cancelledBy === 'receiver' });
+        this.transferManager.cancelTransfer(filename, cancelledBy === 'receiver');
         return;
       }
 
       if (paused) {
         console.log(`[TRANSFER] Transfer paused for ${filename}`);
         this.stateManager.handlePause({ filename });
+        this.transferManager.handlePause();
         return;
       }
 
       if (resumed) {
         console.log(`[TRANSFER] Transfer resumed for ${filename}`);
         this.stateManager.handleResume({ filename });
+        this.transferManager.handleResume();
         return;
       }
 
-      // Handle file chunks
-      if (!this.shouldProcessChunk(filename, chunkIndex)) {
-        return;
+      // Handle file chunks only if not paused
+      if (!this.transferManager.isPauseActive()) {
+        await this.processChunk(filename, chunk, chunkIndex, totalChunks, fileSize);
+      } else {
+        console.log('[TRANSFER] Skipping chunk processing while paused');
       }
-
-      await this.processChunk(filename, chunk, chunkIndex, totalChunks, fileSize);
 
     } catch (error) {
       console.error('[TRANSFER] Error processing message:', error);
@@ -60,7 +63,7 @@ export class DataChannelMessageHandler {
       return false;
     }
 
-    if (this.stateManager.isPaused()) {
+    if (this.transferManager.isPauseActive()) {
       console.log(`[TRANSFER] Ignoring chunk while paused: ${filename}`);
       return false;
     }
@@ -75,6 +78,10 @@ export class DataChannelMessageHandler {
     totalChunks: number | undefined,
     fileSize: number | undefined
   ) {
+    if (!this.shouldProcessChunk(filename, chunkIndex || 0)) {
+      return;
+    }
+
     if (chunk && typeof chunkIndex === 'number' && totalChunks && fileSize) {
       console.log(`[TRANSFER] Receiving chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
       
