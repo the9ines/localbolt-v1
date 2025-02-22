@@ -77,6 +77,9 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
               size="icon"
               onClick={isPaused ? onResume : onPause}
               className="h-8 w-8"
+              disabled={progress.status === 'error' || 
+                       progress.status === 'canceled_by_sender' || 
+                       progress.status === 'canceled_by_receiver'}
             >
               {isPaused ? (
                 <Play className="h-4 w-4" />

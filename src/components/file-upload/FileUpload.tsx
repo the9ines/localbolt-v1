@@ -69,13 +69,13 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
 
   const handleProgress = (transferProgress: TransferProgress) => {
     console.log('[TRANSFER] Progress update in UI:', transferProgress);
+    setProgress(transferProgress);
+    
     if (transferProgress.status === 'canceled_by_sender' || 
         transferProgress.status === 'canceled_by_receiver' || 
         transferProgress.status === 'error') {
       // Clear progress after a delay for error/canceled states
       setTimeout(() => setProgress(null), 3000);
-    } else {
-      setProgress(transferProgress);
     }
   };
 
@@ -170,13 +170,16 @@ export const FileUpload = ({ webrtc }: FileUploadProps) => {
         onFileSelect={handleFileInput}
       />
 
-      {files.length > 0 && (
+      {(files.length > 0 || progress) && (
         <div className="space-y-4 animate-fade-up">
-          <FileList 
-            files={files} 
-            onRemove={removeFile}
-            disabled={progress !== null}
-          />
+          {files.length > 0 && (
+            <FileList 
+              files={files} 
+              onRemove={removeFile}
+              disabled={progress !== null}
+              activeTransfer={progress?.filename}
+            />
+          )}
 
           {progress && progress.status && (
             <TransferProgressBar
