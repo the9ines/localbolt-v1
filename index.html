@@ -14,7 +14,16 @@
   <body>
     <div id="root"></div>
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
-    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
-    <script type="module" src="/src/main.tsx"></script>
+    <script 
+      src="https://cdn.gpteng.co/gptengineer.js" 
+      type="module" 
+      crossorigin="anonymous"
+      onerror="console.error('Failed to load GPT Engineer script');">
+    </script>
+    <script 
+      type="module" 
+      src="/src/main.tsx"
+      onerror="console.error('Failed to load main application');">
+    </script>
   </body>
 </html>
