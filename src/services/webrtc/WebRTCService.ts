@@ -35,7 +35,7 @@ class WebRTCService {
     this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
   }
 
-  private async initializeServices() {
+  private initializeServices() {
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
@@ -61,7 +61,6 @@ class WebRTCService {
     );
 
     this.signalingService = new SignalingService(this.localPeerCode, this.handleSignal.bind(this));
-    await this.signalingService.initialize();
     
     this.signalingHandler = new SignalingHandler(
       this.connectionManager,
@@ -93,48 +92,42 @@ class WebRTCService {
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
-    const connectionPromise = new Promise<void>((resolve, reject) => {
-      // Move the async logic inside a regular executor function
-      const establishConnection = async () => {
-        try {
-          this.remotePeerCode = remotePeerCode;
-          const peerConnection = await this.connectionManager.createPeerConnection();
-          
-          const dataChannel = peerConnection.createDataChannel('fileTransfer', {
-            ordered: true,
-            maxRetransmits: 3
-          });
-          
-          this.dataChannelManager.setupDataChannel(dataChannel);
-          
-          const offer = await peerConnection.createOffer();
-          await peerConnection.setLocalDescription(offer);
-          console.log('[SIGNALING] Created and set local description (offer)');
-          
-          await this.signalingService.sendSignal('offer', {
-            offer,
-            publicKey: this.encryptionService.getPublicKey(),
-            peerCode: this.localPeerCode
-          }, remotePeerCode);
+    const connectionPromise = new Promise<void>(async (resolve, reject) => {
+      try {
+        this.remotePeerCode = remotePeerCode;
+        const peerConnection = await this.connectionManager.createPeerConnection();
+        
+        const dataChannel = peerConnection.createDataChannel('fileTransfer', {
+          ordered: true,
+          maxRetransmits: 3
+        });
+        
+        this.dataChannelManager.setupDataChannel(dataChannel);
+        
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        console.log('[SIGNALING] Created and set local description (offer)');
+        
+        await this.signalingService.sendSignal('offer', {
+          offer,
+          publicKey: this.encryptionService.getPublicKey(),
+          peerCode: this.localPeerCode
+        }, remotePeerCode);
 
-          peerConnection.onconnectionstatechange = () => {
-            const state = peerConnection.connectionState;
-            if (state === 'connected') {
-              console.log('[WEBRTC] Connection established successfully');
-              this.retryHandler.resetAttempts();
-              resolve();
-            } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
-              console.log('[WEBRTC] Connection state changed to:', state);
-              reject(new ConnectionError("Connection failed or closed"));
-            }
-          };
-        } catch (error) {
-          reject(new ConnectionError("Failed to initiate connection", error));
-        }
-      };
-
-      // Execute the async function
-      establishConnection().catch(reject);
+        peerConnection.onconnectionstatechange = () => {
+          const state = peerConnection.connectionState;
+          if (state === 'connected') {
+            console.log('[WEBRTC] Connection established successfully');
+            this.retryHandler.resetAttempts();
+            resolve();
+          } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
+            console.log('[WEBRTC] Connection state changed to:', state);
+            reject(new ConnectionError("Connection failed or closed"));
+          }
+        };
+      } catch (error) {
+        reject(new ConnectionError("Failed to initiate connection", error));
+      }
     });
 
     const timeoutPromise = new Promise<void>((_, reject) => {

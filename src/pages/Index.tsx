@@ -27,48 +27,48 @@ const Index = () => {
         <Header />
         
         <main className="container mx-auto px-4 py-12 space-y-12">
-          <section className="text-center space-y-4 animate-fade-up">
+          <div className="text-center space-y-4 animate-fade-up">
             <h1 className="text-5xl font-bold tracking-tight">
-              Secure P2P File Sharing Without Servers
+              Private, Server-Free File Sharing
             </h1>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Transfer files directly between devices with end-to-end encryption. Like AirDrop, but for everyone - no login, no storage limits, no servers required.
+              Like AirDrop, but for everyone. Transfer files directly between devices with end-to-end encryption. No servers, no storage, no limits.
             </p>
-          </section>
+          </div>
 
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-4xl mx-auto animate-fade-up">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 max-w-4xl mx-auto animate-fade-up">
             <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:shadow-[0_8px_30px_rgba(20,255,106,0.1)] transition-shadow duration-300">
               <Shield className="w-8 h-8 text-neon mx-auto" />
-              <h2 className="text-base md:text-lg font-semibold text-center">End-to-End Encryption</h2>
-              <p className="text-xs md:text-sm text-gray-400 text-center">Military-grade encryption for your files</p>
+              <h2 className="text-base md:text-lg font-semibold text-center">End-to-End Encrypted</h2>
+              <p className="text-xs md:text-sm text-gray-400 text-center">Your files never touch any servers</p>
             </Card>
 
             <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:shadow-[0_8px_30px_rgba(20,255,106,0.1)] transition-shadow duration-300">
               <Wifi className="w-8 h-8 text-neon mx-auto" />
               <h2 className="text-base md:text-lg font-semibold text-center">Direct P2P Transfer</h2>
-              <p className="text-xs md:text-sm text-gray-400 text-center">Fast, direct device-to-device sharing</p>
+              <p className="text-xs md:text-sm text-gray-400 text-center">Secure device-to-device sharing</p>
             </Card>
 
             <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:shadow-[0_8px_30px_rgba(20,255,106,0.1)] transition-shadow duration-300">
               <Database className="w-8 h-8 text-neon mx-auto" />
-              <h2 className="text-base md:text-lg font-semibold text-center">Unlimited File Size</h2>
-              <p className="text-xs md:text-sm text-gray-400 text-center">No restrictions on file sizes</p>
+              <h2 className="text-base md:text-lg font-semibold text-center">No Storage Limits</h2>
+              <p className="text-xs md:text-sm text-gray-400 text-center">Share files of any size</p>
             </Card>
 
             <Card className="p-4 md:p-6 bg-dark-accent/50 backdrop-blur-lg border border-white/10 space-y-4 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:shadow-[0_8px_30px_rgba(20,255,106,0.1)] transition-shadow duration-300">
               <Zap className="w-8 h-8 text-neon mx-auto" />
-              <h2 className="text-base md:text-lg font-semibold text-center">Universal Compatibility</h2>
-              <p className="text-xs md:text-sm text-gray-400 text-center">Works on all modern browsers</p>
+              <h2 className="text-base md:text-lg font-semibold text-center">Cross Platform</h2>
+              <p className="text-xs md:text-sm text-gray-400 text-center">Works on all devices & browsers</p>
             </Card>
-          </section>
+          </div>
 
-          <section className="glass-card p-8 max-w-2xl mx-auto space-y-6 shadow-[0_15px_40px_rgba(0,0,0,0.6)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.7)] transition-shadow duration-300">
+          <Card className="glass-card p-8 max-w-2xl mx-auto space-y-6 shadow-[0_15px_40px_rgba(0,0,0,0.6)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.7)] transition-shadow duration-300">
             <div className="space-y-2 text-center">
-              <h3 className="text-2xl font-semibold tracking-tight">
-                Start Secure File Transfer
-              </h3>
+              <h2 className="text-2xl font-semibold tracking-tight">
+                Fast, Private File Transfer
+              </h2>
               <p className="text-muted-foreground">
-                Connect with another device to begin sharing files securely
+                Share files securely on your local network without uploading to the cloud
               </p>
             </div>
 
@@ -79,13 +79,13 @@ const Index = () => {
                 <FileUpload webrtc={webrtc} />
               </div>
             )}
-          </section>
+          </Card>
 
-          <section className="text-center space-y-3 text-gray-400 max-w-2xl mx-auto animate-fade-up">
-            <h4 className="text-xl font-semibold text-white">Privacy-First Design</h4>
-            <p>Your files never touch our servers. Everything is transferred directly between devices using peer-to-peer technology, ensuring maximum privacy and security.</p>
-            <p className="text-sm">Experience AirDrop-like functionality on any device with a modern web browser.</p>
-          </section>
+          <div className="text-center space-y-3 text-gray-400 max-w-2xl mx-auto animate-fade-up">
+            <h3 className="text-xl font-semibold text-white">Privacy by Design</h3>
+            <p>Unlike cloud storage services, your files are transferred directly between devices. No servers, no storage, no tracking - just secure, private sharing.</p>
+            <p className="text-sm">Works across all platforms and browsers, bringing AirDrop-like functionality to everyone.</p>
+          </div>
         </main>
 
         <footer className="py-6 text-center text-sm text-gray-500">

@@ -1,6 +1,7 @@
+
+import { supabase } from "@/integrations/supabase/client";
 import { box, randomBytes } from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
-import { supabase } from "@/integrations/supabase/client";
 import { 
   WebRTCError, 
   ConnectionError, 
@@ -28,7 +29,6 @@ class WebRTCService {
   private remotePeerPublicKey: Uint8Array | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private connectionTimeout: number = 30000; // 30 seconds timeout
-  private isInitialized: boolean = false;
 
   constructor(
     localPeerCode: string, 
@@ -40,20 +40,7 @@ class WebRTCService {
     this.onReceiveFile = onReceiveFile;
     this.onError = onError;
     this.keyPair = box.keyPair();
-  }
-
-  async initialize(): Promise<void> {
-    if (this.isInitialized) {
-      return;
-    }
-
-    try {
-      await this.setupSignalingListener();
-      this.isInitialized = true;
-    } catch (error) {
-      this.onError(new SignalingError("Failed to initialize WebRTC service", error));
-      throw error;
-    }
+    this.setupSignalingListener();
   }
 
   private async setupSignalingListener() {
@@ -66,7 +53,12 @@ class WebRTCService {
         })
         .subscribe();
     } catch (error) {
-      throw new SignalingError("Failed to setup signaling channel", error);
+      const signalingError = new SignalingError(
+        "Failed to setup signaling channel",
+        error
+      );
+      console.error('[SIGNALING] Setup error:', signalingError);
+      this.onError(signalingError);
     }
   }
 
