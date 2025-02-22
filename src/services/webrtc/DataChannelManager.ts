@@ -18,6 +18,8 @@ export class DataChannelManager implements IDataChannelManager {
   private fileTransferService: FileTransferService | null = null;
   private stateChangeHandler: ((state: RTCDataChannelState) => void) | undefined;
   private isDisconnecting: boolean = false;
+  private activeTransferFilename: string | null = null;
+  private dataChannel: RTCDataChannel | null = null;
 
   constructor(
     private encryptionService: EncryptionService,
@@ -31,11 +33,12 @@ export class DataChannelManager implements IDataChannelManager {
   setupDataChannel(channel: RTCDataChannel): void {
     console.log('[DATACHANNEL] Setting up data channel');
     
+    this.dataChannel = channel;
     this.fileTransferService = new FileTransferService(
       channel,
       this.encryptionService,
-      this.onReceiveFile,
-      this.onProgress
+      this.handleFileReceive.bind(this),
+      this.handleProgress.bind(this)
     );
 
     channel.onclose = () => {
@@ -58,6 +61,21 @@ export class DataChannelManager implements IDataChannelManager {
     };
   }
 
+  private handleFileReceive(file: Blob, filename: string) {
+    console.log('[DATACHANNEL] File received:', filename);
+    this.activeTransferFilename = null;
+    this.onReceiveFile(file, filename);
+  }
+
+  private handleProgress(progress: TransferProgress) {
+    if (progress.status === 'transferring') {
+      this.activeTransferFilename = progress.filename;
+    } else if (progress.status === 'canceled_by_sender' || progress.status === 'canceled_by_receiver') {
+      this.activeTransferFilename = null;
+    }
+    this.onProgress(progress);
+  }
+
   setStateChangeHandler(handler: (state: RTCDataChannelState) => void): void {
     console.log('[DATACHANNEL] Setting state change handler');
     this.stateChangeHandler = handler;
@@ -68,28 +86,43 @@ export class DataChannelManager implements IDataChannelManager {
     if (!this.fileTransferService) {
       throw new WebRTCError("No active data channel");
     }
-    await this.fileTransferService.sendFile(file);
+    try {
+      this.activeTransferFilename = file.name;
+      await this.fileTransferService.sendFile(file);
+    } catch (error) {
+      this.activeTransferFilename = null;
+      throw error;
+    }
   }
 
   cancelTransfer(filename: string, isReceiver: boolean = false): void {
     console.log('[DATACHANNEL] Cancelling transfer for:', filename);
-    if (this.fileTransferService) {
+    if (this.fileTransferService && this.activeTransferFilename === filename) {
       this.fileTransferService.cancelCurrentTransfer(filename, isReceiver);
+      this.activeTransferFilename = null;
     }
   }
 
   pauseTransfer(filename: string): void {
     console.log('[DATACHANNEL] Pausing transfer for:', filename);
-    if (this.fileTransferService) {
+    if (this.fileTransferService && this.activeTransferFilename === filename) {
       this.fileTransferService.pauseTransfer(filename);
+    } else {
+      console.warn('[DATACHANNEL] Cannot pause: no active transfer for', filename);
     }
   }
 
   resumeTransfer(filename: string): void {
     console.log('[DATACHANNEL] Resuming transfer for:', filename);
-    if (this.fileTransferService) {
+    if (this.fileTransferService && this.activeTransferFilename === filename) {
       this.fileTransferService.resumeTransfer(filename);
+    } else {
+      console.warn('[DATACHANNEL] Cannot resume: no active transfer for', filename);
     }
+  }
+
+  isTransferActive(filename: string): boolean {
+    return this.activeTransferFilename === filename;
   }
 
   disconnect(): void {
@@ -102,11 +135,23 @@ export class DataChannelManager implements IDataChannelManager {
     this.isDisconnecting = true;
 
     try {
+      if (this.activeTransferFilename) {
+        console.log('[DATACHANNEL] Cancelling active transfer before disconnect');
+        this.cancelTransfer(this.activeTransferFilename);
+      }
+
+      if (this.dataChannel && this.dataChannel.readyState === 'open') {
+        this.dataChannel.close();
+      }
+
       if (this.stateChangeHandler) {
         this.stateChangeHandler('closed');
       }
+
       this.fileTransferService = null;
       this.stateChangeHandler = undefined;
+      this.dataChannel = null;
+      this.activeTransferFilename = null;
     } finally {
       this.isDisconnecting = false;
     }
