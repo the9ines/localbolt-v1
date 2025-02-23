@@ -35,7 +35,7 @@ const Index = () => {
       <div className="relative z-10">
         <Header />
         
-        <main className="container mx-auto px-4 py-16 space-y-20">
+        <main className="container mx-auto px-4 py-16 space-y-16">
           <Hero onStartSharing={scrollToTransfer} />
           <Features />
           <Transfer 
@@ -45,7 +45,7 @@ const Index = () => {
             webrtc={webrtc}
           />
           
-          <section aria-label="Privacy Information" className="text-center space-y-4 max-w-2xl mx-auto animate-fade-up pb-12">
+          <section aria-label="Privacy Information" className="text-center space-y-4 max-w-2xl mx-auto animate-fade-up pb-6">
             <h3 className="text-xl font-semibold text-white">Privacy by Design</h3>
             <p className="text-gray-400 leading-relaxed">
               Unlike cloud storage services, your files are transferred directly between devices. No servers, no storage, no tracking - just secure, private sharing.
@@ -55,19 +55,18 @@ const Index = () => {
             </p>
           </section>
 
-          <div className="flex justify-center items-center pb-8">
+          <div className="flex justify-center items-center pb-4">
             <a 
               href="https://github.com/the9ines/localbolt" 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="inline-flex items-center gap-2 text-gray-400 hover:text-neon transition-colors"
+              className="inline-flex items-center opacity-70 hover:opacity-100 transition-all group"
             >
               <img 
                 src="/lovable-uploads/09f73644-2960-492d-a0ac-1102840edc69.png" 
                 alt="GitHub"
-                className="w-5 h-5 opacity-70 transition-opacity hover:opacity-100"
+                className="w-6 h-6 transition-all group-hover:drop-shadow-[0_0_3px_rgba(20,255,106,0.7)]"
               />
-              <span>GitHub</span>
             </a>
           </div>
         </main>
