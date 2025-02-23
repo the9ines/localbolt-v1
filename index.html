@@ -17,6 +17,9 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://localbolt.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   </head>
 
   <body>
@@ -26,11 +29,13 @@
       src="https://cdn.gpteng.co/gptengineer.js" 
       type="module" 
       crossorigin="anonymous"
+      defer
       onerror="console.error('Failed to load GPT Engineer script');">
     </script>
     <script 
       type="module" 
       src="/src/main.tsx"
+      defer
       onerror="console.error('Failed to load main application');">
     </script>
   </body>
