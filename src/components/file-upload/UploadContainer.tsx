@@ -65,9 +65,19 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
     setProgress(transferProgress);
     
     if (transferProgress.status === 'canceled_by_sender' || 
-        transferProgress.status === 'canceled_by_receiver' || 
-        transferProgress.status === 'error') {
+        transferProgress.status === 'canceled_by_receiver') {
       setTimeout(() => setProgress(null), 3000);
+      toast({
+        title: "Transfer cancelled",
+        description: "The file transfer was cancelled",
+      });
+    } else if (transferProgress.status === 'error') {
+      setTimeout(() => setProgress(null), 3000);
+      toast({
+        title: "Transfer error",
+        description: "An error occurred during the transfer",
+        variant: "destructive",
+      });
     }
   };
 
@@ -89,7 +99,7 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
       setProgress(null);
       toast({
         title: "Transfer cancelled",
-        description: `Cancelled transfer of ${progress.filename}`,
+        description: "The file transfer was cancelled",
       });
     }
   };
@@ -128,7 +138,7 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
       } else {
         toast({
           title: "Transfer failed",
-          description: `Failed to send file`,
+          description: "Failed to send file",
           variant: "destructive",
         });
       }

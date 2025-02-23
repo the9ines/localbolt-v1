@@ -58,7 +58,6 @@ export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: T
           <span className="truncate text-sm">{progress.filename}</span>
           <span className="text-xs text-white/50">
             {formatSize(progress.loaded)} of {formatSize(progress.total)} ({progressPercent}%)
-            {isPaused && " - Paused"}
           </span>
         </div>
       </div>
