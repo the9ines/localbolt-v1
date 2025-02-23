@@ -17,7 +17,7 @@ export const Hero = ({ onStartSharing }: HeroProps) => {
       </p>
       <Button 
         size="lg" 
-        className="bg-neon text-black hover:bg-neon/90 hover:scale-105 transition-all duration-300"
+        className="bg-neon text-black hover:bg-neon/90 hover:scale-105 transition-all duration-300 hover:shadow-[0_0_20px_rgba(20,255,106,0.3)]"
         onClick={onStartSharing}
       >
         Start Sharing <ArrowRight className="ml-2" />
