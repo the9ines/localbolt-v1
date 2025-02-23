@@ -1,50 +1,80 @@
-# Welcome
 
-## Project info
+# LocalBolt - Secure P2P File Transfer
 
-**Use your preferred IDE**
+A private, secure P2P file sharing application with end-to-end encryption. Transfer files directly between devices without servers or storage limits.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Project Setup
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Important Note
+This project requires the GPT Engineer script to be present in the HTML file for proper functionality. Do not remove or modify the following script tag from index.html:
+```html
+<script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+```
 
-Follow these steps:
+### Prerequisites
 
+- Node.js & npm - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- A modern web browser that supports WebRTC
+
+### Local Development
+
+1. Clone the repository:
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
 git clone <YOUR_GIT_URL>
+```
 
-# Step 2: Navigate to the project directory.
+2. Navigate to the project directory:
+```sh
 cd <YOUR_PROJECT_NAME>
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+3. Install dependencies:
+```sh
+npm install
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. Start the development server:
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Project Structure
 
-**Use GitHub Codespaces**
+- `/src` - Source code
+  - `/components` - React components
+  - `/services` - Core services including WebRTC implementation
+  - `/hooks` - Custom React hooks
+  - `/pages` - Page components
+  - `/types` - TypeScript type definitions
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with .
+### Technologies Used
 
 - Vite
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
+- WebRTC for P2P file transfer
+- TweetNaCl.js for encryption
 
+## Privacy & Security
+
+- Zero data storage - all transfers are peer-to-peer
+- No server storage or databases
+- End-to-end encryption
+- No tracking or analytics
+- No cookies or local storage
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch: `git checkout -b feature/my-new-feature`
+3. Commit your changes: `git commit -am 'Add some feature'`
+4. Push to the branch: `git push origin feature/my-new-feature`
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
