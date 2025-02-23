@@ -34,10 +34,7 @@ export class ConnectionNegotiator {
       console.log('[NEGOTIATOR] Negotiated transport mode:', negotiatedTransport);
       return negotiatedTransport;
     } catch (error) {
-      throw new WebRTCError(
-        'Failed to negotiate connection',
-        { remotePeerId, error }
-      );
+      throw new WebRTCError('Failed to negotiate connection', { remotePeerId, error });
     }
   }
 
