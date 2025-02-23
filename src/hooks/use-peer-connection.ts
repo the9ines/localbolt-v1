@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import WebRTCService from '@/services/webrtc/WebRTCService';
 import { WebRTCError } from '@/types/webrtc-errors';
+import { detectDevice } from '@/lib/platform-utils';
 
 export const usePeerConnection = (
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void
@@ -23,10 +24,18 @@ export const usePeerConnection = (
     let title = "Connection Error";
     let description = "Failed to establish connection";
 
+    // Platform-specific error handling
+    const device = detectDevice();
+    if (error.name === 'ConnectionError' && device.isSteamDeck) {
+      description = "Please ensure your Steam Deck's network settings allow P2P connections.";
+    }
+
     switch (error.name) {
       case 'ConnectionError':
         title = "Connection Failed";
-        description = "Unable to connect to peer. Please try again.";
+        description = device.isLinux ? 
+          "Connection failed. Please check your firewall settings." :
+          "Unable to connect to peer. Please try again.";
         break;
       case 'SignalingError':
         title = "Signaling Error";
@@ -34,7 +43,9 @@ export const usePeerConnection = (
         break;
       case 'TransferError':
         title = "Transfer Failed";
-        description = "File transfer failed. Please try again.";
+        description = device.isWindows ? 
+          "File transfer failed. Please check your Windows Defender settings." :
+          "File transfer failed. Please try again.";
         break;
       case 'EncryptionError':
         title = "Security Error";

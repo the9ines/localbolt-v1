@@ -1,5 +1,5 @@
-
 import { ConnectionError } from '@/types/webrtc-errors';
+import { getPlatformICEServers } from '@/lib/platform-utils';
 
 export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
@@ -19,29 +19,12 @@ export class ConnectionManager {
 
   async createPeerConnection(): Promise<RTCPeerConnection> {
     console.log('[WEBRTC] Creating peer connection');
+    
+    const iceServers = getPlatformICEServers();
+    console.log('[WEBRTC] Using ICE servers:', iceServers);
+    
     this.peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' },
-        {
-          urls: 'turn:openrelay.metered.ca:80',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
-        },
-        {
-          urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
-        }
-      ],
+      iceServers,
       iceCandidatePoolSize: 10,
       iceTransportPolicy: 'all',
       bundlePolicy: 'max-bundle',
