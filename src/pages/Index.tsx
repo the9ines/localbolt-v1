@@ -6,6 +6,7 @@ import { Features } from "@/components/sections/Features";
 import { Transfer } from "@/components/sections/Transfer";
 import { Footer } from "@/components/sections/Footer";
 import WebRTCService from "@/services/webrtc/WebRTCService";
+import { Github } from "lucide-react";
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -54,6 +55,18 @@ const Index = () => {
               Works across all platforms and browsers, bringing AirDrop-like functionality to everyone.
             </p>
           </section>
+
+          <div className="flex justify-center items-center pb-8">
+            <a 
+              href="https://github.com/the9ines/localbolt" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="inline-flex items-center gap-2 text-gray-400 hover:text-neon transition-colors"
+            >
+              <Github className="w-5 h-5" />
+              <span>GitHub</span>
+            </a>
+          </div>
         </main>
 
         <Footer />
