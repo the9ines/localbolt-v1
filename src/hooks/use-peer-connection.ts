@@ -57,6 +57,7 @@ export const usePeerConnection = (
       title,
       description,
       variant: "destructive",
+      duration: 2000, // Explicit 2 second duration
     });
   }, [toast, onConnectionChange]);
 
@@ -68,6 +69,7 @@ export const usePeerConnection = (
         title: "Invalid peer code",
         description: "Please enter a valid peer code",
         variant: "destructive",
+        duration: 2000,
       });
       return;
     }
@@ -79,6 +81,7 @@ export const usePeerConnection = (
       toast({
         title: "Connecting...",
         description: "Establishing secure connection",
+        duration: 2000,
       });
       
       await webrtc.connect(targetPeerCode);
@@ -89,6 +92,7 @@ export const usePeerConnection = (
       toast({
         title: "Connected!",
         description: "Secure connection established",
+        duration: 2000,
       });
     } catch (error) {
       setIsConnected(false);
@@ -101,6 +105,7 @@ export const usePeerConnection = (
           title: "Unexpected Error",
           description: "An unexpected error occurred",
           variant: "destructive",
+          duration: 2000,
         });
       }
       onConnectionChange(false);
@@ -117,6 +122,7 @@ export const usePeerConnection = (
       toast({
         title: "Disconnected",
         description: "Connection closed successfully",
+        duration: 2000,
       });
     }
   }, [webrtc, toast, onConnectionChange]);
