@@ -55,19 +55,23 @@ const Index = () => {
             </p>
           </section>
 
-          <div className="flex justify-center items-center pb-8">
+          <div className="flex justify-center items-center gap-2 pb-8">
             <a 
               href="https://github.com/the9ines/localbolt" 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="inline-flex items-center gap-2 text-gray-400 hover:text-neon transition-colors"
+              className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-all group"
             >
               <img 
                 src="/lovable-uploads/09f73644-2960-492d-a0ac-1102840edc69.png" 
-                alt="GitHub"
-                className="w-5 h-5 opacity-70 transition-opacity hover:opacity-100"
+                alt="GitHub Cat"
+                className="w-5 h-5 transition-all group-hover:drop-shadow-[0_0_3px_rgba(20,255,106,0.7)]"
               />
-              <span>GitHub</span>
+              <img 
+                src="/lovable-uploads/f70dac86-11a7-44fb-886f-1187e9585c7e.png" 
+                alt="GitHub"
+                className="h-5 transition-all group-hover:drop-shadow-[0_0_3px_rgba(20,255,106,0.7)]"
+              />
             </a>
           </div>
         </main>
