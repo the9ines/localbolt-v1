@@ -45,7 +45,7 @@ const Index = () => {
             webrtc={webrtc}
           />
           
-          <div className="text-center space-y-4 max-w-2xl mx-auto animate-fade-up pb-12">
+          <section aria-label="Privacy Information" className="text-center space-y-4 max-w-2xl mx-auto animate-fade-up pb-12">
             <h3 className="text-xl font-semibold text-white">Privacy by Design</h3>
             <p className="text-gray-400 leading-relaxed">
               Unlike cloud storage services, your files are transferred directly between devices. No servers, no storage, no tracking - just secure, private sharing.
@@ -53,7 +53,7 @@ const Index = () => {
             <p className="text-sm text-gray-500">
               Works across all platforms and browsers, bringing AirDrop-like functionality to everyone.
             </p>
-          </div>
+          </section>
         </main>
 
         <Footer />

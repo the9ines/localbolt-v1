@@ -9,7 +9,7 @@ interface HeroProps {
 export const Hero = ({ onStartSharing }: HeroProps) => {
   return (
     <div className="text-center space-y-6 animate-fade-up max-w-3xl mx-auto">
-      <h1 className="text-5xl sm:text-6xl font-bold tracking-tight bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent">
+      <h1 className="text-5xl sm:text-6xl font-bold tracking-tight bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent" aria-label="Private, Server-Free File Sharing">
         Private, Server-Free File Sharing
       </h1>
       <p className="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
@@ -19,8 +19,9 @@ export const Hero = ({ onStartSharing }: HeroProps) => {
         size="lg" 
         className="bg-neon text-black hover:bg-neon/90 hover:scale-105 transition-all duration-300 hover:shadow-[0_0_20px_rgba(20,255,106,0.3)]"
         onClick={onStartSharing}
+        aria-label="Start sharing files"
       >
-        Start Sharing <ArrowRight className="ml-2" />
+        Start Sharing <ArrowRight className="ml-2" aria-hidden="true" />
       </Button>
     </div>
   );
