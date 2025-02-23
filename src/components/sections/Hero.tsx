@@ -13,7 +13,7 @@ export const Hero = ({ onStartSharing }: HeroProps) => {
         Private, Server-Free File Sharing
       </h1>
       <p className="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
-        Like AirDrop, but for everyone. Transfer files directly between devices with military-grade encryption. No servers, no storage, no limits.
+        Like AirDrop, but for everyone. Transfer files directly between devices with end-to-end encryption. No servers, no storage, no limits.
       </p>
       <Button 
         size="lg" 
