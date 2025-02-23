@@ -1,6 +1,6 @@
 
 import { Card } from "@/components/ui/card";
-import { Shield, Wifi, Database, Zap, LucideIcon } from "lucide-react";
+import { Shield, Wifi, Laptop, Zap, LucideIcon } from "lucide-react";
 
 interface FeatureCardProps {
   icon: LucideIcon;
@@ -32,12 +32,12 @@ export const Features = () => {
       description: "Lightning fast peer-to-peer file transfers without server intermediaries"
     },
     {
-      icon: Database,
-      title: "No Storage Limits",
-      description: "Transfer files of any size without storage restrictions or cloud limitations"
+      icon: Wifi,
+      title: "Zero Server Storage",
+      description: "Your files transfer directly between devices - no cloud storage, no servers storing your data"
     },
     {
-      icon: Zap,
+      icon: Laptop,
       title: "Cross Platform",
       description: "Compatible with all modern devices and web browsers for seamless file sharing"
     }
