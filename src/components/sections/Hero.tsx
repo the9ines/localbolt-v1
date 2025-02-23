@@ -9,13 +9,6 @@ interface HeroProps {
 export const Hero = ({ onStartSharing }: HeroProps) => {
   return (
     <div className="text-center space-y-6 animate-fade-up max-w-3xl mx-auto">
-      <div className="inline-flex items-center px-3 py-1 rounded-full border border-neon/20 bg-neon/5 text-neon text-sm mb-4">
-        <span className="relative flex h-2 w-2 mr-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-neon"></span>
-        </span>
-        Secure File Transfer
-      </div>
       <h1 className="text-5xl sm:text-6xl font-bold tracking-tight bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent">
         Private, Server-Free File Sharing
       </h1>
