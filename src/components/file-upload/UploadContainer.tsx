@@ -1,4 +1,3 @@
-
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { DragDropArea } from "./DragDropArea";
@@ -66,13 +65,13 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
     
     if (transferProgress.status === 'canceled_by_sender' || 
         transferProgress.status === 'canceled_by_receiver') {
-      setProgress(null); // Immediately clear progress to enable resending
+      setTimeout(() => setProgress(null), 3000);
       toast({
         title: "Transfer cancelled",
         description: "The file transfer was cancelled"
       });
     } else if (transferProgress.status === 'error') {
-      setProgress(null);
+      setTimeout(() => setProgress(null), 3000);
       toast({
         title: "Transfer error",
         description: "An error occurred during the transfer",

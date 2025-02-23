@@ -58,12 +58,7 @@ export class TransferStateManager {
       });
       
       console.log('[STATE] Transfer started, initial state:', newTransfer);
-      this.progressEmitter.emit(filename, 'transferring', {
-        loaded: 0,
-        total,
-        currentChunk: 0,
-        totalChunks: Math.ceil(total / 16384) // 16KB chunks
-      });
+      this.progressEmitter.emit(filename, 'transferring');
     } catch (error) {
       console.error('[STATE] Error starting transfer:', error);
       this.reset();
@@ -89,10 +84,7 @@ export class TransferStateManager {
   }
 
   handleCancel(message: TransferControlMessage): void {
-    console.log('[STATE] Handling cancel request', message);
-    this.store.updateState({ isCancelled: true });
     this.controlHandler.handleCancel(message);
-    this.reset();
   }
 
   updateTransferProgress(
@@ -106,12 +98,6 @@ export class TransferStateManager {
   }
 
   reset() {
-    console.log('[STATE] Resetting transfer state');
-    this.store.updateState({
-      isPaused: false,
-      isCancelled: false,
-      currentTransfer: null
-    });
     this.controlHandler.reset();
   }
 }
