@@ -33,7 +33,7 @@ export const TargetPeerInput = ({
           value={displayValue || ""}
           onChange={(e) => !isConnected && onTargetPeerCodeChange(e.target.value.toUpperCase())}
           placeholder="Enter Peer Code"
-          className="font-mono bg-dark-accent placeholder:text-white/20 focus-visible:ring-neon focus:border-neon selection:bg-neon selection:text-black caret-neon"
+          className="font-mono bg-dark-accent placeholder:text-white/20"
           maxLength={6}
           disabled={isConnected}
           readOnly={isConnected}
