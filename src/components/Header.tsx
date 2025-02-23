@@ -9,8 +9,11 @@ export const Header = () => {
     <header className="border-b border-white/10 bg-dark/50 backdrop-blur-md sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
-            <Zap className="w-8 h-8 text-neon" />
+          <Link to="/" className="flex items-center space-x-2 group">
+            <div className="relative">
+              <Zap className="w-8 h-8 text-neon transition-all duration-300 group-hover:fill-neon" />
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 blur-lg bg-neon/50 scale-150 transition-all duration-300 rounded-full -z-10" />
+            </div>
             <span className="text-xl font-semibold">LocalBolt</span>
           </Link>
           
