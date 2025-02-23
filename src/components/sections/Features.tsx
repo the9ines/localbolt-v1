@@ -33,7 +33,7 @@ export const Features = () => {
     },
     {
       icon: Wifi,
-      title: "Zero Server Storage",
+      title: "No Server Storage",
       description: "Your files transfer directly between devices - no cloud storage, no servers storing your data"
     },
     {
