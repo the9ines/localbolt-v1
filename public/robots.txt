@@ -3,5 +3,5 @@ User-agent: *
 Allow: /
 Sitemap: https://localbolt.site/sitemap.xml
 
-# Favicon path
-# data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2314FF6A'><path d='M13 10V3L4 14h7v7l9-11h-7z'/></svg>
+# Favicon path with pulsing animation
+# data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2314FF6A'><style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}</style><path d='M13 10V3L4 14h7v7l9-11h-7z' style='animation:pulse 2s cubic-bezier(0.4,0,0.6,1) infinite'/></svg>

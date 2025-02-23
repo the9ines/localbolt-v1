@@ -7,7 +7,7 @@ const NotFound = () => {
   return (
     <>
       <Helmet>
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2314FF6A'><path d='M13 10V3L4 14h7v7l9-11h-7z'/></svg>" />
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2314FF6A'><style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}</style><path d='M13 10V3L4 14h7v7l9-11h-7z' style='animation:pulse 2s cubic-bezier(0.4,0,0.6,1) infinite'/></svg>" />
       </Helmet>
       <div className="min-h-screen bg-dark flex flex-col items-center justify-center text-white p-4">
         <div className="text-center space-y-6 max-w-md">
