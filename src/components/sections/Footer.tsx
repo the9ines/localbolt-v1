@@ -8,11 +8,11 @@ export const Footer = () => {
         href="https://the9ines.com" 
         target="_blank" 
         rel="noopener noreferrer" 
-        className="hover:text-neon transition-colors inline-flex items-center gap-1"
+        className="hover:text-neon transition-colors inline-flex items-center gap-1 group"
       >
-        <Zap className="w-4 h-4" />
+        <Zap className="w-4 h-4 transition-all duration-300 group-hover:fill-neon" />
         the9ines.com productions
-        <Zap className="w-4 h-4" />
+        <Zap className="w-4 h-4 transition-all duration-300 group-hover:fill-neon" />
       </a>
     </footer>
   );

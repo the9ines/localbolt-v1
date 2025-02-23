@@ -25,10 +25,7 @@ export const Header = () => {
             onClick={handleLogoClick}
             className="flex items-center space-x-2 group"
           >
-            <div className="relative">
-              <Zap className="w-8 h-8 text-neon transition-all duration-300 group-hover:fill-neon" />
-              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 blur-lg bg-neon/50 scale-150 transition-all duration-300 rounded-full -z-10" />
-            </div>
+            <Zap className="w-8 h-8 text-neon transition-all duration-300 group-hover:fill-neon" />
             <span className="text-xl font-semibold">LocalBolt</span>
           </Link>
           
