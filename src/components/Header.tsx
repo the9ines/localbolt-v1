@@ -23,9 +23,9 @@ export const Header = () => {
           <Link 
             to="/" 
             onClick={handleLogoClick}
-            className="flex items-center space-x-2 group hover:text-neon transition-colors"
+            className="flex items-center space-x-2 group"
           >
-            <Zap className="w-8 h-8 text-neon transition-all duration-300 group-hover:fill-neon" />
+            <Zap className="w-4 h-4 text-neon transition-all duration-300 group-hover:fill-neon" />
             <span className="text-xl font-semibold">LocalBolt</span>
           </Link>
           
