@@ -1,6 +1,6 @@
 
 import { Card } from "@/components/ui/card";
-import { Shield, Wifi, Laptop, Server, LucideIcon } from "lucide-react";
+import { Shield, Wifi, Laptop, Server, Lock, Zap, Globe, Clock, LucideIcon } from "lucide-react";
 
 interface FeatureCardProps {
   icon: LucideIcon;
@@ -23,31 +23,70 @@ export const Features = () => {
   const features = [
     {
       icon: Shield,
-      title: "End-to-End Encrypted",
-      description: "Secure device-to-device file sharing with end-to-end encryption for maximum privacy"
+      title: "End-to-End Encryption",
+      description: "Military-grade encryption ensures your files remain completely private during transfer, using WebCrypto API and modern cryptographic protocols."
     },
     {
       icon: Wifi,
-      title: "Direct P2P Transfer",
-      description: "Lightning fast peer-to-peer file transfers without server intermediaries"
+      title: "WebRTC P2P Transfer",
+      description: "Direct device-to-device file transfer using WebRTC technology, enabling faster speeds than traditional cloud uploads and downloads."
     },
     {
       icon: Server,
-      title: "No Server Storage",
-      description: "Your files transfer directly between devices - no cloud storage, no servers storing your data"
+      title: "Zero Server Storage",
+      description: "Unlike traditional file sharing services, files transfer directly between devices without ever touching a server, ensuring maximum privacy."
     },
     {
       icon: Laptop,
-      title: "Cross Platform",
-      description: "Compatible with all modern devices and web browsers for seamless file sharing"
+      title: "Universal Compatibility",
+      description: "Works seamlessly across Windows, macOS, Linux, iOS, and Android - any device with a modern web browser."
+    },
+    {
+      icon: Lock,
+      title: "Privacy Focused",
+      description: "No account required, no tracking, and no data collection. Your files and transfer history remain completely private."
+    },
+    {
+      icon: Zap,
+      title: "Lightning Fast",
+      description: "Direct peer connections enable transfer speeds limited only by your local network or internet connection."
+    },
+    {
+      icon: Globe,
+      title: "Cross Network Support",
+      description: "Works across different networks with automatic NAT traversal and relay fallback for guaranteed connectivity."
+    },
+    {
+      icon: Clock,
+      title: "Real-time Transfer",
+      description: "Instant file sharing with live progress tracking and transfer speed monitoring."
     }
   ];
 
   return (
-    <section aria-label="Features" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-up">
-      {features.map((feature) => (
-        <FeatureCard key={feature.title} {...feature} />
-      ))}
+    <section aria-label="Features" className="space-y-8">
+      <div className="text-center max-w-3xl mx-auto mb-12">
+        <h2 className="text-3xl font-bold mb-4">Advanced P2P File Transfer Technology</h2>
+        <p className="text-gray-400">
+          LocalBolt leverages cutting-edge web technologies to provide the most secure and efficient file transfer experience. 
+          Our WebRTC-based solution outperforms traditional cloud services while maintaining complete privacy.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-up">
+        {features.map((feature) => (
+          <FeatureCard key={feature.title} {...feature} />
+        ))}
+      </div>
+
+      <div className="mt-12 text-center max-w-3xl mx-auto">
+        <h3 className="text-xl font-semibold mb-4">Why Choose LocalBolt?</h3>
+        <p className="text-gray-400 leading-relaxed">
+          Unlike traditional file sharing services that store your files on servers, LocalBolt creates a direct, encrypted connection between devices. 
+          This peer-to-peer approach, combined with WebRTC technology, enables faster transfers while ensuring complete privacy. 
+          No file size limits, no compression, and no cloud storage - just secure, instant file sharing.
+        </p>
+      </div>
     </section>
   );
 };
