@@ -60,14 +60,14 @@ const Index = () => {
               href="https://github.com/the9ines/localbolt" 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="inline-flex items-center gap-2 text-gray-400 hover:text-neon transition-all group"
+              className="inline-flex items-center gap-2 text-gray-400 hover:text-neon transition-colors"
             >
               <img 
                 src="/lovable-uploads/09f73644-2960-492d-a0ac-1102840edc69.png" 
                 alt="GitHub"
-                className="w-5 h-5 opacity-70 transition-all group-hover:opacity-100 group-hover:drop-shadow-[0_0_3px_rgba(20,255,106,0.7)]"
+                className="w-5 h-5 opacity-70 transition-opacity hover:opacity-100"
               />
-              <span className="transition-all group-hover:drop-shadow-[0_0_3px_rgba(20,255,106,0.7)]">GitHub</span>
+              <span>GitHub</span>
             </a>
           </div>
         </main>
