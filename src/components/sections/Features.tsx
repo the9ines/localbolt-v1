@@ -24,22 +24,22 @@ export const Features = () => {
     {
       icon: Shield,
       title: "End-to-End Encrypted",
-      description: "Your files never touch any servers, ensuring complete privacy"
+      description: "Secure device-to-device sharing"
     },
     {
       icon: Wifi,
       title: "Direct P2P Transfer",
-      description: "Lightning-fast device-to-device file sharing"
+      description: "Lightning fast transfers"
     },
     {
       icon: Database,
       title: "No Storage Limits",
-      description: "Transfer files of any size without restrictions"
+      description: "Files are never stored"
     },
     {
       icon: Zap,
       title: "Cross Platform",
-      description: "Works seamlessly across all devices & browsers"
+      description: "Works on all devices & browsers"
     }
   ];
 
