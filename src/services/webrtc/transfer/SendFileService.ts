@@ -52,15 +52,6 @@ export class SendFileService {
             fileSize: file.size
           };
 
-          // Update progress for sender
-          this.stateManager.updateTransferProgress(
-            file.name,
-            end,  // loaded bytes
-            file.size,  // total bytes
-            i + 1,  // current chunk
-            totalChunks  // total chunks
-          );
-
           if (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
             console.log('[TRANSFER] Waiting for buffer to clear');
             await new Promise(resolve => {
