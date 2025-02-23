@@ -57,7 +57,7 @@ const Index = () => {
 
           <div className="flex justify-center items-center pb-4">
             <a 
-              href="https://github.com/the9ines/localbolt" 
+              href="https://github.com/localbolt/localbolt" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="inline-flex items-center opacity-70 hover:opacity-100 transition-all group"
