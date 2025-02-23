@@ -12,6 +12,7 @@ export const Footer = () => {
       >
         <Zap className="w-4 h-4" />
         the9ines.com productions
+        <Zap className="w-4 h-4" />
       </a>
     </footer>
   );
