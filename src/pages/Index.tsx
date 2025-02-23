@@ -63,7 +63,7 @@ const Index = () => {
               className="inline-flex items-center opacity-70 hover:opacity-100 transition-all group"
             >
               <img 
-                src="/lovable-uploads/09f73644-2960-492d-a0ac-1102840edc69.png" 
+                src="/github-icon.png" 
                 alt="GitHub"
                 className="w-6 h-6 transition-all group-hover:drop-shadow-[0_0_3px_rgba(20,255,106,0.7)]"
               />
