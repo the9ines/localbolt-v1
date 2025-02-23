@@ -6,7 +6,6 @@ import { Features } from "@/components/sections/Features";
 import { Transfer } from "@/components/sections/Transfer";
 import { Footer } from "@/components/sections/Footer";
 import WebRTCService from "@/services/webrtc/WebRTCService";
-import { Github } from "lucide-react";
 
 const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -63,7 +62,11 @@ const Index = () => {
               rel="noopener noreferrer" 
               className="inline-flex items-center gap-2 text-gray-400 hover:text-neon transition-colors"
             >
-              <Github className="w-5 h-5" />
+              <img 
+                src="/lovable-uploads/09f73644-2960-492d-a0ac-1102840edc69.png" 
+                alt="GitHub"
+                className="w-5 h-5 opacity-70 transition-opacity hover:opacity-100"
+              />
               <span>GitHub</span>
             </a>
           </div>
