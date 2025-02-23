@@ -1,4 +1,3 @@
-
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { DragDropArea } from "./DragDropArea";
@@ -69,14 +68,14 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
       setTimeout(() => setProgress(null), 3000);
       toast({
         title: "Transfer cancelled",
-        description: "The file transfer was cancelled",
+        description: "The file transfer was cancelled"
       });
     } else if (transferProgress.status === 'error') {
       setTimeout(() => setProgress(null), 3000);
       toast({
         title: "Transfer error",
         description: "An error occurred during the transfer",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
@@ -97,10 +96,6 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
     if (webrtc && progress) {
       webrtc.cancelTransfer(progress.filename);
       setProgress(null);
-      toast({
-        title: "Transfer cancelled",
-        description: "The file transfer was cancelled",
-      });
     }
   };
 
@@ -109,7 +104,7 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
       toast({
         title: "Connection error",
         description: "No peer connection available",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
@@ -127,19 +122,17 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
       
       toast({
         title: "Transfer complete",
-        description: `${file.name} has been sent successfully`,
+        description: `${file.name} has been sent successfully`
       });
 
       setFiles(prevFiles => prevFiles.slice(1));
     } catch (error) {
       console.error('Transfer error:', error);
-      if (error.message === "Transfer cancelled by user") {
-        // Already handled by cancelTransfer
-      } else {
+      if (error.message !== "Transfer cancelled by user") {
         toast({
           title: "Transfer failed",
           description: "Failed to send file",
-          variant: "destructive",
+          variant: "destructive"
         });
       }
     }
