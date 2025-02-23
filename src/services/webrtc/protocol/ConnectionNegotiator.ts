@@ -35,7 +35,6 @@ export class ConnectionNegotiator {
       return negotiatedTransport;
     } catch (error) {
       throw new WebRTCError(
-        'NegotiationError',
         'Failed to negotiate connection',
         { remotePeerId, error }
       );

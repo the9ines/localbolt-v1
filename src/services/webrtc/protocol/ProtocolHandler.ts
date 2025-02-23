@@ -46,13 +46,17 @@ export class ProtocolHandler {
 
   public createConnectionRequest(
     peerId: string,
-    preferredTransport: TransportMode[] = [TransportMode.WebRTC]
+    preferredTransport: TransportMode[] = [TransportMode.WebRTC],
+    remoteDeviceType?: DeviceType
   ): ConnectionMessage {
     return {
       type: MessageType.CONNECTION_REQUEST,
       peerId,
       timestamp: Date.now(),
-      protocol: this.protocolMetadata,
+      protocol: {
+        ...this.protocolMetadata,
+        deviceType: remoteDeviceType || this.protocolMetadata.deviceType
+      },
       preferredTransport
     };
   }
