@@ -32,15 +32,22 @@ class WebRTCService {
   ) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     
+    // Initialize encryption first
     this.encryptionService = new EncryptionService();
-    this.onProgressCallback = onProgress;
+    const publicKey = this.encryptionService.getPublicKey();
+    console.log('[INIT] Generated public key:', publicKey);
     
+    this.onProgressCallback = onProgress;
     this.initializeServices();
     this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
   }
 
   private initializeServices() {
-    this.signalingService = new SignalingService(this.localPeerCode, this.handleSignal.bind(this));
+    // Initialize signaling with encryption keys
+    this.signalingService = new SignalingService(
+      this.localPeerCode,
+      this.handleSignal.bind(this)
+    );
     
     this.networkDiscovery = new NetworkDiscovery(
       this.signalingService,
@@ -126,6 +133,12 @@ class WebRTCService {
     
     try {
       this.remotePeerCode = remotePeerCode;
+      
+      // Generate new encryption keys for each connection
+      this.encryptionService.generateNewKeyPair();
+      const publicKey = this.encryptionService.getPublicKey();
+      console.log('[WEBRTC] Using public key for connection:', publicKey);
+      
       await this.connectionNegotiator.negotiateConnection(remotePeerCode);
     } catch (error) {
       console.error('[WEBRTC] Connection failed:', error);
