@@ -5,7 +5,6 @@ import { FileUpload } from "@/components/file-upload/FileUpload";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { ForwardedRef, forwardRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
 import { Shield } from "lucide-react";
 
 interface TransferProps {
