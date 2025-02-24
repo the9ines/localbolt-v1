@@ -134,8 +134,8 @@ class WebRTCService {
     try {
       this.remotePeerCode = remotePeerCode;
       
-      // Generate new encryption keys for each connection
-      this.encryptionService.generateNewKeyPair();
+      // Reset encryption service to generate new keys
+      this.encryptionService.reset();
       const publicKey = this.encryptionService.getPublicKey();
       console.log('[WEBRTC] Using public key for connection:', publicKey);
       
