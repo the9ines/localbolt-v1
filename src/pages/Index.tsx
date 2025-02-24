@@ -14,10 +14,17 @@ const Index = () => {
   const transferSectionRef = useRef<HTMLDivElement>(null);
 
   const handleConnectionChange = (connected: boolean, service?: WebRTCService) => {
-    console.log('[UI] Connection change:', connected, !!service);
+    console.log('[INDEX] Connection change:', connected, !!service);
     setIsConnected(connected);
     if (service) {
       setWebrtc(service);
+      // Ensure the service has a connection state handler
+      service.setConnectionStateHandler((state) => {
+        console.log('[INDEX] WebRTC connection state:', state);
+        setIsConnected(state === 'connected');
+      });
+    } else if (!connected) {
+      setWebrtc(null);
     }
   };
 
