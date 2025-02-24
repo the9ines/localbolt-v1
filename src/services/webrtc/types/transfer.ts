@@ -31,4 +31,6 @@ export interface FileChunkMessage {
   cancelledBy?: 'sender' | 'receiver';
   paused?: boolean;
   resumed?: boolean;
+  requestMissingChunks?: boolean;
+  missingChunks?: number[];
 }

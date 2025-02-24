@@ -1,3 +1,4 @@
+
 import type { TransferProgress, FileChunkMessage } from '../types/transfer';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferError } from '@/types/webrtc-errors';
@@ -65,7 +66,6 @@ export class TransferManager {
 
   handleCleanup(filename: string) {
     if (this.chunksBuffer[filename]) {
-      const totalChunks = this.chunksBuffer[filename].length;
       delete this.chunksBuffer[filename];
       delete this.transferProgress[filename];
       
