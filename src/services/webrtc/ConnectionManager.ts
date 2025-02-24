@@ -8,13 +8,13 @@ export class ConnectionManager {
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private connectionStateHandler: ConnectionStateHandler;
   private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
+  private hasRemoteDescription = false;
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
     private onError: (error: Error) => void,
     private onDataChannel?: (channel: RTCDataChannel) => void
   ) {
-    // Define handlers as arrow functions to preserve 'this' binding
     const handleReconnect = async (): Promise<void> => {
       console.log('[CONNECTION] Initiating reconnection');
       
@@ -36,6 +36,7 @@ export class ConnectionManager {
     };
 
     const handleConnectionStateChange = (state: RTCPeerConnectionState): void => {
+      console.log('[CONNECTION] State handler called with state:', state);
       if (this.connectionStateChangeCallback) {
         this.connectionStateChangeCallback(state);
       }
@@ -65,6 +66,7 @@ export class ConnectionManager {
       rtcpMuxPolicy: 'require'
     });
 
+    this.hasRemoteDescription = false;
     this.setupConnectionListeners();
     return this.peerConnection;
   }
@@ -81,6 +83,8 @@ export class ConnectionManager {
         console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
         this.connectionStateHandler.cacheIceCandidate(event.candidate);
         this.onIceCandidate(event.candidate);
+      } else {
+        console.log('[ICE] All ICE candidates have been gathered');
       }
     };
 
@@ -92,11 +96,15 @@ export class ConnectionManager {
         console.log('[ICE] Negotiating connection...');
       } else if (state === 'connected' || state === 'completed') {
         console.log('[ICE] Connection established');
-        // Process any pending candidates once connected
-        this.processPendingCandidates().catch(console.error);
+        this.processPendingCandidates().catch(error => {
+          console.error('[ICE] Error processing pending candidates:', error);
+        });
       } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
         console.error('[ICE] Connection failed:', state);
-        this.onError(new ConnectionError("ICE connection failed", { state }));
+        // Don't immediately error on disconnected state, give it a chance to recover
+        if (state === 'failed' || state === 'closed') {
+          this.onError(new ConnectionError("ICE connection failed", { state }));
+        }
       }
     };
 
@@ -104,7 +112,13 @@ export class ConnectionManager {
       const state = this.peerConnection?.connectionState;
       if (state) {
         console.log('[CONNECTION] State changed to:', state);
-        this.connectionStateHandler.handleConnectionStateChange(state);
+        
+        // Only notify of connection changes if we have a remote description
+        if (this.hasRemoteDescription) {
+          this.connectionStateHandler.handleConnectionStateChange(state);
+        } else {
+          console.log('[CONNECTION] Ignoring state change - no remote description yet');
+        }
       }
     };
 
@@ -112,6 +126,16 @@ export class ConnectionManager {
       console.log('[DATACHANNEL] Received data channel');
       if (this.onDataChannel) {
         this.onDataChannel(event.channel);
+      }
+    };
+
+    this.peerConnection.onsignalingstatechange = () => {
+      const state = this.peerConnection?.signalingState;
+      console.log('[SIGNALING] State changed to:', state);
+      
+      if (state === 'stable') {
+        this.hasRemoteDescription = true;
+        this.processPendingCandidates().catch(console.error);
       }
     };
   }
@@ -124,11 +148,11 @@ export class ConnectionManager {
     }
 
     try {
-      if (this.peerConnection.remoteDescription) {
+      if (this.peerConnection.remoteDescription && this.peerConnection.currentRemoteDescription) {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         console.log('[ICE] Added ICE candidate successfully');
       } else {
-        console.log('[ICE] Queuing ICE candidate (no remote description)');
+        console.log('[ICE] Queuing ICE candidate (no remote description yet)');
         this.pendingIceCandidates.push(candidate);
       }
     } catch (error) {
@@ -138,7 +162,7 @@ export class ConnectionManager {
   }
 
   private async processPendingCandidates() {
-    if (!this.peerConnection) return;
+    if (!this.peerConnection || !this.hasRemoteDescription) return;
 
     console.log('[ICE] Processing pending candidates:', this.pendingIceCandidates.length);
     
@@ -148,10 +172,9 @@ export class ConnectionManager {
     for (const candidate of candidates) {
       try {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('[ICE] Added pending ICE candidate');
+        console.log('[ICE] Added pending ICE candidate successfully');
       } catch (error) {
         console.error('[ICE] Failed to add pending ICE candidate:', error);
-        // Only re-queue if connection is still alive
         if (this.peerConnection.connectionState !== 'closed') {
           this.pendingIceCandidates.push(candidate);
         }
@@ -161,6 +184,7 @@ export class ConnectionManager {
 
   disconnect() {
     this.connectionStateHandler.reset();
+    this.hasRemoteDescription = false;
     if (this.peerConnection) {
       console.log('[WEBRTC] Closing connection');
       this.peerConnection.close();
