@@ -14,8 +14,8 @@ export class NetworkDiscovery {
   };
 
   constructor(
-    private signalingService: SignalingService,
-    private localPeerInfo: PeerInfo,
+    private signalingService?: SignalingService,
+    private localPeerInfo?: PeerInfo,
     private onPeerDiscovered?: (peer: DiscoveredPeer) => void
   ) {
     this.checkMdnsSupport();
@@ -88,7 +88,7 @@ export class NetworkDiscovery {
       discoveryChannel.onopen = () => {
         if (discoveryChannel.readyState === 'open') {
           const localPeer: DiscoveredPeer = {
-            ...this.localPeerInfo,
+            ...this.localPeerInfo!,
             timestamp: Date.now()
           };
           discoveryChannel.send(JSON.stringify(localPeer));

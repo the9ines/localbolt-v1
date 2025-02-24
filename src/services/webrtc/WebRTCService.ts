@@ -1,3 +1,4 @@
+
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -39,7 +40,20 @@ class WebRTCService {
   }
 
   private initializeServices() {
-    this.networkDiscovery = new NetworkDiscovery();
+    this.signalingService = new SignalingService(this.localPeerCode, this.handleSignal.bind(this));
+    
+    this.networkDiscovery = new NetworkDiscovery(
+      this.signalingService,
+      {
+        deviceId: this.localPeerCode,
+        capabilities: {
+          mdns: true,
+          webrtc: true,
+          encryption: ['aes-gcm']
+        },
+        networkType: 'local'
+      }
+    );
     
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
@@ -64,8 +78,6 @@ class WebRTCService {
       this.handleError.bind(this),
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
-
-    this.signalingService = new SignalingService(this.localPeerCode, this.handleSignal.bind(this));
     
     this.signalingHandler = new SignalingHandler(
       this.connectionManager,
@@ -87,7 +99,9 @@ class WebRTCService {
       this.signalingService,
       (state) => {
         if (this.eventManager) {
-          this.eventManager.handleConnectionStateChange(state);
+          this.eventManager.setConnectionStateListener((newState) => {
+            this.eventManager.connectionStateListener?.(newState);
+          });
         }
       }
     );
