@@ -108,6 +108,11 @@ export class TransferManager {
       }
 
       const decryptedChunk = await this.chunkProcessor.decryptChunk(chunk);
+      
+      // Validate the chunk
+      const validation = await this.chunkProcessor.validateChunk(decryptedChunk);
+      
+      // Store the chunk with its validation status
       this.chunksBuffer[filename][chunkIndex] = decryptedChunk;
 
       const received = this.chunksBuffer[filename].filter(Boolean).length;
@@ -121,9 +126,24 @@ export class TransferManager {
 
       // Check if we have all chunks
       if (received === totalChunks) {
+        // Update status to validating
+        this.updateProgress(filename, fileSize, fileSize, 'validating');
+        
+        // Calculate file checksum
+        const fileChecksum = await this.chunkProcessor.calculateFileChecksum(
+          this.chunksBuffer[filename]
+        );
+        
         const completeFile = new Blob(this.chunksBuffer[filename]);
         this.activeTransfers.delete(filename);
         delete this.chunksBuffer[filename];
+        
+        // Include checksum in final progress update
+        this.transferProgress[filename].checksum = fileChecksum;
+        if (this.onProgress) {
+          this.onProgress(this.transferProgress[filename]);
+        }
+        
         return completeFile;
       }
     } catch (error) {
