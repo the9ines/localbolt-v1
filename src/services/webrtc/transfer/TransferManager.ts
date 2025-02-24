@@ -1,9 +1,9 @@
-
 import type { TransferProgress, FileChunkMessage } from '../types/transfer';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferError } from '@/types/webrtc-errors';
 import { TransferStorageHandler } from './handlers/TransferStorageHandler';
 import { ChunkHandler } from './handlers/ChunkHandler';
+import { RetryHandler } from './handlers/RetryHandler';
 
 export class TransferManager {
   private chunksBuffer: { [key: string]: Blob[] } = {};
@@ -13,6 +13,7 @@ export class TransferManager {
   
   private storageHandler: TransferStorageHandler;
   private chunkHandler: ChunkHandler;
+  private retryHandler: RetryHandler;
 
   constructor(
     private dataChannel: RTCDataChannel,
@@ -21,6 +22,7 @@ export class TransferManager {
   ) {
     this.chunkHandler = new ChunkHandler(chunkProcessor);
     this.storageHandler = new TransferStorageHandler();
+    this.retryHandler = new RetryHandler();
     this.loadSavedProgress();
   }
 
@@ -113,28 +115,40 @@ export class TransferManager {
       this.activeTransfers.add(filename);
     }
 
+    const chunkKey = `${filename}-${chunkIndex}`;
+
     try {
       if (this.isPaused) {
         console.log('[TRANSFER] Skipping chunk processing while paused');
         return null;
       }
 
-      const { received } = await this.chunkHandler.processChunk(
-        chunk,
-        chunkIndex,
-        this.chunksBuffer[filename],
-        fileSize,
-        totalChunks
-      );
-      
-      await this.updateProgress(
-        filename,
-        received * (fileSize / totalChunks),
-        fileSize,
-        'transferring'
+      const result = await this.retryHandler.executeWithRetry(
+        chunkKey,
+        async () => {
+          const { received } = await this.chunkHandler.processChunk(
+            chunk,
+            chunkIndex,
+            this.chunksBuffer[filename],
+            fileSize,
+            totalChunks
+          );
+
+          await this.updateProgress(
+            filename,
+            received * (fileSize / totalChunks),
+            fileSize,
+            'transferring'
+          );
+
+          return { received };
+        },
+        (attempt, delay) => {
+          console.log(`[RETRY] Attempt ${attempt} for chunk ${chunkIndex} of ${filename}, next retry in ${delay}ms`);
+        }
       );
 
-      if (received === totalChunks) {
+      if (result.received === totalChunks) {
         await this.updateProgress(filename, fileSize, fileSize, 'validating');
         
         const { file, checksum } = await this.chunkHandler.finalizeFile(
