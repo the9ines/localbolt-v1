@@ -19,6 +19,8 @@ class WebRTCService {
   private retryHandler: WebRTCRetryHandler;
   private onProgressCallback?: (progress: TransferProgress) => void;
   private networkStateHandler?: (isOnline: boolean) => void;
+  private monitoringInterval?: NodeJS.Timeout;
+  private qualityChangeCallback?: (metrics: ConnectionQualityMetrics) => void;
 
   constructor(
     private localPeerCode: string,
@@ -255,6 +257,76 @@ class WebRTCService {
   private handleSignal = async (signal: SignalData) => {
     await this.signalingHandler.handleSignal(signal);
   };
+
+  startQualityMonitoring(callback: (metrics: ConnectionQualityMetrics) => void) {
+    this.qualityChangeCallback = callback;
+    const connection = this.connectionManager.getPeerConnection();
+    
+    if (!connection) {
+      console.warn('[QUALITY] No peer connection available for monitoring');
+      return;
+    }
+
+    this.monitoringInterval = setInterval(async () => {
+      try {
+        const stats = await connection.getStats();
+        const metrics = this.processConnectionStats(stats);
+        if (this.qualityChangeCallback) {
+          this.qualityChangeCallback(metrics);
+        }
+      } catch (error) {
+        console.error('[QUALITY] Failed to get connection stats:', error);
+      }
+    }, 2000);
+  }
+
+  stopQualityMonitoring() {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = undefined;
+    }
+    this.qualityChangeCallback = undefined;
+  }
+
+  private processConnectionStats(stats: RTCStatsReport): ConnectionQualityMetrics {
+    let rtt = 0;
+    let packetLoss = 0;
+    let bandwidth = 0;
+
+    stats.forEach(stat => {
+      if (stat.type === 'candidate-pair' && stat.state === 'succeeded') {
+        rtt = stat.currentRoundTripTime ? stat.currentRoundTripTime * 1000 : 0;
+      }
+      if (stat.type === 'inbound-rtp') {
+        packetLoss = stat.packetsLost ? (stat.packetsLost / stat.packetsReceived) * 100 : 0;
+      }
+      if (stat.type === 'media-source') {
+        bandwidth = stat.bitrate || 0;
+      }
+    });
+
+    let quality: ConnectionQualityMetrics['currentQuality'] = 'good';
+    
+    if (rtt < 50 && packetLoss < 0.5) {
+      quality = 'excellent';
+    } else if (rtt < 150 && packetLoss < 2) {
+      quality = 'good';
+    } else if (rtt < 300 && packetLoss < 5) {
+      quality = 'fair';
+    } else if (rtt < 500 && packetLoss < 10) {
+      quality = 'poor';
+    } else {
+      quality = 'critical';
+    }
+
+    return {
+      rtt,
+      packetLoss,
+      bandwidth,
+      currentQuality: quality,
+      timestamp: Date.now()
+    };
+  }
 }
 
 export default WebRTCService;

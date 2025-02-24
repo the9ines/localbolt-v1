@@ -1,6 +1,4 @@
 
-import { WebRTCError } from '@/types/webrtc-errors';
-
 export interface ConnectionQualityMetrics {
   rtt?: number;              // Round trip time in ms
   packetLoss?: number;       // Packet loss percentage
