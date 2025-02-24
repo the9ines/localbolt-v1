@@ -5,15 +5,28 @@ import { BaseTransferHandler } from './base/BaseTransferHandler';
 export class CancelHandler extends BaseTransferHandler {
   private processingCancel: boolean = false;
   private canceledTransfers: Set<string> = new Set();
+  private lastCancelTime: Map<string, number> = new Map();
+  private CANCEL_COOLDOWN = 1000; // 1 second cooldown between cancel messages
 
   handleCancel({ filename, isReceiver }: TransferControlMessage): void {
     try {
+      const now = Date.now();
+      const lastCancel = this.lastCancelTime.get(filename) || 0;
+      
+      // Prevent duplicate cancel processing within cooldown period
+      if (now - lastCancel < this.CANCEL_COOLDOWN) {
+        console.log('[STATE] Ignoring duplicate cancel within cooldown for:', filename);
+        return;
+      }
+
+      // Already cancelled and cleaned up
       if (this.processingCancel || this.canceledTransfers.has(filename)) {
         console.log('[STATE] Already processed cancel for:', filename);
         return;
       }
 
       this.processingCancel = true;
+      this.lastCancelTime.set(filename, now);
       console.log(`[STATE] Processing cancel request for ${filename}`);
 
       // Get transfer state
@@ -29,13 +42,15 @@ export class CancelHandler extends BaseTransferHandler {
 
       const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
       
-      // Emit progress update
-      if (currentProgress) {
-        this.emitProgressUpdate(filename, status, currentProgress);
-      } else if (transfer?.progress) {
-        this.emitProgressUpdate(filename, status, transfer.progress);
-      } else {
-        this.emitProgressUpdate(filename, status);
+      // Only emit progress update if we haven't for this cancel
+      if (!this.canceledTransfers.has(filename)) {
+        if (currentProgress) {
+          this.emitProgressUpdate(filename, status, currentProgress);
+        } else if (transfer?.progress) {
+          this.emitProgressUpdate(filename, status, transfer.progress);
+        } else {
+          this.emitProgressUpdate(filename, status);
+        }
       }
 
       // Clean up transfer states
@@ -59,5 +74,6 @@ export class CancelHandler extends BaseTransferHandler {
   reset(): void {
     this.processingCancel = false;
     this.canceledTransfers.clear();
+    this.lastCancelTime.clear();
   }
 }
