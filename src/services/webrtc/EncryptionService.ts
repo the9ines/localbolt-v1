@@ -16,13 +16,7 @@ export class EncryptionService {
   }
 
   setRemotePublicKey(publicKeyBase64: string) {
-    try {
-      this.remotePeerPublicKey = decodeBase64(publicKeyBase64);
-      console.log('[ENCRYPTION] Set remote public key:', publicKeyBase64);
-    } catch (error) {
-      console.error('[ENCRYPTION] Invalid public key format:', error);
-      throw new EncryptionError("Invalid public key format", error);
-    }
+    this.remotePeerPublicKey = decodeBase64(publicKeyBase64);
   }
 
   async encryptChunk(chunk: Uint8Array): Promise<Uint8Array> {
@@ -39,14 +33,8 @@ export class EncryptionService {
         this.remotePeerPublicKey,
         this.keyPair.secretKey
       );
-
-      if (!encryptedChunk) {
-        throw new EncryptionError("Encryption failed");
-      }
-
       return new Uint8Array([...nonce, ...encryptedChunk]);
     } catch (error) {
-      console.error('[ENCRYPTION] Encryption failed:', error);
       throw new EncryptionError("Failed to encrypt chunk", error);
     }
   }
@@ -73,14 +61,11 @@ export class EncryptionService {
       
       return decryptedChunk;
     } catch (error) {
-      console.error('[ENCRYPTION] Decryption failed:', error);
       throw new EncryptionError("Failed to decrypt chunk", error);
     }
   }
 
   reset() {
-    console.log('[ENCRYPTION] Resetting encryption service');
-    this.keyPair = box.keyPair();
     this.remotePeerPublicKey = null;
   }
 }

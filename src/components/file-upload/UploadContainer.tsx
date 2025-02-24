@@ -1,4 +1,3 @@
-
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { DragDropArea } from "./DragDropArea";
@@ -6,7 +5,7 @@ import { FileList } from "./FileList";
 import { TransferProgressBar } from "./TransferProgress";
 import { Button } from "@/components/ui/button";
 import WebRTCService from "@/services/webrtc/WebRTCService";
-import type { TransferProgress } from "@/services/webrtc/types/transfer";
+import type { TransferProgress } from "@/services/webrtc/FileTransferService";
 
 interface UploadContainerProps {
   webrtc: WebRTCService;
