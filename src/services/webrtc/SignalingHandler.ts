@@ -9,6 +9,8 @@ export class SignalingHandler {
   private remotePeerCode: string = '';
   private hasReceivedOffer: boolean = false;
   private hasReceivedAnswer: boolean = false;
+  private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+  private readonly CONNECTION_TIMEOUT = 30000; // 30 seconds
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -27,25 +29,33 @@ export class SignalingHandler {
     
     const peerConnection = await this.connectionManager.createPeerConnection();
     
-    // Set remote description first
-    const offerDesc = new RTCSessionDescription(signal.data.offer);
-    await peerConnection.setRemoteDescription(offerDesc);
-    console.log('[SIGNALING] Set remote description (offer)');
-    
-    // Create and set local answer
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    console.log('[SIGNALING] Created and sending answer');
-    
-    await this.signalingService.sendSignal('answer', {
-      answer,
-      publicKey: this.encryptionService.getPublicKey(),
-      peerCode: this.localPeerCode
-    }, signal.from);
+    try {
+      // Set remote description first
+      const offerDesc = new RTCSessionDescription(signal.data.offer);
+      await peerConnection.setRemoteDescription(offerDesc);
+      console.log('[SIGNALING] Set remote description (offer)');
+      
+      // Create and set local answer
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      console.log('[SIGNALING] Created and sending answer');
+      
+      await this.signalingService.sendSignal('answer', {
+        answer,
+        publicKey: this.encryptionService.getPublicKey(),
+        peerCode: this.localPeerCode
+      }, signal.from);
 
-    // Now that we have both descriptions, process any pending candidates
-    console.log('[SIGNALING] Processing pending candidates after offer');
-    await this.processPendingCandidates();
+      // Set connection timeout
+      this.setConnectionTimeout();
+
+      // Now that we have both descriptions, process any pending candidates
+      console.log('[SIGNALING] Processing pending candidates after offer');
+      await this.processPendingCandidates();
+    } catch (error) {
+      console.error('[SIGNALING] Error handling offer:', error);
+      throw new ConnectionError("Failed to process offer", error);
+    }
   }
 
   private async handleAnswer(signal: SignalData) {
@@ -60,12 +70,44 @@ export class SignalingHandler {
       throw new ConnectionError("No peer connection established");
     }
 
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
-    console.log('[SIGNALING] Set remote description (answer)');
+    try {
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
+      console.log('[SIGNALING] Set remote description (answer)');
+      
+      // Set connection timeout
+      this.setConnectionTimeout();
+      
+      // Process any pending candidates now that we have both descriptions
+      console.log('[SIGNALING] Processing pending candidates after answer');
+      await this.processPendingCandidates();
+    } catch (error) {
+      console.error('[SIGNALING] Error handling answer:', error);
+      throw new ConnectionError("Failed to process answer", error);
+    }
+  }
+
+  private setConnectionTimeout() {
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+    }
     
-    // Process any pending candidates now that we have both descriptions
-    console.log('[SIGNALING] Processing pending candidates after answer');
-    await this.processPendingCandidates();
+    this.connectionTimeout = setTimeout(() => {
+      if (!this.connectionManager.isConnected()) {
+        console.error('[SIGNALING] Connection timeout');
+        this.resetState();
+        throw new ConnectionError("Connection timeout");
+      }
+    }, this.CONNECTION_TIMEOUT);
+  }
+
+  private resetState() {
+    this.hasReceivedOffer = false;
+    this.hasReceivedAnswer = false;
+    this.pendingCandidates = [];
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
   }
 
   private async processPendingCandidates() {
@@ -139,6 +181,7 @@ export class SignalingHandler {
       }
     } catch (error) {
       console.error('[SIGNALING] Handler error:', error);
+      this.resetState();
       throw error;
     }
   }

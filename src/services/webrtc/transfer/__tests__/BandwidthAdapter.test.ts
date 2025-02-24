@@ -43,7 +43,7 @@ describe('BandwidthAdapter', () => {
     const metrics: ConnectionQualityMetrics = {
       rtt: 100,
       packetLoss: 0,
-      throughput: 1000000,
+      bytesReceived: 1000000,
       timestamp: Date.now()
     };
 
@@ -60,7 +60,7 @@ describe('BandwidthAdapter', () => {
     const highLossMetrics: ConnectionQualityMetrics = {
       rtt: 100,
       packetLoss: 0.02,
-      throughput: 1000000,
+      bytesReceived: 1000000,
       timestamp: Date.now()
     };
 
@@ -73,7 +73,7 @@ describe('BandwidthAdapter', () => {
     const poorMetrics: ConnectionQualityMetrics = {
       rtt: 500,
       packetLoss: 0.1,
-      throughput: 100000,
+      bytesReceived: 100000,
       timestamp: Date.now()
     };
 
@@ -83,7 +83,7 @@ describe('BandwidthAdapter', () => {
     const excellentMetrics: ConnectionQualityMetrics = {
       rtt: 20,
       packetLoss: 0,
-      throughput: 10000000,
+      bytesReceived: 10000000,
       timestamp: Date.now()
     };
 
@@ -95,7 +95,7 @@ describe('BandwidthAdapter', () => {
     const metrics: ConnectionQualityMetrics = {
       rtt: 100,
       packetLoss: 0,
-      throughput: 1000000,
+      bytesReceived: 1000000,
       timestamp: Date.now()
     };
     
@@ -109,7 +109,7 @@ describe('BandwidthAdapter', () => {
     adapter.updateQuality('excellent', {
       rtt: 20,
       packetLoss: 0,
-      throughput: 10000000,
+      bytesReceived: 10000000,
       timestamp: Date.now()
     });
     
