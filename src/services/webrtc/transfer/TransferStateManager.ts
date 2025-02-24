@@ -11,12 +11,26 @@ export class TransferStateManager {
   private progressEmitter: ProgressEmitter;
   private progressHandler: TransferProgressHandler;
   private controlHandler: TransferControlHandler;
+  private isCleaningUp: boolean = false;
+  private stateUpdateTimeout: NodeJS.Timeout | null = null;
+  private readonly STATE_UPDATE_DELAY = 16; // ~1 frame @ 60fps
 
   constructor(onProgress?: (progress: TransferProgress) => void) {
     this.store = new TransferStore();
     this.progressEmitter = new ProgressEmitter(onProgress);
     this.progressHandler = new TransferProgressHandler(this.store, this.progressEmitter);
     this.controlHandler = new TransferControlHandler(this.store, this.progressEmitter);
+  }
+
+  private debouncedStateUpdate(callback: () => void) {
+    if (this.stateUpdateTimeout) {
+      clearTimeout(this.stateUpdateTimeout);
+    }
+
+    this.stateUpdateTimeout = setTimeout(() => {
+      callback();
+      this.stateUpdateTimeout = null;
+    }, this.STATE_UPDATE_DELAY);
   }
 
   getCurrentTransfer() {
@@ -39,6 +53,11 @@ export class TransferStateManager {
     try {
       console.log(`[STATE] Starting new transfer for ${filename}`);
       
+      if (this.isCleaningUp) {
+        console.log('[STATE] Cannot start new transfer while cleanup is in progress');
+        return;
+      }
+      
       // Clear any existing transfer state first
       this.reset();
       
@@ -53,16 +72,18 @@ export class TransferStateManager {
         }
       };
 
-      // Initialize transfer state
-      this.store.setTransfer(newTransfer);
-      this.store.updateState({
-        isPaused: false,
-        isCancelled: false,
-        currentTransfer: newTransfer
+      this.debouncedStateUpdate(() => {
+        // Initialize transfer state
+        this.store.setTransfer(newTransfer);
+        this.store.updateState({
+          isPaused: false,
+          isCancelled: false,
+          currentTransfer: newTransfer
+        });
+        
+        console.log('[STATE] Transfer started, initial state:', newTransfer);
+        this.progressEmitter.emit(filename, 'transferring');
       });
-      
-      console.log('[STATE] Transfer started, initial state:', newTransfer);
-      this.progressEmitter.emit(filename, 'transferring');
     } catch (error) {
       console.error('[STATE] Error starting transfer:', error);
       this.reset();
@@ -71,26 +92,44 @@ export class TransferStateManager {
 
   handlePause(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling pause request', message);
+    if (this.isCleaningUp) return false;
+    
     const success = this.controlHandler.handlePause(message);
     if (success) {
-      this.store.updateState({ isPaused: true });
+      this.debouncedStateUpdate(() => {
+        this.store.updateState({ isPaused: true });
+      });
     }
     return success;
   }
 
   handleResume(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling resume request', message);
+    if (this.isCleaningUp) return false;
+    
     const success = this.controlHandler.handleResume(message);
     if (success) {
-      this.store.updateState({ isPaused: false });
+      this.debouncedStateUpdate(() => {
+        this.store.updateState({ isPaused: false });
+      });
     }
     return success;
   }
 
   handleCancel(message: TransferControlMessage): void {
     console.log('[STATE] Handling cancel request', message);
-    this.controlHandler.handleCancel(message);
-    this.reset();
+    if (this.isCleaningUp) return;
+    
+    this.isCleaningUp = true;
+    
+    try {
+      this.controlHandler.handleCancel(message);
+    } finally {
+      this.debouncedStateUpdate(() => {
+        this.reset();
+        this.isCleaningUp = false;
+      });
+    }
   }
 
   updateTransferProgress(
@@ -100,15 +139,28 @@ export class TransferStateManager {
     currentChunk: number,
     totalChunks: number
   ) {
+    // Don't update progress if we're cleaning up
+    if (this.isCleaningUp || this.store.isCancelled()) {
+      return;
+    }
+
     // Create transfer if it doesn't exist
     if (!this.store.isTransferActive(filename)) {
       this.startTransfer(filename, total);
     }
-    this.progressHandler.updateProgress(filename, loaded, total, currentChunk, totalChunks);
+
+    this.debouncedStateUpdate(() => {
+      this.progressHandler.updateProgress(filename, loaded, total, currentChunk, totalChunks);
+    });
   }
 
   reset() {
     console.log('[STATE] Resetting transfer state');
+    if (this.stateUpdateTimeout) {
+      clearTimeout(this.stateUpdateTimeout);
+      this.stateUpdateTimeout = null;
+    }
+    
     const currentTransfer = this.store.getCurrentTransfer();
     
     if (currentTransfer?.progress) {
