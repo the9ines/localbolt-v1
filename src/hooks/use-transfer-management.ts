@@ -12,10 +12,14 @@ export const useTransferManagement = (
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
   const cancelToastShown = useRef(false);
+  const completionToastShown = useRef(false);
+  const errorToastShown = useRef(false);
 
   const resetTransfer = useCallback(() => {
     setProgress(null);
     cancelToastShown.current = false;
+    completionToastShown.current = false;
+    errorToastShown.current = false;
   }, []);
 
   const handleProgress = useCallback((transferProgress: TransferProgress) => {
@@ -28,7 +32,9 @@ export const useTransferManagement = (
     // Handle completed transfer
     if (transferProgress.status === 'transferring' && 
         transferProgress.loaded === transferProgress.total && 
-        transferProgress.total > 0) {
+        transferProgress.total > 0 && 
+        !completionToastShown.current) {
+      completionToastShown.current = true;
       resetTransfer();
       toast({
         title: "Transfer complete",
@@ -39,7 +45,13 @@ export const useTransferManagement = (
 
     // Update progress for active transfer
     if (transferProgress.status === 'transferring' || transferProgress.status === 'paused') {
-      setProgress(transferProgress);
+      setProgress(prevProgress => {
+        // Preserve pause state when receiving new progress
+        if (prevProgress?.status === 'paused' && transferProgress.status === 'transferring') {
+          return { ...transferProgress, status: 'paused' };
+        }
+        return transferProgress;
+      });
       return;
     }
 
@@ -47,23 +59,25 @@ export const useTransferManagement = (
     if ((transferProgress.status === 'canceled_by_sender' || 
          transferProgress.status === 'canceled_by_receiver') && 
         !cancelToastShown.current) {
-      resetTransfer();
       cancelToastShown.current = true;
+      const cancelledBy = transferProgress.status === 'canceled_by_sender' ? 'sender' : 'receiver';
       toast({
         title: "Transfer cancelled",
-        description: "The file transfer was cancelled"
+        description: `The file transfer was cancelled by the ${cancelledBy}`
       });
+      resetTransfer();
       return;
     }
 
     // Handle errors
-    if (transferProgress.status === 'error') {
-      resetTransfer();
+    if (transferProgress.status === 'error' && !errorToastShown.current) {
+      errorToastShown.current = true;
       toast({
         title: "Transfer error",
         description: "An error occurred during the transfer",
         variant: "destructive"
       });
+      resetTransfer();
       return;
     }
   }, [toast, resetTransfer]);
@@ -71,21 +85,32 @@ export const useTransferManagement = (
   const handlePauseTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
       webrtc.pauseTransfer(progress.filename);
+      setProgress(prev => prev ? { ...prev, status: 'paused' } : null);
+      toast({
+        title: "Transfer paused",
+        description: "File transfer has been paused"
+      });
     }
-  }, [webrtc, progress]);
+  }, [webrtc, progress, toast]);
 
   const handleResumeTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
       webrtc.resumeTransfer(progress.filename);
+      setProgress(prev => prev ? { ...prev, status: 'transferring' } : null);
+      toast({
+        title: "Transfer resumed",
+        description: "File transfer has been resumed"
+      });
     }
-  }, [webrtc, progress]);
+  }, [webrtc, progress, toast]);
 
   const cancelTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
       webrtc.cancelTransfer(progress.filename);
-      resetTransfer();
+      // Don't call resetTransfer() here - wait for the cancel event to come through handleProgress
+      // This ensures both sides handle the cancellation consistently
     }
-  }, [webrtc, progress, resetTransfer]);
+  }, [webrtc, progress]);
 
   const startTransfer = useCallback(async () => {
     if (!webrtc || !files.length) {
@@ -95,6 +120,8 @@ export const useTransferManagement = (
     // If there's an active transfer, cancel it first
     if (progress) {
       await cancelTransfer();
+      // Wait a bit for the cancellation to process
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     try {
@@ -112,16 +139,17 @@ export const useTransferManagement = (
       setFiles(files.filter((_, index) => index !== 0));
       
       console.log('[TRANSFER] Transfer completed for:', file.name);
-      
-      toast({
-        title: "Transfer complete",
-        description: `${file.name} has been sent successfully`
-      });
     } catch (error) {
       console.error('[TRANSFER] Transfer error:', error);
-      resetTransfer();
       
-      if (error.message !== "Transfer cancelled by user") {
+      if (error.message === "Transfer cancelled by user") {
+        // Let the cancel handler deal with the toast
+        return;
+      }
+      
+      resetTransfer();
+      if (!errorToastShown.current) {
+        errorToastShown.current = true;
         toast({
           title: "Transfer failed",
           description: "Failed to send file",
