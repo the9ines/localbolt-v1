@@ -1,21 +1,19 @@
 
-import type { FileChunkMessage } from '../types/transfer';
-import type { TransferProgress } from '../types/transfer';
-import { TransferStateManager } from './TransferStateManager';
-import { TransferManager } from './TransferManager';
+import type { DataChannel } from '../types/data-channel';
+import type { FileChunkMessage, TransferProgress } from '../types/transfer';
+import type { TransferManager } from './TransferManager';
+import type { TransferStateManager } from './TransferStateManager';
 
 export class TransferControlService {
   constructor(
-    private dataChannel: RTCDataChannel,
+    private dataChannel: DataChannel,
     private stateManager: TransferStateManager,
     private transferManager: TransferManager,
     private onProgress?: (progress: TransferProgress) => void
   ) {}
 
   cancelCurrentTransfer(filename: string, isReceiver: boolean = false) {
-    console.log(`[TRANSFER] Cancelling transfer of ${filename}`);
-    this.stateManager.handleCancel({ filename, isReceiver });
-    this.transferManager.cancelTransfer(filename, isReceiver);
+    console.log('[TRANSFER] Cancelling transfer:', filename);
     
     const message: FileChunkMessage = {
       type: 'file-chunk',
@@ -23,76 +21,66 @@ export class TransferControlService {
       cancelled: true,
       cancelledBy: isReceiver ? 'receiver' : 'sender'
     };
+
     this.dataChannel.send(JSON.stringify(message));
+    this.stateManager.handleCancellation(filename, !isReceiver);
   }
 
   pauseTransfer(filename: string) {
-    console.log(`[TRANSFER] Initiating pause for ${filename}`);
+    console.log('[TRANSFER] Pausing transfer:', filename);
     
-    // First update local state
-    this.stateManager.handlePause({ filename });
-    this.transferManager.handlePause();
-
-    // Then send pause message to peer
     const message: FileChunkMessage = {
       type: 'file-chunk',
       filename,
       paused: true
     };
+
+    this.dataChannel.send(JSON.stringify(message));
     
-    try {
-      this.dataChannel.send(JSON.stringify(message));
+    const transfer = this.transferManager.getTransfer(filename);
+    if (transfer) {
+      const progress: TransferProgress = {
+        filename,
+        status: 'paused',
+        sending: true,
+        loaded: transfer.loaded,
+        total: transfer.total,
+        currentChunk: transfer.currentChunk,
+        totalChunks: transfer.totalChunks
+      };
       
-      // Get current progress to preserve it
-      const currentTransfer = this.stateManager.getCurrentTransfer();
-      if (currentTransfer?.progress && this.onProgress) {
-        this.onProgress({
-          ...currentTransfer.progress,
-          filename,
-          status: 'paused'
-        });
+      if (this.onProgress) {
+        this.onProgress(progress);
       }
-      
-      console.log('[TRANSFER] Pause initiated successfully');
-    } catch (error) {
-      console.error('[TRANSFER] Error during pause:', error);
-      // Reset state if message sending fails
-      this.stateManager.reset();
     }
   }
 
   resumeTransfer(filename: string) {
-    console.log(`[TRANSFER] Initiating resume for ${filename}`);
+    console.log('[TRANSFER] Resuming transfer:', filename);
     
-    // First update local state
-    this.stateManager.handleResume({ filename });
-    this.transferManager.handleResume();
-
-    // Then send resume message to peer
     const message: FileChunkMessage = {
       type: 'file-chunk',
       filename,
       resumed: true
     };
+
+    this.dataChannel.send(JSON.stringify(message));
     
-    try {
-      this.dataChannel.send(JSON.stringify(message));
+    const transfer = this.transferManager.getTransfer(filename);
+    if (transfer) {
+      const progress: TransferProgress = {
+        filename,
+        status: 'transferring',
+        sending: true,
+        loaded: transfer.loaded,
+        total: transfer.total,
+        currentChunk: transfer.currentChunk,
+        totalChunks: transfer.totalChunks
+      };
       
-      // Get current progress to preserve it
-      const currentTransfer = this.stateManager.getCurrentTransfer();
-      if (currentTransfer?.progress && this.onProgress) {
-        this.onProgress({
-          ...currentTransfer.progress,
-          filename,
-          status: 'transferring'
-        });
+      if (this.onProgress) {
+        this.onProgress(progress);
       }
-      
-      console.log('[TRANSFER] Resume initiated successfully');
-    } catch (error) {
-      console.error('[TRANSFER] Error during resume:', error);
-      // Reset state if message sending fails
-      this.stateManager.reset();
     }
   }
 }
