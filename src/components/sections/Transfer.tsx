@@ -52,22 +52,21 @@ export const Transfer = forwardRef(({
         <h2 className="text-2xl font-semibold tracking-tight">
           Fast, Private File Transfer
         </h2>
-        <div className="space-y-2">
-          <p className="text-muted-foreground">
-            Share files securely with nearby devices or over the internet
-          </p>
-          <div className="flex items-center justify-center space-x-2 text-neon">
-            <Shield 
-              className={`w-5 h-5 transition-colors duration-300 ${
-                isConnected ? "fill-neon text-neon" : "text-neon"
-              }`} 
-            />
-            <span className="text-sm">End-to-End Encrypted</span>
-          </div>
-        </div>
+        <p className="text-muted-foreground">
+          Share files securely with nearby devices or over the internet
+        </p>
       </div>
 
       <div className="relative">
+        <div className="flex items-center justify-center space-x-2 text-neon mb-6">
+          <Shield 
+            className={`w-5 h-5 transition-colors duration-300 ${
+              isConnected ? "fill-neon text-neon" : "text-neon"
+            }`} 
+          />
+          <span className="text-sm">End-to-End Encrypted</span>
+        </div>
+
         <PeerConnection onConnectionChange={onConnectionChange} />
         
         {isConnected && webrtc && (
