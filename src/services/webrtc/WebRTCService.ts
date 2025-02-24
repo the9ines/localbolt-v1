@@ -59,6 +59,12 @@ class WebRTCService {
     );
   }
 
+  // Add the missing setProgressCallback method
+  setProgressCallback(callback: (progress: TransferProgress) => void) {
+    console.log('[WEBRTC] Setting new progress callback');
+    this.onProgressCallback = callback;
+  }
+
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
     this.connectionStateHandler = handler;
     this.connectionManager.setConnectionStateChangeHandler(handler);
