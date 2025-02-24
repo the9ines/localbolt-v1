@@ -28,7 +28,7 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
     handleResumeTransfer,
     cancelTransfer,
     startTransfer,
-  } = useTransferManagement(webrtc, setFiles);
+  } = useTransferManagement(webrtc, files, setFiles);
 
   return (
     <div className="space-y-4">

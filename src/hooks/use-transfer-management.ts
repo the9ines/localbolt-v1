@@ -6,6 +6,7 @@ import WebRTCService from "@/services/webrtc/WebRTCService";
 
 export const useTransferManagement = (
   webrtc: WebRTCService,
+  files: File[],
   setFiles: (files: File[]) => void
 ) => {
   const [progress, setProgress] = useState<TransferProgress | null>(null);
@@ -93,7 +94,8 @@ export const useTransferManagement = (
         description: `${file.name} has been sent successfully`
       });
 
-      setFiles(prevFiles => prevFiles.slice(1));
+      // Update files array directly instead of using a callback
+      setFiles(files.slice(1));
     } catch (error) {
       console.error('Transfer error:', error);
       if (error.message !== "Transfer cancelled by user") {
