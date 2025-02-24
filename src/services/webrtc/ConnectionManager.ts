@@ -1,20 +1,46 @@
+
 import { ConnectionError } from '@/types/webrtc-errors';
 import { getPlatformICEServers } from '@/lib/platform-utils';
+import { ConnectionStateHandler } from './connection/ConnectionStateHandler';
 
 export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private readonly connectionTimeout: number = 30000; // 30 seconds timeout
-  private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
+  private connectionStateHandler: ConnectionStateHandler;
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
     private onError: (error: Error) => void,
     private onDataChannel?: (channel: RTCDataChannel) => void
-  ) {}
+  ) {
+    this.connectionStateHandler = new ConnectionStateHandler(
+      this.handleReconnect.bind(this),
+      this.handleConnectionStateChange.bind(this)
+    );
+  }
 
-  setConnectionStateChangeHandler(handler: (state: RTCPeerConnectionState) => void) {
-    this.connectionStateChangeCallback = handler;
+  private async handleReconnect(): Promise<void> {
+    console.log('[CONNECTION] Initiating reconnection');
+    
+    // Close existing connection if any
+    if (this.peerConnection) {
+      this.peerConnection.close();
+    }
+
+    // Create new connection
+    const newConnection = await this.createPeerConnection();
+    
+    // Restore cached ICE candidates
+    const cachedCandidates = this.connectionStateHandler.getCachedCandidates();
+    for (const candidate of cachedCandidates) {
+      try {
+        await newConnection.addIceCandidate(candidate);
+        console.log('[CONNECTION] Restored cached ICE candidate');
+      } catch (error) {
+        console.warn('[CONNECTION] Failed to restore cached candidate:', error);
+      }
+    }
   }
 
   async createPeerConnection(): Promise<RTCPeerConnection> {
@@ -41,6 +67,7 @@ export class ConnectionManager {
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
         console.log('[ICE] New ICE candidate generated:', event.candidate.candidate);
+        this.connectionStateHandler.cacheIceCandidate(event.candidate);
         this.onIceCandidate(event.candidate);
       }
     };
@@ -59,23 +86,10 @@ export class ConnectionManager {
       }
     };
 
-    this.peerConnection.onconnectionstatechange = () => {
+    this.peerConnection.onconnectionstatechange = async () => {
       const state = this.peerConnection?.connectionState;
-      console.log('[WEBRTC] Connection state:', state);
-      
       if (state) {
-        if (this.connectionStateChangeCallback) {
-          this.connectionStateChangeCallback(state);
-        }
-      }
-      
-      if (state === 'connecting') {
-        console.log('[WEBRTC] Establishing connection...');
-      } else if (state === 'connected') {
-        console.log('[WEBRTC] Connection established successfully');
-      } else if (state === 'failed' || state === 'closed') {
-        console.error('[WEBRTC] Connection failed:', state);
-        this.onError(new ConnectionError("WebRTC connection failed", { state }));
+        await this.connectionStateHandler.handleConnectionStateChange(state);
       }
     };
 
@@ -135,6 +149,7 @@ export class ConnectionManager {
   }
 
   disconnect() {
+    this.connectionStateHandler.reset();
     if (this.peerConnection) {
       console.log('[WEBRTC] Closing connection');
       this.peerConnection.close();
