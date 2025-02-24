@@ -15,26 +15,60 @@ export class SignalingService {
   private mdnsResponder: any | null = null;
   private localPeers: Set<string> = new Set();
   private isLocalDiscoverySupported: boolean = false;
+  private isOnline: boolean = navigator.onLine;
+  private supabaseChannel: any = null;
 
   constructor(
     private localPeerId: string,
     private onSignal: SignalHandler
   ) {
-    this.setupChannel();
+    this.setupNetworkListeners();
     this.initializeLocalDiscovery();
+    
+    // Only setup Supabase channel if online
+    if (this.isOnline) {
+      this.setupChannel();
+    }
+  }
+
+  private setupNetworkListeners() {
+    window.addEventListener('online', () => {
+      console.log('[SIGNALING] Network connection restored');
+      this.isOnline = true;
+      this.setupChannel();
+    });
+
+    window.addEventListener('offline', () => {
+      console.log('[SIGNALING] Network connection lost, switching to local only');
+      this.isOnline = false;
+      this.disconnectChannel();
+    });
   }
 
   private async setupChannel() {
-    console.log('[SIGNALING] Setting up signaling channel');
+    if (!this.isOnline) {
+      console.log('[SIGNALING] Skipping remote channel setup - offline mode');
+      return;
+    }
+
+    console.log('[SIGNALING] Setting up remote signaling channel');
     try {
-      const channel = supabase.channel('signals')
+      this.supabaseChannel = supabase.channel('signals')
         .on('broadcast', { event: 'signal' }, ({ payload }) => {
           console.log('[SIGNALING] Received remote signal:', payload.type);
           this.onSignal(payload as SignalData);
         })
         .subscribe();
     } catch (error) {
-      throw new SignalingError("Failed to setup signaling channel", error);
+      console.warn('[SIGNALING] Failed to setup remote channel:', error);
+      // Don't throw - we can still work with local discovery
+    }
+  }
+
+  private disconnectChannel() {
+    if (this.supabaseChannel) {
+      this.supabaseChannel.unsubscribe();
+      this.supabaseChannel = null;
     }
   }
 
@@ -65,7 +99,6 @@ export class SignalingService {
       const serviceName = `_localbolt._tcp.local`;
       const instanceName = `${this.localPeerId}._localbolt._tcp.local`;
       
-      // Attempt to start mDNS discovery
       console.log('[MDNS] Starting local discovery service');
       
       // Listen for local peer announcements
@@ -79,6 +112,17 @@ export class SignalingService {
         }
       });
 
+      // Periodically announce our presence on the local network
+      setInterval(() => {
+        if (this.isLocalDiscoverySupported) {
+          const announceEvent = new CustomEvent('localbolt-announce', {
+            detail: { peerId: this.localPeerId },
+            bubbles: true
+          });
+          window.dispatchEvent(announceEvent);
+        }
+      }, 10000); // Announce every 10 seconds
+
     } catch (error) {
       console.warn('[MDNS] Failed to start local discovery:', error);
     }
@@ -87,30 +131,36 @@ export class SignalingService {
   async sendSignal(type: SignalData['type'], data: any, remotePeerId: string) {
     console.log('[SIGNALING] Sending signal:', type, 'to:', remotePeerId);
     
-    // Try local delivery first if peer is on local network
-    if (this.localPeers.has(remotePeerId)) {
+    // Always try local delivery first
+    if (this.isLocalDiscoverySupported) {
       try {
         await this.sendLocalSignal(type, data, remotePeerId);
-        return;
+        if (this.localPeers.has(remotePeerId)) {
+          return; // If it's a known local peer, don't try remote signaling
+        }
       } catch (error) {
-        console.log('[MDNS] Local signal failed, falling back to remote:', error);
+        console.log('[MDNS] Local signal failed:', error);
       }
     }
 
-    // Fallback to remote signaling
-    try {
-      await supabase.channel('signals').send({
-        type: 'broadcast',
-        event: 'signal',
-        payload: {
-          type,
-          data,
-          from: this.localPeerId,
-          to: remotePeerId,
-        },
-      });
-    } catch (error) {
-      throw new SignalingError(`Failed to send ${type} signal`, error);
+    // Only attempt remote signaling if online
+    if (this.isOnline && this.supabaseChannel) {
+      try {
+        await this.supabaseChannel.send({
+          type: 'broadcast',
+          event: 'signal',
+          payload: {
+            type,
+            data,
+            from: this.localPeerId,
+            to: remotePeerId,
+          },
+        });
+      } catch (error) {
+        throw new SignalingError(`Failed to send ${type} signal`, error);
+      }
+    } else if (!this.isLocalDiscoverySupported) {
+      throw new SignalingError('No available signaling methods');
     }
   }
 
@@ -126,13 +176,10 @@ export class SignalingService {
       to: remotePeerId
     };
 
-    // Use mDNS for local signaling
     try {
       const instanceName = `${remotePeerId}._localbolt._tcp.local`;
       console.log('[MDNS] Attempting local signal to:', instanceName);
       
-      // In a real implementation, this would use actual mDNS communication
-      // For now, we'll emit a custom event that will be caught by the local peer
       const event = new CustomEvent('localbolt-signal', { 
         detail: signal,
         bubbles: true 
@@ -150,9 +197,18 @@ export class SignalingService {
 
   getDiscoveryStatus() {
     return {
+      isOnline: this.isOnline,
       localDiscoverySupported: this.isLocalDiscoverySupported,
       localPeersCount: this.localPeers.size,
-      localPeers: Array.from(this.localPeers)
+      localPeers: Array.from(this.localPeers),
+      remoteSignalingAvailable: Boolean(this.supabaseChannel)
     };
+  }
+
+  cleanup() {
+    this.disconnectChannel();
+    this.localPeers.clear();
+    window.removeEventListener('online', this.setupChannel);
+    window.removeEventListener('offline', this.disconnectChannel);
   }
 }
