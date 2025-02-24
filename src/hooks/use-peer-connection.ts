@@ -108,6 +108,7 @@ export const usePeerConnection = (
   };
 
   const handleDisconnect = useCallback(() => {
+    console.log('[WEBRTC] Initiating disconnect');
     if (webrtc) {
       webrtc.disconnect();
       setIsConnected(false);

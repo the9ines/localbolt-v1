@@ -21,6 +21,12 @@ export const TargetPeerInput = ({
 }: TargetPeerInputProps) => {
   const displayValue = isConnected ? (remotePeerCode || targetPeerCode) : targetPeerCode;
   
+  const handleDisconnect = () => {
+    if (onDisconnect) {
+      onDisconnect();
+    }
+  };
+  
   return (
     <div className="space-y-2">
       <label htmlFor="targetPeerCode" className="text-sm font-medium leading-none">
@@ -40,7 +46,7 @@ export const TargetPeerInput = ({
         />
         <Button 
           variant="outline"
-          onClick={isConnected ? onDisconnect : onConnect} 
+          onClick={isConnected ? handleDisconnect : onConnect} 
           className="shrink-0 hover:bg-neon hover:text-black transition-colors"
           aria-label={isConnected ? "Disconnect from peer" : "Connect to peer"}
         >
