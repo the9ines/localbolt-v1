@@ -17,11 +17,12 @@ describe('NetworkDetector', () => {
     };
 
     // Mock navigator and performance APIs
-    global.navigator = {
+    (global.navigator as any) = {
       ...global.navigator,
+      // Using NetworkInformation type
       connection: mockConnection,
       userAgent: 'Mozilla/5.0 Test UserAgent'
-    } as any;
+    };
 
     global.performance = {
       getEntriesByType: vi.fn().mockReturnValue([{
@@ -50,7 +51,7 @@ describe('NetworkDetector', () => {
   });
 
   it('should use fallback detection when connection API is not available', () => {
-    global.navigator.connection = undefined;
+    (global.navigator as any).connection = undefined;
     const info = networkDetector.getNetworkInfo();
     expect(info.type).toBe('unknown');
     expect(info.speed).toBe('medium');
