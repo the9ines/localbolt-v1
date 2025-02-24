@@ -6,7 +6,7 @@ import WebRTCService from "@/services/webrtc/WebRTCService";
 import { ForwardedRef, forwardRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Wifi, WifiOff } from "lucide-react";
+import { Shield } from "lucide-react";
 
 interface TransferProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -41,7 +41,6 @@ export const Transfer = forwardRef(({
   }, [webrtc, toast]);
 
   const discoveryStatus = webrtc?.getDiscoveryStatus?.();
-  const hasLocalPeers = discoveryStatus?.localPeersCount > 0;
 
   return (
     <Card 
@@ -54,8 +53,15 @@ export const Transfer = forwardRef(({
         <div className="flex flex-col items-center">
           <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
             Fast, Private File Transfer
-            {discoveryStatus?.isOnline ? <Wifi className="text-neon" /> : <WifiOff className="text-red-500" />}
           </h2>
+          <div className="flex items-center justify-center space-x-2 text-neon mt-2">
+            <Shield 
+              className={`w-5 h-5 transition-colors duration-300 ${
+                isConnected ? "fill-neon text-neon" : "text-neon"
+              }`} 
+            />
+            <span className="text-sm">End-to-End Encrypted</span>
+          </div>
         </div>
         <p className="text-muted-foreground">
           Share files securely with nearby devices or over the internet
@@ -63,21 +69,6 @@ export const Transfer = forwardRef(({
       </div>
 
       <div className="relative">
-        {hasLocalPeers && (
-          <Card className="mb-4 p-4 border-neon/20 bg-black/20">
-            <p className="text-sm text-neon mb-2">
-              {discoveryStatus.localPeersCount} nearby {discoveryStatus.localPeersCount === 1 ? 'device' : 'devices'} found
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {discoveryStatus.localPeers.map(peerId => (
-                <Badge key={peerId} variant="outline" className="bg-black/30">
-                  {peerId}
-                </Badge>
-              ))}
-            </div>
-          </Card>
-        )}
-
         <PeerConnection onConnectionChange={onConnectionChange} />
         
         {isConnected && webrtc && (
