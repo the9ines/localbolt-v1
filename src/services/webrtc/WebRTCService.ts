@@ -1,8 +1,10 @@
+
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
 import { ConnectionManager } from './ConnectionManager';
 import { DataChannelManager } from './DataChannelManager';
+import { SignalHandler } from './handlers/SignalHandler';
 import type { TransferProgress } from './types/transfer';
 
 class WebRTCService {
@@ -11,10 +13,9 @@ class WebRTCService {
   private dataChannelManager: DataChannelManager;
   private encryptionService: EncryptionService;
   private signalingService: SignalingService;
+  private signalHandler: SignalHandler;
   private connectionStateHandler?: (state: RTCPeerConnectionState) => void;
   private onProgressCallback?: (progress: TransferProgress) => void;
-  private pendingCandidates: RTCIceCandidate[] = [];
-  private isSettingRemoteDescription = false;
 
   constructor(
     private localPeerCode: string,
@@ -32,9 +33,10 @@ class WebRTCService {
       this.encryptionService = new EncryptionService();
       this.onProgressCallback = onProgress;
       
-      this.signalingService = new SignalingService(
-        this.localPeerCode,
-        this.handleSignal.bind(this)
+      this.connectionManager = new ConnectionManager(
+        this.handleIceCandidate.bind(this),
+        this.handleError.bind(this),
+        (channel) => this.dataChannelManager.setupDataChannel(channel)
       );
 
       this.dataChannelManager = new DataChannelManager(
@@ -48,10 +50,15 @@ class WebRTCService {
         this.handleError.bind(this)
       );
 
-      this.connectionManager = new ConnectionManager(
-        this.handleIceCandidate.bind(this),
-        this.handleError.bind(this),
-        (channel) => this.dataChannelManager.setupDataChannel(channel)
+      this.signalHandler = new SignalHandler(
+        this.connectionManager,
+        this.encryptionService,
+        this.handleError.bind(this)
+      );
+
+      this.signalingService = new SignalingService(
+        this.localPeerCode,
+        this.handleSignal.bind(this)
       );
 
       console.log('[INIT] WebRTC service initialized successfully');
@@ -125,73 +132,13 @@ class WebRTCService {
   }
 
   private async handleSignal(signal: SignalData) {
-    try {
-      if (!signal.type || !signal.from) {
-        throw new WebRTCError("Invalid signal format");
-      }
-
-      const peerConnection = this.connectionManager.getPeerConnection() || 
-                           await this.connectionManager.createPeerConnection();
-
-      switch (signal.type) {
-        case 'offer':
-          console.log('[WEBRTC] Processing offer from:', signal.from);
-          this.isSettingRemoteDescription = true;
-          this.remotePeerCode = signal.from;
-          
-          if (!signal.data.offer || !signal.data.publicKey) {
-            throw new WebRTCError("Invalid offer format");
-          }
-          
-          this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
-          
-          // Process any pending ICE candidates
-          console.log('[ICE] Processing pending candidates:', this.pendingCandidates.length);
-          for (const candidate of this.pendingCandidates) {
-            await this.connectionManager.addIceCandidate(candidate);
-          }
-          this.pendingCandidates = [];
-          
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-          
-          await this.signalingService.sendSignal('answer', {
-            answer,
-            publicKey: this.encryptionService.getPublicKey()
-          }, signal.from);
-          
-          this.isSettingRemoteDescription = false;
-          break;
-
-        case 'answer':
-          console.log('[WEBRTC] Processing answer from:', signal.from);
-          if (!signal.data.answer || !signal.data.publicKey) {
-            throw new WebRTCError("Invalid answer format");
-          }
-          
-          this.encryptionService.setRemotePublicKey(signal.data.publicKey);
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
-          break;
-
-        case 'ice-candidate':
-          if (this.isSettingRemoteDescription) {
-            console.log('[ICE] Queueing candidate while setting remote description');
-            this.pendingCandidates.push(signal.data);
-          } else if (peerConnection.remoteDescription) {
-            console.log('[ICE] Adding candidate immediately');
-            await this.connectionManager.addIceCandidate(signal.data);
-          } else {
-            console.log('[ICE] Queueing candidate - no remote description yet');
-            this.pendingCandidates.push(signal.data);
-          }
-          break;
-
-        default:
-          console.warn('[WEBRTC] Unknown signal type:', signal.type);
-      }
-    } catch (error) {
-      this.handleError(new WebRTCError("Signal handling failed", error));
+    await this.signalHandler.handleSignal(signal, (code) => this.remotePeerCode = code);
+    
+    if (signal.type === 'answer') {
+      await this.signalingService.sendSignal('answer', {
+        answer: signal.data.answer,
+        publicKey: this.encryptionService.getPublicKey()
+      }, signal.from);
     }
   }
 
@@ -208,8 +155,8 @@ class WebRTCService {
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
     this.encryptionService.reset();
+    this.signalHandler.reset();
     this.remotePeerCode = '';
-    this.pendingCandidates = [];
   }
 
   cancelTransfer(filename: string, isReceiver: boolean = false) {
