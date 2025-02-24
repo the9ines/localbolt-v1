@@ -8,30 +8,43 @@ export class ConnectionManager {
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private readonly connectionTimeout: number = 30000; // 30 seconds timeout
   private connectionStateHandler: ConnectionStateHandler;
+  private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
     private onError: (error: Error) => void,
     private onDataChannel?: (channel: RTCDataChannel) => void
   ) {
+    // First define the methods that will be bound
+    this.handleReconnect = this.handleReconnect.bind(this);
+    this.handleConnectionStateChange = this.handleConnectionStateChange.bind(this);
+
+    // Then create the ConnectionStateHandler with the bound methods
     this.connectionStateHandler = new ConnectionStateHandler(
-      this.handleReconnect.bind(this),
-      this.handleConnectionStateChange.bind(this)
+      this.handleReconnect,
+      this.handleConnectionStateChange
     );
+  }
+
+  setConnectionStateChangeHandler(handler: (state: RTCPeerConnectionState) => void): void {
+    this.connectionStateChangeCallback = handler;
+  }
+
+  private handleConnectionStateChange(state: RTCPeerConnectionState): void {
+    if (this.connectionStateChangeCallback) {
+      this.connectionStateChangeCallback(state);
+    }
   }
 
   private async handleReconnect(): Promise<void> {
     console.log('[CONNECTION] Initiating reconnection');
     
-    // Close existing connection if any
     if (this.peerConnection) {
       this.peerConnection.close();
     }
 
-    // Create new connection
     const newConnection = await this.createPeerConnection();
     
-    // Restore cached ICE candidates
     const cachedCandidates = this.connectionStateHandler.getCachedCandidates();
     for (const candidate of cachedCandidates) {
       try {
@@ -138,7 +151,6 @@ export class ConnectionManager {
           console.log('[ICE] Added pending ICE candidate');
         } catch (error) {
           console.error('[ICE] Failed to add pending ICE candidate:', error);
-          // Re-queue the candidate if we're not ready
           if (this.peerConnection.signalingState !== 'closed') {
             this.pendingIceCandidates.unshift(candidate);
             break;
