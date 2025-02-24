@@ -57,9 +57,22 @@ export class DataChannelMessageHandler {
 
     } catch (error) {
       console.error('[TRANSFER] Error processing message:', error);
-      // Don't reset state on message processing errors
-      throw new TransferError("Failed to process received data", error);
+      // Handle error gracefully without throwing
+      this.handleTransferError(error);
     }
+  }
+
+  private handleTransferError(error: any) {
+    console.error('[TRANSFER] Transfer error occurred:', error);
+    // Clean up transfer state but don't throw
+    if (this.stateManager.getCurrentTransfer()?.filename) {
+      const filename = this.stateManager.getCurrentTransfer()?.filename;
+      this.transferManager.cancelTransfer(filename, true);
+    }
+    // Reset state after a short delay to allow UI updates
+    setTimeout(() => {
+      this.stateManager.reset();
+    }, 100);
   }
 
   private handlePauseMessage(filename: string): boolean {
@@ -129,16 +142,17 @@ export class DataChannelMessageHandler {
 
       if (completeFile) {
         console.log(`[TRANSFER] Completed transfer of ${filename}`);
-        // Only reset state AFTER handling the file
+        // Handle the file first
         this.onReceiveFile(completeFile, filename);
-        // Delay state reset to ensure file handling is complete
+        // Then reset state after a delay to ensure UI updates complete
         setTimeout(() => {
           this.stateManager.reset();
         }, 100);
       }
     } catch (error) {
       console.error('[TRANSFER] Error processing chunk:', error);
-      throw new TransferError("Failed to process chunk", error);
+      // Handle chunk processing error gracefully
+      this.handleTransferError(error);
     }
   }
 }
