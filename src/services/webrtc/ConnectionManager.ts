@@ -1,4 +1,3 @@
-
 import { ConnectionError } from '@/types/webrtc-errors';
 import { getPlatformICEServers } from '@/lib/platform-utils';
 import { ConnectionStateHandler } from './connection/ConnectionStateHandler';
@@ -69,6 +68,10 @@ export class ConnectionManager {
 
     this.setupConnectionListeners();
     return this.peerConnection;
+  }
+
+  isConnected(): boolean {
+    return this.peerConnection?.connectionState === 'connected';
   }
 
   private setupConnectionListeners() {
