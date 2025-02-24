@@ -12,12 +12,14 @@ export interface IDataChannelManager {
   pauseTransfer(filename: string): void;
   resumeTransfer(filename: string): void;
   disconnect(): void;
+  hasActiveTransfers(): boolean;
 }
 
 export class DataChannelManager implements IDataChannelManager {
   private fileTransferService: FileTransferService | null = null;
   private stateChangeHandler: ((state: RTCDataChannelState) => void) | undefined;
   private isDisconnecting: boolean = false;
+  private activeTransfers: Set<string> = new Set();
 
   constructor(
     private encryptionService: EncryptionService,
@@ -68,6 +70,7 @@ export class DataChannelManager implements IDataChannelManager {
     if (!this.fileTransferService) {
       throw new WebRTCError("No active data channel");
     }
+    this.activeTransfers.add(file.name);
     await this.fileTransferService.sendFile(file);
   }
 
@@ -75,6 +78,7 @@ export class DataChannelManager implements IDataChannelManager {
     console.log('[DATACHANNEL] Cancelling transfer for:', filename);
     if (this.fileTransferService) {
       this.fileTransferService.cancelCurrentTransfer(filename, isReceiver);
+      this.activeTransfers.delete(filename);
     }
   }
 
@@ -92,6 +96,24 @@ export class DataChannelManager implements IDataChannelManager {
     }
   }
 
+  hasActiveTransfers(): boolean {
+    return this.activeTransfers.size > 0;
+  }
+
+  pauseAllTransfers(): void {
+    console.log('[DATACHANNEL] Pausing all active transfers');
+    this.activeTransfers.forEach(filename => {
+      this.pauseTransfer(filename);
+    });
+  }
+
+  resumeAllTransfers(): void {
+    console.log('[DATACHANNEL] Resuming all active transfers');
+    this.activeTransfers.forEach(filename => {
+      this.resumeTransfer(filename);
+    });
+  }
+
   disconnect(): void {
     if (this.isDisconnecting) {
       console.log('[DATACHANNEL] Already disconnecting, skipping redundant disconnect call');
@@ -107,6 +129,7 @@ export class DataChannelManager implements IDataChannelManager {
       }
       this.fileTransferService = null;
       this.stateChangeHandler = undefined;
+      this.activeTransfers.clear();
     } finally {
       this.isDisconnecting = false;
     }
