@@ -24,6 +24,7 @@ export class ProgressEmitter {
           totalChunks: progress?.totalChunks || 0,
           loaded: progress?.loaded || 0,
           total: progress?.total || 0,
+          sending: false
         });
       } catch (error) {
         console.error('[STATE] Error in progress callback:', error);

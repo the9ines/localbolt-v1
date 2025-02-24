@@ -23,7 +23,7 @@ export class TransferControlService {
     };
 
     this.dataChannel.send(JSON.stringify(message));
-    this.stateManager.handleCancellation(filename, !isReceiver);
+    this.stateManager.handleCancel({ filename, isReceiver: !isReceiver });
   }
 
   pauseTransfer(filename: string) {

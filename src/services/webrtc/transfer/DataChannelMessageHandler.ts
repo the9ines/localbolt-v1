@@ -3,6 +3,7 @@ import { FileChunkMessage } from '../types/transfer';
 import { WebRTCError } from '@/types/webrtc-errors';
 import type { TransferManager } from './TransferManager';
 import type { TransferStateManager } from './TransferStateManager';
+import type { TransferControlMessage } from '../types/transfer-control';
 
 export class DataChannelMessageHandler {
   constructor(
@@ -18,19 +19,26 @@ export class DataChannelMessageHandler {
       if (message.type === 'file-chunk') {
         if (message.cancelled) {
           console.log('[TRANSFER] Transfer cancelled by', message.cancelledBy);
-          this.stateManager.handleCancellation(message.filename, message.cancelledBy === 'sender');
+          this.stateManager.handleCancel({
+            filename: message.filename,
+            isReceiver: message.cancelledBy === 'receiver'
+          });
           return;
         }
 
         if (message.paused) {
           console.log('[TRANSFER] Transfer paused for:', message.filename);
-          this.stateManager.handlePause(message.filename);
+          this.stateManager.handlePause({
+            filename: message.filename
+          });
           return;
         }
 
         if (message.resumed) {
           console.log('[TRANSFER] Transfer resumed for:', message.filename);
-          this.stateManager.handleResume(message.filename);
+          this.stateManager.handleResume({
+            filename: message.filename
+          });
           return;
         }
 
@@ -49,8 +57,8 @@ export class DataChannelMessageHandler {
     try {
       await this.transferManager.processChunk(
         message.filename,
-        message.chunk,
-        message.chunkIndex,
+        message.chunk!,
+        message.chunkIndex!,
         message.totalChunks || 0,
         message.fileSize || 0
       );
