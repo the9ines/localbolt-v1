@@ -1,9 +1,8 @@
 
-import { FileChunkMessage } from '../types/transfer';
-import { WebRTCError } from '@/types/webrtc-errors';
-import type { TransferManager } from './TransferManager';
-import type { TransferStateManager } from './TransferStateManager';
-import type { TransferControlMessage } from '../types/transfer-control';
+import type { FileChunkMessage } from '../types/transfer';
+import { TransferError } from '@/types/webrtc-errors';
+import { TransferManager } from './TransferManager';
+import { TransferStateManager } from './TransferStateManager';
 
 export class DataChannelMessageHandler {
   constructor(
@@ -14,65 +13,123 @@ export class DataChannelMessageHandler {
 
   async handleMessage(event: MessageEvent) {
     try {
-      const message = JSON.parse(event.data) as FileChunkMessage;
-      
-      if (message.type === 'file-chunk') {
-        if (message.cancelled) {
-          console.log('[TRANSFER] Transfer cancelled by', message.cancelledBy);
-          this.stateManager.handleCancel({
-            filename: message.filename,
-            isReceiver: message.cancelledBy === 'receiver'
-          });
-          return;
-        }
+      console.log('[TRANSFER] Received message:', event.data);
+      const message: FileChunkMessage = JSON.parse(event.data);
+      const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled, cancelledBy, paused, resumed } = message;
 
-        if (message.paused) {
-          console.log('[TRANSFER] Transfer paused for:', message.filename);
-          this.stateManager.handlePause({
-            filename: message.filename
-          });
-          return;
-        }
-
-        if (message.resumed) {
-          console.log('[TRANSFER] Transfer resumed for:', message.filename);
-          this.stateManager.handleResume({
-            filename: message.filename
-          });
-          return;
-        }
-
-        // Regular chunk processing
-        if (message.chunk && message.chunkIndex !== undefined) {
-          await this.processFileChunk(message);
-        }
+      if (!type || type !== 'file-chunk' || !filename) {
+        console.warn('[TRANSFER] Invalid message format:', message);
+        return;
       }
+
+      // Handle control messages first
+      if (paused) {
+        console.log(`[TRANSFER] Processing pause message for ${filename}`);
+        const success = this.handlePauseMessage(filename);
+        if (!success) {
+          console.log('[TRANSFER] Failed to process pause message');
+        }
+        return;
+      }
+
+      if (resumed) {
+        console.log(`[TRANSFER] Processing resume message for ${filename}`);
+        const success = this.handleResumeMessage(filename);
+        if (!success) {
+          console.log('[TRANSFER] Failed to process resume message');
+        }
+        return;
+      }
+
+      if (cancelled) {
+        console.log(`[TRANSFER] Processing cancel message for ${filename} by ${cancelledBy}`);
+        const isReceiver = cancelledBy === 'receiver';
+        this.handleCancelMessage(filename, isReceiver);
+        return;
+      }
+
+      // Handle file chunks
+      if (!this.shouldProcessChunk(filename, chunkIndex || 0)) {
+        return;
+      }
+
+      await this.processChunk(filename, chunk, chunkIndex, totalChunks, fileSize);
+
     } catch (error) {
-      console.error('[TRANSFER] Failed to process message:', error);
-      throw new WebRTCError('Failed to process message', error);
+      console.error('[TRANSFER] Error processing message:', error);
+      this.stateManager.reset();
+      throw new TransferError("Failed to process received data", error);
     }
   }
 
-  private async processFileChunk(message: FileChunkMessage) {
-    try {
-      await this.transferManager.processChunk(
-        message.filename,
-        message.chunk!,
-        message.chunkIndex!,
-        message.totalChunks || 0,
-        message.fileSize || 0
-      );
+  private handlePauseMessage(filename: string): boolean {
+    const pauseSuccess = this.stateManager.handlePause({ filename });
+    if (pauseSuccess) {
+      this.transferManager.handlePause();
+      console.log('[TRANSFER] Pause state updated successfully');
+    }
+    return pauseSuccess;
+  }
 
-      // If this was the last chunk, trigger file assembly
-      if (message.chunkIndex === (message.totalChunks || 0) - 1) {
-        const assembledFile = await this.transferManager.assembleFile(message.filename);
-        if (assembledFile) {
-          this.onReceiveFile(assembledFile, message.filename);
-        }
-      }
-    } catch (error) {
-      console.error('[TRANSFER] Failed to process chunk:', error);
-      throw new WebRTCError('Failed to process chunk', error);
+  private handleResumeMessage(filename: string): boolean {
+    const resumeSuccess = this.stateManager.handleResume({ filename });
+    if (resumeSuccess) {
+      this.transferManager.handleResume();
+      console.log('[TRANSFER] Resume state updated successfully');
+    }
+    return resumeSuccess;
+  }
+
+  private handleCancelMessage(filename: string, isReceiver: boolean): void {
+    this.stateManager.handleCancel({ filename, isReceiver });
+    this.transferManager.cancelTransfer(filename, isReceiver);
+  }
+
+  private shouldProcessChunk(filename: string, chunkIndex: number): boolean {
+    const isActive = this.transferManager.isTransferActive(filename);
+    const isPaused = this.transferManager.isPauseActive();
+    
+    console.log(`[TRANSFER] Chunk processing check - filename: ${filename}, active: ${isActive}, paused: ${isPaused}`);
+    
+    if (!isActive && chunkIndex !== 0) {
+      console.log(`[TRANSFER] Ignoring chunk for inactive transfer: ${filename}`);
+      return false;
+    }
+
+    if (isPaused) {
+      console.log(`[TRANSFER] Ignoring chunk while paused: ${filename}`);
+      return false;
+    }
+
+    return true;
+  }
+
+  private async processChunk(
+    filename: string,
+    chunk: string | undefined,
+    chunkIndex: number | undefined,
+    totalChunks: number | undefined,
+    fileSize: number | undefined
+  ) {
+    if (!chunk || typeof chunkIndex !== 'number' || !totalChunks || !fileSize) {
+      console.warn('[TRANSFER] Invalid chunk data received');
+      return;
+    }
+
+    console.log(`[TRANSFER] Processing chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
+    
+    const completeFile = await this.transferManager.processReceivedChunk(
+      filename,
+      chunk,
+      chunkIndex,
+      totalChunks,
+      fileSize
+    );
+
+    if (completeFile) {
+      console.log(`[TRANSFER] Completed transfer of ${filename}`);
+      this.stateManager.reset();
+      this.onReceiveFile(completeFile, filename);
     }
   }
 }

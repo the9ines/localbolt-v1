@@ -16,15 +16,12 @@ export interface TransferProgress {
   totalChunks: number;
   loaded: number;
   total: number;
-  sending: boolean;
   status?: 'transferring' | 'paused' | 'canceled_by_sender' | 'canceled_by_receiver' | 'error';
   stats?: TransferStats;
 }
 
-export type FileChunkMessageType = 'file-chunk';
-
 export interface FileChunkMessage {
-  type: FileChunkMessageType;
+  type: 'file-chunk';
   filename: string;
   chunk?: string;
   chunkIndex?: number;
