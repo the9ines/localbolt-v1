@@ -1,3 +1,4 @@
+
 import { useEffect } from "react";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { TransferProgressBar } from "./file-upload/TransferProgress";
@@ -9,6 +10,7 @@ import { useTransferProgress } from "@/hooks/use-transfer-progress";
 import { usePeerConnection } from "@/hooks/use-peer-connection";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { Network } from "lucide-react";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -101,12 +103,23 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
       <div className="space-y-4 touch-manipulation">
         {hasLocalPeers && (
           <Card className="p-4 border-neon/20 bg-black/20">
-            <p className="text-sm text-neon mb-2">
-              {discoveryStatus.localPeersCount} nearby {discoveryStatus.localPeersCount === 1 ? 'device' : 'devices'} found
-            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <Network className="w-4 h-4 text-neon" />
+              <p className="text-sm text-neon">
+                {discoveryStatus.localPeersCount} nearby {discoveryStatus.localPeersCount === 1 ? 'device' : 'devices'} found
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
               {discoveryStatus.localPeers.map(peerId => (
-                <Badge key={peerId} variant="outline" className="bg-black/30">
+                <Badge
+                  key={peerId}
+                  variant="outline"
+                  className="bg-black/30 cursor-pointer hover:bg-neon/10 transition-colors"
+                  onClick={() => {
+                    setTargetPeerCode(peerId);
+                    handleConnect();
+                  }}
+                >
                   {peerId}
                 </Badge>
               ))}

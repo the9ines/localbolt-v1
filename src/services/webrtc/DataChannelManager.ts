@@ -1,8 +1,9 @@
 
 import { FileTransferService } from './FileTransferService';
 import { TransferControlService } from './transfer/TransferControlService';
-import type { DataChannelMessageHandler } from './transfer/DataChannelMessageHandler';
-import type { DataChannelHandler } from './types/transfer';
+import { DataChannelMessageHandler } from './transfer/DataChannelMessageHandler';
+import { type DataChannelHandler, type TransferProgress } from './types/transfer';
+import { EncryptionService } from './EncryptionService';
 
 export class DataChannelManager {
   private dataChannel: RTCDataChannel | null = null;
@@ -10,8 +11,14 @@ export class DataChannelManager {
   private fileTransferService: FileTransferService | null = null;
   private transferControlService: TransferControlService | null = null;
   private stateChangeHandler: ((state: RTCDataChannelState) => void) | null = null;
+  private activeTransfers: Set<string> = new Set();
 
-  constructor() {
+  constructor(
+    private encryptionService: EncryptionService,
+    private onFileReceive: (file: Blob, filename: string) => void,
+    private onProgress: (progress: TransferProgress) => void,
+    private onError: (error: Error) => void
+  ) {
     console.log('[DATACHANNEL] Initializing DataChannelManager');
   }
 
@@ -39,14 +46,64 @@ export class DataChannelManager {
   }
 
   initializeServices(handlers: DataChannelHandler) {
-    this.fileTransferService = new FileTransferService(this.dataChannel!, handlers);
-    this.transferControlService = new TransferControlService(this.dataChannel!, handlers);
+    this.fileTransferService = new FileTransferService(
+      this.dataChannel!,
+      handlers,
+      this.encryptionService
+    );
+    
+    this.transferControlService = new TransferControlService(
+      this.dataChannel!,
+      handlers,
+      this.encryptionService
+    );
 
-    // Initialize message handler
     this.messageHandler = new DataChannelMessageHandler(
       this.fileTransferService,
-      this.transferControlService
+      this.transferControlService,
+      this.encryptionService
     );
+  }
+
+  hasActiveTransfers(): boolean {
+    return this.activeTransfers.size > 0;
+  }
+
+  async sendFile(file: File) {
+    if (!this.fileTransferService) throw new Error('File transfer service not initialized');
+    await this.fileTransferService.sendFile(file);
+    this.activeTransfers.add(file.name);
+  }
+
+  cancelTransfer(filename: string, isReceiver: boolean = false) {
+    if (!this.transferControlService) return;
+    this.transferControlService.cancelTransfer(filename, isReceiver);
+    this.activeTransfers.delete(filename);
+  }
+
+  pauseTransfer(filename: string) {
+    if (!this.transferControlService) return;
+    this.transferControlService.pauseTransfer(filename);
+  }
+
+  resumeTransfer(filename: string) {
+    if (!this.transferControlService) return;
+    this.transferControlService.resumeTransfer(filename);
+  }
+
+  pauseAllTransfers() {
+    this.activeTransfers.forEach(filename => this.pauseTransfer(filename));
+  }
+
+  resumeAllTransfers() {
+    this.activeTransfers.forEach(filename => this.resumeTransfer(filename));
+  }
+
+  disconnect() {
+    if (this.dataChannel) {
+      this.dataChannel.close();
+    }
+    this.cleanup();
   }
 
   setStateChangeHandler(handler: (state: RTCDataChannelState) => void) {
@@ -63,6 +120,7 @@ export class DataChannelManager {
   }
 
   cleanup() {
+    this.activeTransfers.clear();
     if (this.dataChannel) {
       this.dataChannel.close();
     }
