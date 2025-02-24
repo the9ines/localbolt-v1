@@ -1,4 +1,3 @@
-
 import type { TransferProgress } from '../types/transfer';
 import type { TransferControlMessage, TransferState } from '../types/transfer-control';
 import { TransferStore } from './TransferStore';
@@ -11,6 +10,7 @@ export class TransferStateManager {
   private progressEmitter: ProgressEmitter;
   private progressHandler: TransferProgressHandler;
   private controlHandler: TransferControlHandler;
+  private resumptionData: Map<string, { chunks: Set<number>, total: number }> = new Map();
 
   constructor(onProgress?: (progress: TransferProgress) => void) {
     this.store = new TransferStore();
@@ -48,6 +48,11 @@ export class TransferStateManager {
           totalChunks: 0
         }
       };
+
+      this.resumptionData.set(filename, {
+        chunks: new Set(),
+        total: Math.ceil(total / this.getCurrentChunkSize())
+      });
 
       // Initialize transfer state
       this.store.setTransfer(newTransfer);
@@ -94,10 +99,38 @@ export class TransferStateManager {
     currentChunk: number,
     totalChunks: number
   ) {
+    // Track received chunks for resumption
+    const resumption = this.resumptionData.get(filename);
+    if (resumption) {
+      resumption.chunks.add(currentChunk);
+    }
+
     this.progressHandler.updateProgress(filename, loaded, total, currentChunk, totalChunks);
+  }
+
+  getMissingChunks(filename: string): number[] {
+    const resumption = this.resumptionData.get(filename);
+    if (!resumption) return [];
+
+    const missing: number[] = [];
+    for (let i = 0; i < resumption.total; i++) {
+      if (!resumption.chunks.has(i)) {
+        missing.push(i);
+      }
+    }
+    return missing;
+  }
+
+  getCurrentChunkSize(): number {
+    return 16384; // Default chunk size, should match BandwidthAdapter's BASE_CHUNK_SIZE
+  }
+
+  getResumptionState(filename: string) {
+    return this.resumptionData.get(filename);
   }
 
   reset() {
     this.controlHandler.reset();
+    this.resumptionData.clear();
   }
 }

@@ -4,6 +4,7 @@ import { ChunkProcessor } from './ChunkProcessor';
 import { TransferStateManager } from './TransferStateManager';
 import { BandwidthAdapter } from './BandwidthAdapter';
 import type { FileChunkMessage } from '../types/transfer';
+import type { ConnectionQuality, ConnectionQualityMetrics } from '../types/connection-quality';
 
 export class SendFileService {
   private bandwidthAdapter: BandwidthAdapter;
