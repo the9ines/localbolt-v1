@@ -6,7 +6,7 @@ export class ProgressEmitter {
 
   emit(
     filename: string,
-    status: 'transferring' | 'paused' | 'canceled_by_sender' | 'canceled_by_receiver' | 'error',
+    status: TransferProgress['status'],
     progress?: {
       loaded: number;
       total: number;
@@ -24,6 +24,7 @@ export class ProgressEmitter {
           totalChunks: progress?.totalChunks || 0,
           loaded: progress?.loaded || 0,
           total: progress?.total || 0,
+          sending: status === 'transferring' || status === 'paused'
         });
       } catch (error) {
         console.error('[STATE] Error in progress callback:', error);

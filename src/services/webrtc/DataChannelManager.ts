@@ -6,6 +6,7 @@ import { type DataChannelHandler, type TransferProgress } from './types/transfer
 import { EncryptionService } from './EncryptionService';
 import { TransferStateManager } from './transfer/TransferStateManager';
 import { TransferManager } from './transfer/TransferManager';
+import { ChunkProcessor } from './transfer/ChunkProcessor';
 
 export class DataChannelManager {
   private dataChannel: RTCDataChannel | null = null;
@@ -16,6 +17,7 @@ export class DataChannelManager {
   private activeTransfers: Set<string> = new Set();
   private transferStateManager: TransferStateManager;
   private transferManager: TransferManager;
+  private chunkProcessor: ChunkProcessor;
 
   constructor(
     private encryptionService: EncryptionService,
@@ -24,6 +26,7 @@ export class DataChannelManager {
     private onError: (error: Error) => void
   ) {
     console.log('[DATACHANNEL] Initializing DataChannelManager');
+    this.chunkProcessor = new ChunkProcessor(this.encryptionService);
     this.transferStateManager = new TransferStateManager(this.onProgress);
     this.transferManager = new TransferManager(
       this.dataChannel!,

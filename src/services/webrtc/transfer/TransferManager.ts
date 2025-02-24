@@ -1,3 +1,4 @@
+
 import type { TransferProgress, FileChunkMessage } from '../types/transfer';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferError } from '@/types/webrtc-errors';
@@ -11,10 +12,10 @@ export class TransferManager {
 
   constructor(
     private dataChannel: RTCDataChannel,
-    chunkProcessor: ChunkProcessor,
+    private encryptionService: EncryptionService,
     private onProgress?: (progress: TransferProgress) => void
   ) {
-    this.chunkProcessor = chunkProcessor;
+    this.chunkProcessor = new ChunkProcessor(encryptionService);
   }
 
   getCurrentProgress(filename: string): TransferProgress {
@@ -23,7 +24,9 @@ export class TransferManager {
       currentChunk: 0,
       totalChunks: 0,
       loaded: 0,
-      total: 0
+      total: 0,
+      sending: false,
+      status: 'transferring'
     };
   }
 
@@ -41,6 +44,7 @@ export class TransferManager {
       totalChunks,
       loaded,
       total,
+      sending: this.activeTransfers.has(filename),
       status
     };
 
@@ -55,8 +59,12 @@ export class TransferManager {
     this.activeTransfers.delete(filename);
     
     const message: FileChunkMessage = {
-      type: 'file-chunk',
+      type: 'chunk',
       filename,
+      chunk: new Uint8Array(),
+      chunkIndex: 0,
+      totalChunks: 0,
+      fileSize: 0,
       cancelled: true,
       cancelledBy: isReceiver ? 'receiver' : 'sender'
     };

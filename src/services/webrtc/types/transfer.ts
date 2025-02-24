@@ -23,9 +23,9 @@ export interface TransferProgress {
 }
 
 export interface FileChunkMessage {
-  type: 'chunk';
+  type: 'chunk';  // Keep consistent type
   filename: string;
-  chunk: Uint8Array;
+  chunk: Uint8Array | string;  // Allow both types for flexibility
   chunkIndex: number;
   totalChunks: number;
   fileSize: number;
