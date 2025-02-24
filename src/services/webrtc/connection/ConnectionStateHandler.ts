@@ -12,7 +12,6 @@ export class ConnectionStateHandler {
   };
 
   private readonly MAX_RECONNECT_ATTEMPTS = 3;
-  private readonly RECONNECT_DELAY = 2000; // 2 seconds
   private reconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor(
@@ -59,7 +58,7 @@ export class ConnectionStateHandler {
     if (this.connectionState.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
       console.error('[CONNECTION] Max reconnection attempts reached');
       this.handleClosedState();
-      throw new ConnectionError('Maximum reconnection attempts reached');
+      return;
     }
 
     if (!this.reconnectTimeout) {
@@ -71,9 +70,8 @@ export class ConnectionStateHandler {
         } catch (error) {
           console.error('[CONNECTION] Reconnection attempt failed:', error);
           this.connectionState.lastError = error as Error;
-          await this.handleDisconnectedState();
         }
-      }, this.RECONNECT_DELAY);
+      }, 2000);
     }
   }
 
@@ -82,7 +80,7 @@ export class ConnectionStateHandler {
       isConnected: false,
       lastConnectedAt: this.connectionState.lastConnectedAt,
       reconnectAttempts: 0,
-      lastError: this.connectionState.lastError,
+      lastError: null,
       candidateCache: new Map()
     };
 
