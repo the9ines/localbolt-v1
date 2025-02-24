@@ -5,7 +5,6 @@ import { FileUpload } from "@/components/file-upload/FileUpload";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { ForwardedRef, forwardRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { Shield } from "lucide-react";
 
 interface TransferProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -58,15 +57,6 @@ export const Transfer = forwardRef(({
       </div>
 
       <div className="relative">
-        <div className="flex items-center justify-center space-x-2 text-neon mb-6">
-          <Shield 
-            className={`w-5 h-5 transition-colors duration-300 ${
-              isConnected ? "fill-neon text-neon" : "text-neon"
-            }`} 
-          />
-          <span className="text-sm">End-to-End Encrypted</span>
-        </div>
-
         <PeerConnection onConnectionChange={onConnectionChange} />
         
         {isConnected && webrtc && (

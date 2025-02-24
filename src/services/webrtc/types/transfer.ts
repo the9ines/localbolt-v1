@@ -8,7 +8,25 @@ export interface DataChannelHandler {
 export interface TransferProgress {
   filename: string;
   total: number;
-  received: number;
+  loaded: number;
+  currentChunk?: number;
+  totalChunks?: number;
   sending: boolean;
-  status: 'active' | 'paused' | 'completed' | 'cancelled' | 'error';
+  status: 'transferring' | 'paused' | 'completed' | 'canceled_by_sender' | 'canceled_by_receiver' | 'error';
+  stats?: {
+    speed: number;
+    averageSpeed: number;
+    estimatedTimeRemaining: number;
+    retryCount: number;
+    maxRetries: number;
+  };
+}
+
+export interface FileChunkMessage {
+  type: 'chunk';
+  filename: string;
+  chunk: Uint8Array;
+  chunkIndex: number;
+  totalChunks: number;
+  fileSize: number;
 }
