@@ -52,7 +52,7 @@ export const Transfer = forwardRef(({
           Fast, Private File Transfer
         </h2>
         <p className="text-muted-foreground">
-          Share files securely with nearby devices or over the internet
+          Share files securely on your local network without uploading to the cloud
         </p>
       </div>
 
