@@ -18,6 +18,7 @@ class WebRTCService {
   private eventManager: WebRTCEventManager;
   private retryHandler: WebRTCRetryHandler;
   private onProgressCallback?: (progress: TransferProgress) => void;
+  private networkStateHandler?: (isOnline: boolean) => void;
 
   constructor(
     private localPeerCode: string,
@@ -32,6 +33,51 @@ class WebRTCService {
     
     this.initializeServices();
     this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
+    this.setupNetworkListeners();
+  }
+
+  private setupNetworkListeners() {
+    const handleNetworkChange = () => {
+      const isOnline = navigator.onLine;
+      console.log('[NETWORK] Connection status changed:', isOnline ? 'online' : 'offline');
+      
+      if (!isOnline) {
+        this.handleOfflineMode();
+      } else {
+        this.handleOnlineMode();
+      }
+      
+      if (this.networkStateHandler) {
+        this.networkStateHandler(isOnline);
+      }
+    };
+
+    window.addEventListener('online', handleNetworkChange);
+    window.addEventListener('offline', handleNetworkChange);
+  }
+
+  private handleOfflineMode() {
+    console.log('[NETWORK] Switching to offline mode');
+    // If we're in the middle of a transfer, pause it
+    if (this.dataChannelManager.hasActiveTransfers()) {
+      this.dataChannelManager.pauseAllTransfers();
+      this.onError(new ConnectionError(
+        "Network connection lost",
+        { detail: "Transfer paused due to network loss. Will resume when connection is restored." }
+      ));
+    }
+  }
+
+  private handleOnlineMode() {
+    console.log('[NETWORK] Switching to online mode');
+    // If we have paused transfers, attempt to resume them
+    if (this.dataChannelManager.hasActiveTransfers()) {
+      this.dataChannelManager.resumeAllTransfers();
+    }
+  }
+
+  setNetworkStateHandler(handler: (isOnline: boolean) => void) {
+    this.networkStateHandler = handler;
   }
 
   private initializeServices() {
@@ -59,7 +105,10 @@ class WebRTCService {
       (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
-    this.signalingService = new SignalingService(this.localPeerCode, this.handleSignal.bind(this));
+    this.signalingService = new SignalingService(
+      this.localPeerCode, 
+      this.handleSignal.bind(this)
+    );
     
     this.signalingHandler = new SignalingHandler(
       this.connectionManager,
@@ -76,12 +125,22 @@ class WebRTCService {
     );
   }
 
-  setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
-    this.eventManager.setConnectionStateListener(handler);
+  private handleError(error: WebRTCError) {
+    // Enhanced error handling with network state awareness
+    if (!navigator.onLine) {
+      // If we're offline, provide more specific error messages
+      if (error instanceof ConnectionError) {
+        error = new ConnectionError(
+          "Cannot perform this action while offline",
+          { detail: "Please wait for network connectivity to be restored" }
+        );
+      }
+    }
+    this.retryHandler.handleError(error, this.remotePeerCode);
   }
 
-  private handleError(error: WebRTCError) {
-    this.retryHandler.handleError(error, this.remotePeerCode);
+  setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
+    this.eventManager.setConnectionStateListener(handler);
   }
 
   getRemotePeerCode(): string {
@@ -93,6 +152,13 @@ class WebRTCService {
   }
 
   async connect(remotePeerCode: string): Promise<void> {
+    if (!navigator.onLine) {
+      throw new ConnectionError(
+        "Cannot establish new connections while offline",
+        { detail: "Please check your network connection and try again" }
+      );
+    }
+
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
     const connectionPromise = new Promise<void>(async (resolve, reject) => {
@@ -133,14 +199,15 @@ class WebRTCService {
       }
     });
 
-    const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => {
-        reject(new ConnectionError("Connection timeout"));
-      }, 30000);
-    });
-
     try {
-      await Promise.race([connectionPromise, timeoutPromise]);
+      await Promise.race([
+        connectionPromise,
+        new Promise<void>((_, reject) => {
+          setTimeout(() => {
+            reject(new ConnectionError("Connection timeout"));
+          }, 30000);
+        })
+      ]);
     } catch (error) {
       this.disconnect();
       throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
