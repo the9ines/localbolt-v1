@@ -1,4 +1,3 @@
-
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { DragDropArea } from "./DragDropArea";
@@ -63,28 +62,26 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
   const handleProgress = (transferProgress: TransferProgress) => {
     console.log('[TRANSFER] Progress update in UI:', transferProgress);
     
-    // Ignore empty error states that come after successful completion
-    if (transferProgress.status === 'error' && 
-        !transferProgress.filename && 
-        transferProgress.loaded === 0 && 
-        transferProgress.total === 0) {
+    // Skip empty error states
+    if (transferProgress.status === 'error' && !transferProgress.filename) {
       return;
     }
-    
-    setProgress(transferProgress);
-    
-    // Check for successful transfer completion
-    if (transferProgress.loaded === transferProgress.total && transferProgress.total > 0) {
-      console.log('[TRANSFER] Transfer completed successfully');
+
+    // Handle successful completion
+    if (transferProgress.status === 'transferring' && 
+        transferProgress.loaded === transferProgress.total && 
+        transferProgress.total > 0) {
       setProgress(null);
       toast({
         title: "Transfer complete",
-        description: "File downloaded successfully"
+        description: "File transferred successfully"
       });
       return;
     }
-    
-    // Handle error cases
+
+    setProgress(transferProgress);
+
+    // Handle cancellation and real errors
     if (transferProgress.status === 'canceled_by_sender' || 
         transferProgress.status === 'canceled_by_receiver') {
       setProgress(null);
@@ -93,7 +90,6 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
         description: "The file transfer was cancelled"
       });
     } else if (transferProgress.status === 'error' && transferProgress.filename) {
-      // Only show error toast for actual file transfer errors
       setProgress(null);
       toast({
         title: "Transfer error",
