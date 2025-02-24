@@ -9,6 +9,8 @@ export class TransferManager {
   private chunkProcessor: ChunkProcessor;
   private transferProgress: { [key: string]: TransferProgress } = {};
   private isPaused: boolean = false;
+  private readonly PROGRESS_STORAGE_KEY = 'transfer_progress';
+  private readonly CHUNKS_STORAGE_KEY = 'transfer_chunks';
 
   constructor(
     private dataChannel: RTCDataChannel,
@@ -16,6 +18,65 @@ export class TransferManager {
     private onProgress?: (progress: TransferProgress) => void
   ) {
     this.chunkProcessor = chunkProcessor;
+    this.loadSavedProgress();
+  }
+
+  private loadSavedProgress() {
+    try {
+      const savedProgress = localStorage.getItem(this.PROGRESS_STORAGE_KEY);
+      const savedChunks = localStorage.getItem(this.CHUNKS_STORAGE_KEY);
+      
+      if (savedProgress) {
+        this.transferProgress = JSON.parse(savedProgress);
+        console.log('[TRANSFER] Loaded saved progress:', this.transferProgress);
+      }
+      
+      if (savedChunks) {
+        const parsedChunks = JSON.parse(savedChunks);
+        // Convert stored base64 chunks back to Blobs
+        Object.keys(parsedChunks).forEach(filename => {
+          this.chunksBuffer[filename] = parsedChunks[filename].map((chunk: string) => 
+            new Blob([Uint8Array.from(atob(chunk), c => c.charCodeAt(0))])
+          );
+        });
+        console.log('[TRANSFER] Restored chunks for files:', Object.keys(this.chunksBuffer));
+      }
+    } catch (error) {
+      console.error('[TRANSFER] Failed to load saved progress:', error);
+      // Clear potentially corrupted data
+      localStorage.removeItem(this.PROGRESS_STORAGE_KEY);
+      localStorage.removeItem(this.CHUNKS_STORAGE_KEY);
+    }
+  }
+
+  private saveProgress() {
+    try {
+      localStorage.setItem(this.PROGRESS_STORAGE_KEY, JSON.stringify(this.transferProgress));
+      
+      // Convert Blobs to base64 for storage
+      const chunksToStore: { [key: string]: string[] } = {};
+      Object.keys(this.chunksBuffer).forEach(filename => {
+        chunksToStore[filename] = [];
+        this.chunksBuffer[filename].forEach(blob => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (reader.result) {
+              const base64 = btoa(
+                new Uint8Array(reader.result as ArrayBuffer)
+                  .reduce((data, byte) => data + String.fromCharCode(byte), '')
+              );
+              chunksToStore[filename].push(base64);
+            }
+          };
+          reader.readAsArrayBuffer(blob);
+        });
+      });
+      
+      localStorage.setItem(this.CHUNKS_STORAGE_KEY, JSON.stringify(chunksToStore));
+      console.log('[TRANSFER] Progress saved');
+    } catch (error) {
+      console.error('[TRANSFER] Failed to save progress:', error);
+    }
   }
 
   getCurrentProgress(filename: string): TransferProgress {
@@ -44,6 +105,7 @@ export class TransferManager {
     };
 
     this.transferProgress[filename] = progress;
+    this.saveProgress();
 
     if (this.onProgress) {
       this.onProgress(progress);
@@ -68,6 +130,9 @@ export class TransferManager {
     if (this.chunksBuffer[filename]) {
       delete this.chunksBuffer[filename];
       delete this.transferProgress[filename];
+      
+      // Clean up stored progress
+      this.saveProgress();
       
       this.updateProgress(
         filename,
@@ -108,13 +173,10 @@ export class TransferManager {
       }
 
       const decryptedChunk = await this.chunkProcessor.decryptChunk(chunk);
-      
-      // Validate the chunk
       const validation = await this.chunkProcessor.validateChunk(decryptedChunk);
       
-      // Store the chunk with its validation status
       this.chunksBuffer[filename][chunkIndex] = decryptedChunk;
-
+      
       const received = this.chunksBuffer[filename].filter(Boolean).length;
       
       this.updateProgress(
@@ -124,12 +186,9 @@ export class TransferManager {
         'transferring'
       );
 
-      // Check if we have all chunks
       if (received === totalChunks) {
-        // Update status to validating
         this.updateProgress(filename, fileSize, fileSize, 'validating');
         
-        // Calculate file checksum
         const fileChecksum = await this.chunkProcessor.calculateFileChecksum(
           this.chunksBuffer[filename]
         );
@@ -138,8 +197,9 @@ export class TransferManager {
         this.activeTransfers.delete(filename);
         delete this.chunksBuffer[filename];
         
-        // Include checksum in final progress update
         this.transferProgress[filename].checksum = fileChecksum;
+        this.saveProgress();
+        
         if (this.onProgress) {
           this.onProgress(this.transferProgress[filename]);
         }
@@ -158,6 +218,7 @@ export class TransferManager {
   handlePause() {
     console.log('[TRANSFER] Transfer manager paused');
     this.isPaused = true;
+    this.saveProgress();
   }
 
   handleResume() {
