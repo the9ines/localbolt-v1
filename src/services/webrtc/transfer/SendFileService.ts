@@ -1,4 +1,3 @@
-
 import { TransferError } from '@/types/webrtc-errors';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferStateManager } from './TransferStateManager';
@@ -80,7 +79,7 @@ export class SendFileService {
     const CHUNK_SIZE = 16384;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
-    this.stateManager.startTransfer(file.name, file.size, file);
+    this.stateManager.startTransfer(file.name, file.size);
 
     try {
       for (let i = 0; i < totalChunks; i++) {

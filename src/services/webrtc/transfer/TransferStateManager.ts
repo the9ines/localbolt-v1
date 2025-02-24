@@ -1,4 +1,3 @@
-
 import type { TransferProgress } from '../types/transfer';
 import type { TransferControlMessage, TransferState } from '../types/transfer-control';
 import { TransferStore } from './TransferStore';
@@ -87,6 +86,12 @@ export class TransferStateManager {
     } catch (error) {
       console.error('[STATE] Error starting transfer:', error);
       this.reset();
+    }
+  }
+
+  updateProgress(progress: TransferProgress): void {
+    if (!this.isCleaningUp && !this.store.isCancelled()) {
+      this.progressEmitter.emit(progress.filename, progress.status || 'transferring', progress);
     }
   }
 

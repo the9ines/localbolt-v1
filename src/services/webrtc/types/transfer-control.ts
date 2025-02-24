@@ -2,6 +2,7 @@
 export interface TransferState {
   filename: string;
   total: number;
+  file?: File;
   progress?: {
     loaded: number;
     total: number;
