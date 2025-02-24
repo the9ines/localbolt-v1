@@ -102,7 +102,7 @@ class WebRTCService {
           });
       },
       this.handleError.bind(this),
-      (channel) => this.dataChannelManager.setupDataChannel(channel)
+      (channel) => this.dataChannelManager.setDataChannel(channel)
     );
 
     this.signalingService = new SignalingService(
@@ -115,7 +115,7 @@ class WebRTCService {
       this.encryptionService,
       this.signalingService,
       this.localPeerCode,
-      (channel) => this.dataChannelManager.setupDataChannel(channel)
+      (channel) => this.dataChannelManager.setDataChannel(channel)
     );
 
     this.eventManager = new WebRTCEventManager(
@@ -171,7 +171,7 @@ class WebRTCService {
           maxRetransmits: 3
         });
         
-        this.dataChannelManager.setupDataChannel(dataChannel);
+        this.dataChannelManager.setDataChannel(dataChannel);
         
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);

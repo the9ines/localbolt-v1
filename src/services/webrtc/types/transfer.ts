@@ -29,4 +29,8 @@ export interface FileChunkMessage {
   chunkIndex: number;
   totalChunks: number;
   fileSize: number;
+  cancelled?: boolean;
+  cancelledBy?: 'sender' | 'receiver';
+  paused?: boolean;
+  resumed?: boolean;
 }

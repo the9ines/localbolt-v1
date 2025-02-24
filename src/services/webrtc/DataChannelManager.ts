@@ -4,6 +4,8 @@ import { TransferControlService } from './transfer/TransferControlService';
 import { DataChannelMessageHandler } from './transfer/DataChannelMessageHandler';
 import { type DataChannelHandler, type TransferProgress } from './types/transfer';
 import { EncryptionService } from './EncryptionService';
+import { TransferStateManager } from './transfer/TransferStateManager';
+import { TransferManager } from './transfer/TransferManager';
 
 export class DataChannelManager {
   private dataChannel: RTCDataChannel | null = null;
@@ -12,6 +14,8 @@ export class DataChannelManager {
   private transferControlService: TransferControlService | null = null;
   private stateChangeHandler: ((state: RTCDataChannelState) => void) | null = null;
   private activeTransfers: Set<string> = new Set();
+  private transferStateManager: TransferStateManager;
+  private transferManager: TransferManager;
 
   constructor(
     private encryptionService: EncryptionService,
@@ -20,6 +24,12 @@ export class DataChannelManager {
     private onError: (error: Error) => void
   ) {
     console.log('[DATACHANNEL] Initializing DataChannelManager');
+    this.transferStateManager = new TransferStateManager(this.onProgress);
+    this.transferManager = new TransferManager(
+      this.dataChannel!,
+      this.encryptionService,
+      this.onProgress
+    );
   }
 
   setDataChannel(channel: RTCDataChannel) {
@@ -45,23 +55,27 @@ export class DataChannelManager {
     };
   }
 
-  initializeServices(handlers: DataChannelHandler) {
+  initializeServices() {
+    if (!this.dataChannel) return;
+
     this.fileTransferService = new FileTransferService(
-      this.dataChannel!,
-      handlers,
-      this.encryptionService
+      this.dataChannel,
+      this.encryptionService,
+      this.onFileReceive,
+      this.onProgress
     );
     
     this.transferControlService = new TransferControlService(
-      this.dataChannel!,
-      handlers,
-      this.encryptionService
+      this.dataChannel,
+      this.transferStateManager,
+      this.transferManager,
+      this.onProgress
     );
 
     this.messageHandler = new DataChannelMessageHandler(
-      this.fileTransferService,
-      this.transferControlService,
-      this.encryptionService
+      this.transferManager,
+      this.transferStateManager,
+      this.onFileReceive
     );
   }
 
@@ -77,7 +91,7 @@ export class DataChannelManager {
 
   cancelTransfer(filename: string, isReceiver: boolean = false) {
     if (!this.transferControlService) return;
-    this.transferControlService.cancelTransfer(filename, isReceiver);
+    this.transferControlService.cancelCurrentTransfer(filename, isReceiver);
     this.activeTransfers.delete(filename);
   }
 
