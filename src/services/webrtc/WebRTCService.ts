@@ -14,6 +14,10 @@ class WebRTCService {
   private signalingService: SignalingService;
   private connectionStateHandler?: (state: RTCPeerConnectionState) => void;
   private onProgressCallback?: (progress: TransferProgress) => void;
+  private isConnecting: boolean = false;
+  private isDisconnecting: boolean = false;
+  private connectionTimeout: NodeJS.Timeout | null = null;
+  private readonly CONNECTION_TIMEOUT = 30000; // 30 seconds
 
   constructor(
     private localPeerCode: string,
@@ -23,43 +27,58 @@ class WebRTCService {
   ) {
     console.log('[INIT] Creating WebRTC service with peer code:', localPeerCode);
     
-    // Initialize core services
-    this.encryptionService = new EncryptionService();
-    this.onProgressCallback = onProgress;
+    if (!localPeerCode || localPeerCode.length < 6) {
+      throw new WebRTCError("Invalid peer code");
+    }
     
-    // Setup signaling
-    this.signalingService = new SignalingService(
-      this.localPeerCode,
-      this.handleSignal.bind(this)
-    );
+    try {
+      // Initialize core services
+      this.encryptionService = new EncryptionService();
+      this.onProgressCallback = onProgress;
+      
+      // Setup signaling
+      this.signalingService = new SignalingService(
+        this.localPeerCode,
+        this.handleSignal.bind(this)
+      );
 
-    // Setup data channel manager
-    this.dataChannelManager = new DataChannelManager(
-      this.encryptionService,
-      this.onReceiveFile,
-      (progress) => {
-        if (this.onProgressCallback) {
-          this.onProgressCallback(progress);
-        }
-      },
-      this.handleError.bind(this)
-    );
+      // Setup data channel manager with error recovery
+      this.dataChannelManager = new DataChannelManager(
+        this.encryptionService,
+        this.onReceiveFile,
+        (progress) => {
+          if (this.onProgressCallback) {
+            this.onProgressCallback(progress);
+          }
+        },
+        this.handleError.bind(this)
+      );
 
-    // Setup connection manager
-    this.connectionManager = new ConnectionManager(
-      (candidate) => {
-        this.signalingService.sendSignal('ice-candidate', candidate, this.remotePeerCode)
-          .catch(error => {
-            console.error('[ICE] Failed to send candidate:', error);
-            this.handleError(error as WebRTCError);
-          });
-      },
-      this.handleError.bind(this),
-      (channel) => this.dataChannelManager.setupDataChannel(channel)
-    );
+      // Setup connection manager with enhanced error handling
+      this.connectionManager = new ConnectionManager(
+        (candidate) => {
+          if (!this.remotePeerCode) {
+            console.warn('[ICE] No remote peer code available');
+            return;
+          }
+          this.signalingService.sendSignal('ice-candidate', candidate, this.remotePeerCode)
+            .catch(error => {
+              console.error('[ICE] Failed to send candidate:', error);
+              this.handleError(error as WebRTCError);
+            });
+        },
+        this.handleError.bind(this),
+        (channel) => this.dataChannelManager.setupDataChannel(channel)
+      );
+
+      console.log('[INIT] WebRTC service initialized successfully');
+    } catch (error) {
+      const initError = new WebRTCError("Failed to initialize WebRTC service", error);
+      console.error('[INIT] Initialization failed:', initError);
+      throw initError;
+    }
   }
 
-  // Add the missing setProgressCallback method
   setProgressCallback(callback: (progress: TransferProgress) => void) {
     console.log('[WEBRTC] Setting new progress callback');
     this.onProgressCallback = callback;
@@ -72,6 +91,18 @@ class WebRTCService {
 
   private handleError(error: WebRTCError) {
     console.error('[WEBRTC] Error:', error);
+    
+    // Clean up any ongoing connection attempt
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+    
+    // Reset connection state
+    if (this.isConnecting) {
+      this.isConnecting = false;
+    }
+    
     this.onError(error);
   }
 
@@ -82,8 +113,27 @@ class WebRTCService {
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
+    if (this.isConnecting) {
+      throw new ConnectionError("Connection already in progress");
+    }
+
+    if (this.isDisconnecting) {
+      throw new ConnectionError("Cannot connect while disconnecting");
+    }
+
+    if (!remotePeerCode || remotePeerCode.length < 6) {
+      throw new ConnectionError("Invalid remote peer code");
+    }
+
     try {
+      this.isConnecting = true;
       this.remotePeerCode = remotePeerCode;
+      
+      // Set connection timeout
+      this.connectionTimeout = setTimeout(() => {
+        this.handleError(new ConnectionError("Connection timeout"));
+        this.disconnect();
+      }, this.CONNECTION_TIMEOUT);
       
       // Create and setup peer connection
       const peerConnection = await this.connectionManager.createPeerConnection();
@@ -109,16 +159,29 @@ class WebRTCService {
       console.error('[WEBRTC] Connection failed:', error);
       this.disconnect();
       throw new ConnectionError("Connection failed", error);
+    } finally {
+      this.isConnecting = false;
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
     }
   }
 
   private async handleSignal(signal: SignalData) {
     try {
+      if (!signal.type || !signal.from) {
+        throw new WebRTCError("Invalid signal format");
+      }
+
       const peerConnection = this.connectionManager.getPeerConnection() || 
                            await this.connectionManager.createPeerConnection();
 
       switch (signal.type) {
         case 'offer':
+          if (!signal.data.offer || !signal.data.publicKey) {
+            throw new WebRTCError("Invalid offer format");
+          }
           this.encryptionService.setRemotePublicKey(signal.data.publicKey);
           await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.offer));
           
@@ -132,6 +195,9 @@ class WebRTCService {
           break;
 
         case 'answer':
+          if (!signal.data.answer || !signal.data.publicKey) {
+            throw new WebRTCError("Invalid answer format");
+          }
           this.encryptionService.setRemotePublicKey(signal.data.publicKey);
           await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data.answer));
           break;
@@ -139,8 +205,13 @@ class WebRTCService {
         case 'ice-candidate':
           if (peerConnection.remoteDescription) {
             await this.connectionManager.addIceCandidate(signal.data);
+          } else {
+            console.warn('[WEBRTC] Received ICE candidate before remote description');
           }
           break;
+
+        default:
+          console.warn('[WEBRTC] Unknown signal type:', signal.type);
       }
     } catch (error) {
       this.handleError(new WebRTCError("Signal handling failed", error));
@@ -148,6 +219,10 @@ class WebRTCService {
   }
 
   async sendFile(file: File) {
+    if (!this.connectionManager.isConnected()) {
+      throw new WebRTCError("Cannot send file - not connected");
+    }
+
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
     await this.dataChannelManager.sendFile(file);
   }
@@ -158,19 +233,41 @@ class WebRTCService {
   }
 
   disconnect() {
+    if (this.isDisconnecting) {
+      console.log('[WEBRTC] Already disconnecting');
+      return;
+    }
+
     console.log('[WEBRTC] Disconnecting');
-    this.dataChannelManager.disconnect();
-    this.connectionManager.disconnect();
-    this.encryptionService.reset();
-    this.remotePeerCode = '';
+    this.isDisconnecting = true;
+
+    try {
+      this.dataChannelManager.disconnect();
+      this.connectionManager.disconnect();
+      this.encryptionService.reset();
+      this.remotePeerCode = '';
+      
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
+    } finally {
+      this.isDisconnecting = false;
+    }
   }
 
   pauseTransfer(filename: string): void {
+    if (!this.connectionManager.isConnected()) {
+      throw new WebRTCError("Cannot pause transfer - not connected");
+    }
     console.log('[WEBRTC] Pausing transfer for:', filename);
     this.dataChannelManager.pauseTransfer(filename);
   }
 
   resumeTransfer(filename: string): void {
+    if (!this.connectionManager.isConnected()) {
+      throw new WebRTCError("Cannot resume transfer - not connected");
+    }
     console.log('[WEBRTC] Resuming transfer for:', filename);
     this.dataChannelManager.resumeTransfer(filename);
   }
