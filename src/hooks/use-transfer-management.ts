@@ -1,5 +1,5 @@
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { TransferProgress } from "@/services/webrtc/FileTransferService";
 import WebRTCService from "@/services/webrtc/WebRTCService";
@@ -11,9 +11,11 @@ export const useTransferManagement = (
 ) => {
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
+  const cancelToastShown = useRef(false);
 
   const resetTransfer = useCallback(() => {
     setProgress(null);
+    cancelToastShown.current = false;
   }, []);
 
   const handleProgress = useCallback((transferProgress: TransferProgress) => {
@@ -42,9 +44,11 @@ export const useTransferManagement = (
     }
 
     // Handle cancellation
-    if (transferProgress.status === 'canceled_by_sender' || 
-        transferProgress.status === 'canceled_by_receiver') {
+    if ((transferProgress.status === 'canceled_by_sender' || 
+         transferProgress.status === 'canceled_by_receiver') && 
+        !cancelToastShown.current) {
       resetTransfer();
+      cancelToastShown.current = true;
       toast({
         title: "Transfer cancelled",
         description: "The file transfer was cancelled"
@@ -97,7 +101,7 @@ export const useTransferManagement = (
       const file = files[0];
       console.log('[TRANSFER] Starting transfer for:', file.name);
       
-      // Reset any existing progress
+      // Reset any existing progress and toast state
       resetTransfer();
       
       // Set up new transfer
