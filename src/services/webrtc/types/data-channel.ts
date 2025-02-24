@@ -1,4 +1,4 @@
 
 export interface DataChannel extends RTCDataChannel {
-  send(data: string): void;
+  // No need to redefine send() since we want all the functionality from RTCDataChannel
 }
