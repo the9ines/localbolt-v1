@@ -45,8 +45,8 @@ export const Transfer = forwardRef(({
     >
       <div className="absolute inset-0 bg-gradient-to-br from-neon/5 via-transparent to-transparent opacity-50" />
       
-      <div className="relative space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="relative space-y-4 text-center">
+        <div className="flex flex-col items-center">
           <h2 className="text-2xl font-semibold tracking-tight">
             Fast, Private File Transfer
           </h2>
