@@ -1,12 +1,10 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useToast } from '@/hooks/use-toast';
 import type { TransferProgress } from '@/services/webrtc/FileTransferService';
 import type WebRTCService from '@/services/webrtc/WebRTCService';
 
 export const useTransferProgress = (webrtc: WebRTCService | null) => {
   const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
-  const { toast } = useToast();
   const lastEventTime = useRef<{ [key: string]: number }>({});
   const EVENT_COOLDOWN = 500; // 500ms cooldown between same events
   
@@ -51,20 +49,10 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
       case 'canceled_by_sender':
       case 'canceled_by_receiver':
         setTransferProgress(null);
-        const cancelledBy = progress.status === 'canceled_by_sender' ? 'sender' : 'receiver';
-        toast({
-          title: "Transfer Canceled",
-          description: `The transfer was canceled by the ${cancelledBy}`,
-        });
         break;
 
       case 'error':
         setTransferProgress(null);
-        toast({
-          title: "Transfer Error",
-          description: "The transfer was terminated due to an error",
-          variant: "destructive",
-        });
         break;
 
       case 'transferring':
@@ -79,10 +67,6 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
 
           // For completed transfer
           if (progress.loaded === progress.total && progress.total > 0) {
-            toast({
-              title: "Transfer Complete",
-              description: "File transferred successfully",
-            });
             return null;
           }
 
@@ -94,7 +78,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
         console.log('[PROGRESS] Unhandled progress status:', progress.status);
         break;
     }
-  }, [toast, shouldProcessEvent]);
+  }, [shouldProcessEvent]);
 
   const handleCancelReceiving = useCallback(() => {
     if (!webrtc || !transferProgress?.filename) return;
