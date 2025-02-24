@@ -25,6 +25,7 @@ export const TargetPeerInput = ({
     if (onDisconnect) {
       onDisconnect();
     }
+    onTargetPeerCodeChange(''); // Clear the input when disconnecting
   };
   
   return (

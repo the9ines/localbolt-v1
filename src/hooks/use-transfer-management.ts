@@ -11,15 +11,21 @@ export const useTransferManagement = (
 ) => {
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
-  const cancelToastShown = useRef(false);
-  const completionToastShown = useRef(false);
-  const errorToastShown = useRef(false);
+  const lastToastTime = useRef<number>(0);
+  const TOAST_COOLDOWN = 1000; // 1 second cooldown between toasts
+  const lastStatus = useRef<string | null>(null);
+
+  const showToast = useCallback((title: string, description: string, variant?: "default" | "destructive") => {
+    const now = Date.now();
+    if (now - lastToastTime.current > TOAST_COOLDOWN) {
+      lastToastTime.current = now;
+      toast({ title, description, variant });
+    }
+  }, [toast]);
 
   const resetTransfer = useCallback(() => {
     setProgress(null);
-    cancelToastShown.current = false;
-    completionToastShown.current = false;
-    errorToastShown.current = false;
+    lastStatus.current = null;
   }, []);
 
   const handleProgress = useCallback((transferProgress: TransferProgress) => {
@@ -29,17 +35,19 @@ export const useTransferManagement = (
       return;
     }
 
+    // Prevent duplicate status notifications
+    if (lastStatus.current === transferProgress.status) {
+      return;
+    }
+
+    lastStatus.current = transferProgress.status;
+
     // Handle completed transfer
     if (transferProgress.status === 'transferring' && 
         transferProgress.loaded === transferProgress.total && 
-        transferProgress.total > 0 && 
-        !completionToastShown.current) {
-      completionToastShown.current = true;
+        transferProgress.total > 0) {
       resetTransfer();
-      toast({
-        title: "Transfer complete",
-        description: "File transferred successfully"
-      });
+      showToast("Transfer complete", "File transferred successfully");
       return;
     }
 
@@ -56,59 +64,42 @@ export const useTransferManagement = (
     }
 
     // Handle cancellation
-    if ((transferProgress.status === 'canceled_by_sender' || 
-         transferProgress.status === 'canceled_by_receiver') && 
-        !cancelToastShown.current) {
-      cancelToastShown.current = true;
+    if (transferProgress.status === 'canceled_by_sender' || 
+        transferProgress.status === 'canceled_by_receiver') {
       const cancelledBy = transferProgress.status === 'canceled_by_sender' ? 'sender' : 'receiver';
-      toast({
-        title: "Transfer cancelled",
-        description: `The file transfer was cancelled by the ${cancelledBy}`
-      });
       resetTransfer();
+      showToast("Transfer cancelled", `The file transfer was cancelled by the ${cancelledBy}`);
       return;
     }
 
     // Handle errors
-    if (transferProgress.status === 'error' && !errorToastShown.current) {
-      errorToastShown.current = true;
-      toast({
-        title: "Transfer error",
-        description: "An error occurred during the transfer",
-        variant: "destructive"
-      });
+    if (transferProgress.status === 'error') {
       resetTransfer();
+      showToast("Transfer error", "An error occurred during the transfer", "destructive");
       return;
     }
-  }, [toast, resetTransfer]);
+  }, [resetTransfer, showToast]);
 
   const handlePauseTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
       webrtc.pauseTransfer(progress.filename);
       setProgress(prev => prev ? { ...prev, status: 'paused' } : null);
-      toast({
-        title: "Transfer paused",
-        description: "File transfer has been paused"
-      });
+      showToast("Transfer paused", "File transfer has been paused");
     }
-  }, [webrtc, progress, toast]);
+  }, [webrtc, progress, showToast]);
 
   const handleResumeTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
       webrtc.resumeTransfer(progress.filename);
       setProgress(prev => prev ? { ...prev, status: 'transferring' } : null);
-      toast({
-        title: "Transfer resumed",
-        description: "File transfer has been resumed"
-      });
+      showToast("Transfer resumed", "File transfer has been resumed");
     }
-  }, [webrtc, progress, toast]);
+  }, [webrtc, progress, showToast]);
 
   const cancelTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
       webrtc.cancelTransfer(progress.filename);
-      // Don't call resetTransfer() here - wait for the cancel event to come through handleProgress
-      // This ensures both sides handle the cancellation consistently
+      // Don't call resetTransfer() here - wait for the cancel event
     }
   }, [webrtc, progress]);
 
@@ -117,10 +108,8 @@ export const useTransferManagement = (
       return;
     }
 
-    // If there's an active transfer, cancel it first
     if (progress) {
       await cancelTransfer();
-      // Wait a bit for the cancellation to process
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
@@ -128,14 +117,11 @@ export const useTransferManagement = (
       const file = files[0];
       console.log('[TRANSFER] Starting transfer for:', file.name);
       
-      // Reset any existing progress and toast state
       resetTransfer();
       
-      // Set up new transfer
       webrtc.setProgressCallback(handleProgress);
       await webrtc.sendFile(file);
       
-      // Remove the sent file from the queue
       setFiles(files.filter((_, index) => index !== 0));
       
       console.log('[TRANSFER] Transfer completed for:', file.name);
@@ -143,21 +129,13 @@ export const useTransferManagement = (
       console.error('[TRANSFER] Transfer error:', error);
       
       if (error.message === "Transfer cancelled by user") {
-        // Let the cancel handler deal with the toast
         return;
       }
       
       resetTransfer();
-      if (!errorToastShown.current) {
-        errorToastShown.current = true;
-        toast({
-          title: "Transfer failed",
-          description: "Failed to send file",
-          variant: "destructive"
-        });
-      }
+      showToast("Transfer failed", "Failed to send file", "destructive");
     }
-  }, [webrtc, files, progress, cancelTransfer, handleProgress, resetTransfer, setFiles, toast]);
+  }, [webrtc, files, progress, cancelTransfer, handleProgress, resetTransfer, setFiles, showToast]);
 
   return {
     progress,
