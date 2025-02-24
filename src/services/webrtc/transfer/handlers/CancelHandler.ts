@@ -10,59 +10,45 @@ export class CancelHandler extends BaseTransferHandler {
 
   handleCancel({ filename, isReceiver }: TransferControlMessage): void {
     try {
-      // If we're already processing a cancel for this file, ignore
+      // Immediate cleanup of progress tracking
+      this.lastProgress.delete(filename);
+      
+      // If already cancelled, ignore additional cancel events
       if (this.canceledTransfers.has(filename)) {
-        console.log('[STATE] Already cancelled transfer for:', filename);
         return;
       }
 
       const now = Date.now();
       const lastCancel = this.lastCancelTime.get(filename) || 0;
       
-      // Prevent duplicate cancel processing within cooldown period
       if (now - lastCancel < this.CANCEL_COOLDOWN) {
-        console.log('[STATE] Ignoring duplicate cancel within cooldown for:', filename);
         return;
       }
 
       if (this.processingCancel) {
-        console.log('[STATE] Already processing a cancel request');
         return;
       }
 
       this.processingCancel = true;
       this.lastCancelTime.set(filename, now);
-      console.log(`[STATE] Processing cancel request for ${filename}`);
-
-      // Get transfer state
-      const transfer = this.store.getTransfer(filename);
-      const currentProgress = this.lastProgress.get(filename);
       
-      // Mark as cancelled immediately
+      // Mark as cancelled before any other operations
       this.canceledTransfers.add(filename);
       
-      // Update cancelled state
+      // Immediately clear all state
       this.store.updateState({
         isCancelled: true,
         isPaused: false,
         currentTransfer: null
       });
 
-      const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
-      
-      // Only emit one progress update for this cancel
-      if (currentProgress) {
-        this.emitProgressUpdate(filename, status, currentProgress);
-      } else if (transfer?.progress) {
-        this.emitProgressUpdate(filename, status, transfer.progress);
-      } else {
-        this.emitProgressUpdate(filename, status);
-      }
-
-      // Clean up transfer states immediately
+      // Clean up transfer state before emitting progress
       this.store.deleteTransfer(filename);
       this.activeTransfers.delete(filename);
-      this.lastProgress.delete(filename);
+
+      // Emit single cancel event
+      const status = isReceiver ? 'canceled_by_receiver' : 'canceled_by_sender';
+      this.emitProgressUpdate(filename, status);
 
       console.log(`[STATE] Successfully cancelled transfer for: ${filename}`);
     } catch (error) {
