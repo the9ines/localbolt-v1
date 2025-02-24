@@ -67,19 +67,13 @@ export class TransferStateManager {
 
   handlePause(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling pause request', message);
-    // Set pause state first
     this.store.updateState({ isPaused: true });
-    
-    // Let control handler update the progress
     return this.controlHandler.handlePause(message);
   }
 
   handleResume(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling resume request', message);
-    // Set resume state first
     this.store.updateState({ isPaused: false });
-    
-    // Let control handler update the progress
     return this.controlHandler.handleResume(message);
   }
 
@@ -98,6 +92,22 @@ export class TransferStateManager {
   }
 
   reset() {
+    const currentTransfer = this.store.getCurrentTransfer();
+    if (currentTransfer) {
+      // Emit final progress update for successful completion
+      this.progressEmitter.emit(
+        currentTransfer.filename,
+        'transferring',
+        {
+          loaded: currentTransfer.total,
+          total: currentTransfer.total,
+          currentChunk: currentTransfer.progress?.totalChunks || 0,
+          totalChunks: currentTransfer.progress?.totalChunks || 0
+        }
+      );
+    }
+    // Clear the store after emitting final progress
+    this.store = new TransferStore();
     this.controlHandler.reset();
   }
 }
