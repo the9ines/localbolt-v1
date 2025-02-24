@@ -38,6 +38,10 @@ export class TransferStateManager {
   startTransfer(filename: string, total: number) {
     try {
       console.log(`[STATE] Starting new transfer for ${filename}`);
+      
+      // Clear any existing transfer state first
+      this.reset();
+      
       const newTransfer: TransferState = {
         filename,
         total,
@@ -67,18 +71,26 @@ export class TransferStateManager {
 
   handlePause(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling pause request', message);
-    this.store.updateState({ isPaused: true });
-    return this.controlHandler.handlePause(message);
+    const success = this.controlHandler.handlePause(message);
+    if (success) {
+      this.store.updateState({ isPaused: true });
+    }
+    return success;
   }
 
   handleResume(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling resume request', message);
-    this.store.updateState({ isPaused: false });
-    return this.controlHandler.handleResume(message);
+    const success = this.controlHandler.handleResume(message);
+    if (success) {
+      this.store.updateState({ isPaused: false });
+    }
+    return success;
   }
 
   handleCancel(message: TransferControlMessage): void {
+    console.log('[STATE] Handling cancel request', message);
     this.controlHandler.handleCancel(message);
+    this.reset();
   }
 
   updateTransferProgress(
@@ -88,26 +100,28 @@ export class TransferStateManager {
     currentChunk: number,
     totalChunks: number
   ) {
+    // Create transfer if it doesn't exist
+    if (!this.store.isTransferActive(filename)) {
+      this.startTransfer(filename, total);
+    }
     this.progressHandler.updateProgress(filename, loaded, total, currentChunk, totalChunks);
   }
 
   reset() {
+    console.log('[STATE] Resetting transfer state');
     const currentTransfer = this.store.getCurrentTransfer();
-    if (currentTransfer) {
-      // Emit final progress update for successful completion
+    
+    if (currentTransfer?.progress) {
+      // Emit final progress update if transfer was in progress
       this.progressEmitter.emit(
         currentTransfer.filename,
         'transferring',
-        {
-          loaded: currentTransfer.total,
-          total: currentTransfer.total,
-          currentChunk: currentTransfer.progress?.totalChunks || 0,
-          totalChunks: currentTransfer.progress?.totalChunks || 0
-        }
+        currentTransfer.progress
       );
     }
-    // Clear the store after emitting final progress
-    this.store = new TransferStore();
+    
+    // Clear all state
+    this.store.clear();
     this.controlHandler.reset();
   }
 }

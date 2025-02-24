@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import type { TransferProgress } from "@/services/webrtc/FileTransferService";
 import WebRTCService from "@/services/webrtc/WebRTCService";
@@ -12,17 +12,22 @@ export const useTransferManagement = (
   const [progress, setProgress] = useState<TransferProgress | null>(null);
   const { toast } = useToast();
 
-  const handleProgress = (transferProgress: TransferProgress) => {
+  const resetTransfer = useCallback(() => {
+    setProgress(null);
+  }, []);
+
+  const handleProgress = useCallback((transferProgress: TransferProgress) => {
     console.log('[TRANSFER] Progress update in UI:', transferProgress);
     
-    if (transferProgress.status === 'error' && !transferProgress.filename) {
+    if (!transferProgress || !transferProgress.filename) {
       return;
     }
 
+    // Handle completed transfer
     if (transferProgress.status === 'transferring' && 
         transferProgress.loaded === transferProgress.total && 
         transferProgress.total > 0) {
-      setProgress(null);
+      resetTransfer();
       toast({
         title: "Transfer complete",
         description: "File transferred successfully"
@@ -30,74 +35,88 @@ export const useTransferManagement = (
       return;
     }
 
-    setProgress(transferProgress);
+    // Update progress for active transfer
+    if (transferProgress.status === 'transferring' || transferProgress.status === 'paused') {
+      setProgress(transferProgress);
+      return;
+    }
 
+    // Handle cancellation
     if (transferProgress.status === 'canceled_by_sender' || 
         transferProgress.status === 'canceled_by_receiver') {
-      setProgress(null);
+      resetTransfer();
       toast({
         title: "Transfer cancelled",
         description: "The file transfer was cancelled"
       });
-    } else if (transferProgress.status === 'error' && transferProgress.filename) {
-      setProgress(null);
+      return;
+    }
+
+    // Handle errors
+    if (transferProgress.status === 'error') {
+      resetTransfer();
       toast({
         title: "Transfer error",
         description: "An error occurred during the transfer",
         variant: "destructive"
       });
+      return;
     }
-  };
+  }, [toast, resetTransfer]);
 
-  const handlePauseTransfer = () => {
-    if (webrtc && progress) {
+  const handlePauseTransfer = useCallback(() => {
+    if (webrtc && progress?.filename) {
       webrtc.pauseTransfer(progress.filename);
     }
-  };
+  }, [webrtc, progress]);
 
-  const handleResumeTransfer = () => {
-    if (webrtc && progress) {
+  const handleResumeTransfer = useCallback(() => {
+    if (webrtc && progress?.filename) {
       webrtc.resumeTransfer(progress.filename);
     }
-  };
+  }, [webrtc, progress]);
 
-  const cancelTransfer = () => {
-    if (webrtc && progress) {
+  const cancelTransfer = useCallback(() => {
+    if (webrtc && progress?.filename) {
       webrtc.cancelTransfer(progress.filename);
-      setProgress(null);
+      resetTransfer();
     }
-  };
+  }, [webrtc, progress, resetTransfer]);
 
-  const startTransfer = async () => {
-    if (!webrtc) {
-      toast({
-        title: "Connection error",
-        description: "No peer connection available",
-        variant: "destructive"
-      });
+  const startTransfer = useCallback(async () => {
+    if (!webrtc || !files.length) {
       return;
+    }
+
+    // If there's an active transfer, cancel it first
+    if (progress) {
+      await cancelTransfer();
     }
 
     try {
       const file = files[0];
-      if (!file) return;
+      console.log('[TRANSFER] Starting transfer for:', file.name);
       
-      console.log('Starting transfer for:', file.name);
+      // Reset any existing progress
+      resetTransfer();
       
+      // Set up new transfer
       webrtc.setProgressCallback(handleProgress);
       await webrtc.sendFile(file);
       
-      console.log('Transfer completed for:', file.name);
+      // Remove the sent file from the queue
+      setFiles(files.filter((_, index) => index !== 0));
+      
+      console.log('[TRANSFER] Transfer completed for:', file.name);
       
       toast({
         title: "Transfer complete",
         description: `${file.name} has been sent successfully`
       });
-
-      // Update files array directly instead of using a callback
-      setFiles(files.slice(1));
     } catch (error) {
-      console.error('Transfer error:', error);
+      console.error('[TRANSFER] Transfer error:', error);
+      resetTransfer();
+      
       if (error.message !== "Transfer cancelled by user") {
         toast({
           title: "Transfer failed",
@@ -106,7 +125,7 @@ export const useTransferManagement = (
         });
       }
     }
-  };
+  }, [webrtc, files, progress, cancelTransfer, handleProgress, resetTransfer, setFiles, toast]);
 
   return {
     progress,
