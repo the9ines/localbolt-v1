@@ -3,8 +3,7 @@ import { Card } from "@/components/ui/card";
 import { PeerConnection } from "@/components/PeerConnection";
 import { FileUpload } from "@/components/file-upload/FileUpload";
 import WebRTCService from "@/services/webrtc/WebRTCService";
-import { ForwardedRef, forwardRef, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { ForwardedRef, forwardRef } from "react";
 
 interface TransferProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -17,29 +16,6 @@ export const Transfer = forwardRef(({
   isConnected, 
   webrtc 
 }: TransferProps, ref: ForwardedRef<HTMLDivElement>) => {
-  const { toast } = useToast();
-
-  useEffect(() => {
-    if (webrtc) {
-      webrtc.setNetworkStateHandler((isOnline) => {
-        if (!isOnline) {
-          toast({
-            title: "Network Connection Lost",
-            description: "Operating in LAN-only mode. Some features may be limited.",
-            variant: "destructive"
-          });
-        } else {
-          toast({
-            title: "Network Connection Restored",
-            description: "Full functionality has been restored.",
-          });
-        }
-      });
-    }
-  }, [webrtc, toast]);
-
-  const discoveryStatus = webrtc?.getDiscoveryStatus?.();
-
   return (
     <Card 
       ref={ref}

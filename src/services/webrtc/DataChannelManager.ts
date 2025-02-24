@@ -1,150 +1,114 @@
 
 import { FileTransferService } from './FileTransferService';
-import { TransferControlService } from './transfer/TransferControlService';
-import { DataChannelMessageHandler } from './transfer/DataChannelMessageHandler';
-import { type DataChannelHandler, type TransferProgress } from './types/transfer';
 import { EncryptionService } from './EncryptionService';
-import { TransferStateManager } from './transfer/TransferStateManager';
-import { TransferManager } from './transfer/TransferManager';
-import { ChunkProcessor } from './transfer/ChunkProcessor';
+import { WebRTCError } from '@/types/webrtc-errors';
+import type { TransferProgress } from './FileTransferService';
 
-export class DataChannelManager {
-  private dataChannel: RTCDataChannel | null = null;
-  private messageHandler: DataChannelMessageHandler | null = null;
+export interface IDataChannelManager {
+  setupDataChannel(channel: RTCDataChannel): void;
+  setStateChangeHandler(handler: (state: RTCDataChannelState) => void): void;
+  sendFile(file: File): Promise<void>;
+  cancelTransfer(filename: string, isReceiver?: boolean): void;
+  pauseTransfer(filename: string): void;
+  resumeTransfer(filename: string): void;
+  disconnect(): void;
+}
+
+export class DataChannelManager implements IDataChannelManager {
   private fileTransferService: FileTransferService | null = null;
-  private transferControlService: TransferControlService | null = null;
-  private stateChangeHandler: ((state: RTCDataChannelState) => void) | null = null;
-  private activeTransfers: Set<string> = new Set();
-  private transferStateManager: TransferStateManager;
-  private transferManager: TransferManager;
-  private chunkProcessor: ChunkProcessor;
+  private stateChangeHandler: ((state: RTCDataChannelState) => void) | undefined;
+  private isDisconnecting: boolean = false;
 
   constructor(
     private encryptionService: EncryptionService,
-    private onFileReceive: (file: Blob, filename: string) => void,
+    private onReceiveFile: (file: Blob, filename: string) => void,
     private onProgress: (progress: TransferProgress) => void,
-    private onError: (error: Error) => void
+    private onError: (error: WebRTCError) => void
   ) {
     console.log('[DATACHANNEL] Initializing DataChannelManager');
-    this.chunkProcessor = new ChunkProcessor(this.encryptionService);
-    this.transferStateManager = new TransferStateManager(this.onProgress);
-    this.transferManager = new TransferManager(
-      this.dataChannel!,
-      this.encryptionService,
-      this.onProgress
-    );
   }
 
-  setDataChannel(channel: RTCDataChannel) {
-    this.dataChannel = channel;
-    this.setupDataChannelHandlers();
-  }
-
-  private setupDataChannelHandlers() {
-    if (!this.dataChannel) return;
-
-    this.dataChannel.onopen = () => {
-      console.log('[DATACHANNEL] Channel opened');
-      this.stateChangeHandler?.('open');
-    };
-
-    this.dataChannel.onclose = () => {
-      console.log('[DATACHANNEL] Channel closed');
-      this.stateChangeHandler?.('closed');
-    };
-
-    this.dataChannel.onmessage = (event) => {
-      this.messageHandler?.handleMessage(event);
-    };
-  }
-
-  initializeServices() {
-    if (!this.dataChannel) return;
-
-    this.fileTransferService = new FileTransferService(
-      this.dataChannel,
-      this.encryptionService,
-      this.onFileReceive,
-      this.onProgress
-    );
+  setupDataChannel(channel: RTCDataChannel): void {
+    console.log('[DATACHANNEL] Setting up data channel');
     
-    this.transferControlService = new TransferControlService(
-      this.dataChannel,
-      this.transferStateManager,
-      this.transferManager,
+    this.fileTransferService = new FileTransferService(
+      channel,
+      this.encryptionService,
+      this.onReceiveFile,
       this.onProgress
     );
 
-    this.messageHandler = new DataChannelMessageHandler(
-      this.transferManager,
-      this.transferStateManager,
-      this.onFileReceive
-    );
+    channel.onclose = () => {
+      console.log('[DATACHANNEL] Channel closed');
+      if (this.stateChangeHandler && !this.isDisconnecting) {
+        this.stateChangeHandler('closed');
+      }
+    };
+
+    channel.onopen = () => {
+      console.log('[DATACHANNEL] Channel opened');
+      if (this.stateChangeHandler && !this.isDisconnecting) {
+        this.stateChangeHandler('open');
+      }
+    };
+
+    channel.onerror = (error) => {
+      console.error('[DATACHANNEL] Error:', error);
+      this.onError(new WebRTCError('Data channel error occurred', error));
+    };
   }
 
-  hasActiveTransfers(): boolean {
-    return this.activeTransfers.size > 0;
-  }
-
-  async sendFile(file: File) {
-    if (!this.fileTransferService) throw new Error('File transfer service not initialized');
-    await this.fileTransferService.sendFile(file);
-    this.activeTransfers.add(file.name);
-  }
-
-  cancelTransfer(filename: string, isReceiver: boolean = false) {
-    if (!this.transferControlService) return;
-    this.transferControlService.cancelCurrentTransfer(filename, isReceiver);
-    this.activeTransfers.delete(filename);
-  }
-
-  pauseTransfer(filename: string) {
-    if (!this.transferControlService) return;
-    this.transferControlService.pauseTransfer(filename);
-  }
-
-  resumeTransfer(filename: string) {
-    if (!this.transferControlService) return;
-    this.transferControlService.resumeTransfer(filename);
-  }
-
-  pauseAllTransfers() {
-    this.activeTransfers.forEach(filename => this.pauseTransfer(filename));
-  }
-
-  resumeAllTransfers() {
-    this.activeTransfers.forEach(filename => this.resumeTransfer(filename));
-  }
-
-  disconnect() {
-    if (this.dataChannel) {
-      this.dataChannel.close();
-    }
-    this.cleanup();
-  }
-
-  setStateChangeHandler(handler: (state: RTCDataChannelState) => void) {
+  setStateChangeHandler(handler: (state: RTCDataChannelState) => void): void {
     console.log('[DATACHANNEL] Setting state change handler');
     this.stateChangeHandler = handler;
   }
 
-  getTransferService(): FileTransferService | null {
-    return this.fileTransferService;
-  }
-
-  getControlService(): TransferControlService | null {
-    return this.transferControlService;
-  }
-
-  cleanup() {
-    this.activeTransfers.clear();
-    if (this.dataChannel) {
-      this.dataChannel.close();
+  async sendFile(file: File): Promise<void> {
+    console.log('[DATACHANNEL] Attempting to send file:', file.name);
+    if (!this.fileTransferService) {
+      throw new WebRTCError("No active data channel");
     }
-    this.dataChannel = null;
-    this.messageHandler = null;
-    this.fileTransferService = null;
-    this.transferControlService = null;
-    this.stateChangeHandler = null;
+    await this.fileTransferService.sendFile(file);
+  }
+
+  cancelTransfer(filename: string, isReceiver: boolean = false): void {
+    console.log('[DATACHANNEL] Cancelling transfer for:', filename);
+    if (this.fileTransferService) {
+      this.fileTransferService.cancelCurrentTransfer(filename, isReceiver);
+    }
+  }
+
+  pauseTransfer(filename: string): void {
+    console.log('[DATACHANNEL] Pausing transfer for:', filename);
+    if (this.fileTransferService) {
+      this.fileTransferService.pauseTransfer(filename);
+    }
+  }
+
+  resumeTransfer(filename: string): void {
+    console.log('[DATACHANNEL] Resuming transfer for:', filename);
+    if (this.fileTransferService) {
+      this.fileTransferService.resumeTransfer(filename);
+    }
+  }
+
+  disconnect(): void {
+    if (this.isDisconnecting) {
+      console.log('[DATACHANNEL] Already disconnecting, skipping redundant disconnect call');
+      return;
+    }
+
+    console.log('[DATACHANNEL] Disconnecting data channel');
+    this.isDisconnecting = true;
+
+    try {
+      if (this.stateChangeHandler) {
+        this.stateChangeHandler('closed');
+      }
+      this.fileTransferService = null;
+      this.stateChangeHandler = undefined;
+    } finally {
+      this.isDisconnecting = false;
+    }
   }
 }

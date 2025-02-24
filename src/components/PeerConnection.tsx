@@ -8,9 +8,6 @@ import { ConnectionStatus } from "./peer-connection/ConnectionStatus";
 import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 import { usePeerConnection } from "@/hooks/use-peer-connection";
-import { Card } from "./ui/card";
-import { Badge } from "./ui/badge";
-import { Network } from "lucide-react";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -74,11 +71,19 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
     console.log('[UI] Connection state changed:', state);
-    setIsConnected(state === 'connected');
-    onConnectionChange(state === 'connected', webrtc || undefined);
+    const connected = state === 'connected';
+    setIsConnected(connected);
+    onConnectionChange(connected, webrtc || undefined);
     
-    if (state !== 'connected' && transferProgress) {
+    if (!connected && transferProgress) {
       clearProgress();
+    }
+    
+    if (connected && webrtc) {
+      const remotePeerCode = webrtc.getRemotePeerCode();
+      console.log('[UI] Setting connected peer code:', remotePeerCode);
+    } else {
+      setTargetPeerCode("");
     }
   };
 
@@ -93,44 +98,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     URL.revokeObjectURL(url);
   };
 
-  const discoveryStatus = webrtc?.getDiscoveryStatus?.();
-  const hasLocalPeers = discoveryStatus?.localPeersCount > 0;
-
   return (
     <div className="space-y-4">
-      <ConnectionStatus 
-        isConnected={isConnected} 
-        webrtc={webrtc}
-        isLocalConnection={webrtc?.getDiscoveryStatus()?.localPeersCount > 0}
-      />
+      <ConnectionStatus isConnected={isConnected} />
       
       <div className="space-y-4 touch-manipulation">
-        {hasLocalPeers && (
-          <Card className="p-4 border-neon/20 bg-black/20">
-            <div className="flex items-center gap-2 mb-2">
-              <Network className="w-4 h-4 text-neon" />
-              <p className="text-sm text-neon">
-                {discoveryStatus.localPeersCount} nearby {discoveryStatus.localPeersCount === 1 ? 'device' : 'devices'} found
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {discoveryStatus.localPeers.map(peerId => (
-                <Badge
-                  key={peerId}
-                  variant="outline"
-                  className="bg-black/30 cursor-pointer hover:bg-neon/10 transition-colors"
-                  onClick={() => {
-                    setTargetPeerCode(peerId);
-                    handleConnect();
-                  }}
-                >
-                  {peerId}
-                </Badge>
-              ))}
-            </div>
-          </Card>
-        )}
-
         <PeerCodeInput 
           peerCode={peerCode}
           copied={copied}

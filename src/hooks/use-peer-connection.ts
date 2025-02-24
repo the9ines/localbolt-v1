@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useToast } from './use-toast';
 import WebRTCService from '@/services/webrtc/WebRTCService';
 import { WebRTCError } from '@/types/webrtc-errors';
@@ -12,36 +12,7 @@ export const usePeerConnection = (
   const [connectedPeerCode, setConnectedPeerCode] = useState("");
   const [webrtc, setWebrtc] = useState<WebRTCService | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { toast } = useToast();
-
-  // Network status monitoring
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast({
-        title: "Network Connected",
-        description: "Network connection restored",
-      });
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast({
-        title: "Network Disconnected",
-        description: "Operating in offline mode",
-        variant: "destructive",
-      });
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [toast]);
 
   const handleConnectionError = useCallback((error: WebRTCError) => {
     console.error(`[${error.name}]`, error.message, error.details);
@@ -57,13 +28,6 @@ export const usePeerConnection = (
     const device = detectDevice();
     if (error.name === 'ConnectionError' && device.isSteamDeck) {
       description = "Please ensure your Steam Deck's network settings allow P2P connections.";
-    }
-
-    // Enhanced error handling for offline scenarios
-    if (!navigator.onLine) {
-      if (error.name === 'ConnectionError') {
-        description = "Cannot establish connection while offline. Please check your network connection.";
-      }
     }
 
     switch (error.name) {
@@ -98,15 +62,6 @@ export const usePeerConnection = (
 
   const handleConnect = async () => {
     if (!webrtc) return;
-    
-    if (!navigator.onLine) {
-      toast({
-        title: "Offline Mode",
-        description: "Cannot establish new connections while offline",
-        variant: "destructive",
-      });
-      return;
-    }
     
     if (targetPeerCode.length < 6) {
       toast({
@@ -174,7 +129,6 @@ export const usePeerConnection = (
     setWebrtc,
     isConnected,
     setIsConnected,
-    isOnline,
     handleConnect,
     handleDisconnect,
     handleConnectionError

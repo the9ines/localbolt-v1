@@ -3,25 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Zap } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
 
 export const Header = () => {
   const location = useLocation();
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
   const handleLogoClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (location.pathname === '/') {
@@ -45,10 +30,8 @@ export const Header = () => {
           </Link>
           
           <Card className="glass flex items-center px-4 py-1.5 space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-neon animate-pulse' : 'bg-red-500'}`} />
-            <span className="text-sm text-white/80">
-              {isOnline ? 'Network Active' : 'Network Offline'}
-            </span>
+            <div className="w-2 h-2 rounded-full bg-neon animate-pulse" />
+            <span className="text-sm text-white/80">Network Active</span>
           </Card>
         </div>
       </div>

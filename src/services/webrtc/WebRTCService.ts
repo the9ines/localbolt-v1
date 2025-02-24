@@ -7,9 +7,6 @@ import { SignalingHandler } from './SignalingHandler';
 import { DataChannelManager } from './DataChannelManager';
 import { WebRTCEventManager } from './WebRTCEventManager';
 import { WebRTCRetryHandler } from './WebRTCRetryHandler';
-import { ConnectionQualityService } from './quality/ConnectionQualityService';
-import { NetworkManager } from './network/NetworkManager';
-import { ConnectionQualityMetrics } from './ConnectionQualityMonitor';
 import type { TransferProgress } from './types/transfer';
 
 class WebRTCService {
@@ -21,8 +18,6 @@ class WebRTCService {
   private signalingService: SignalingService;
   private eventManager: WebRTCEventManager;
   private retryHandler: WebRTCRetryHandler;
-  private qualityService: ConnectionQualityService;
-  private networkManager: NetworkManager;
   private onProgressCallback?: (progress: TransferProgress) => void;
 
   constructor(
@@ -41,30 +36,38 @@ class WebRTCService {
   }
 
   private initializeServices() {
-    this.connectionManager = new ConnectionManager(
-      (candidate) => this.handleIceCandidate(candidate),
-      this.handleError.bind(this),
-      (channel) => this.dataChannelManager.setDataChannel(channel)
-    );
-
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
-      this.handleProgress.bind(this),
+      (progress) => {
+        console.log('[TRANSFER] Progress update:', progress);
+        if (this.onProgressCallback) {
+          this.onProgressCallback(progress);
+        }
+      },
       this.handleError.bind(this)
     );
 
-    this.signalingService = new SignalingService(
-      this.localPeerCode, 
-      this.handleSignal.bind(this)
+    this.connectionManager = new ConnectionManager(
+      (candidate) => {
+        this.signalingService.sendSignal('ice-candidate', candidate, this.remotePeerCode)
+          .catch(error => {
+            console.error('[ICE] Failed to send candidate:', error);
+            this.handleError(error as WebRTCError);
+          });
+      },
+      this.handleError.bind(this),
+      (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
+
+    this.signalingService = new SignalingService(this.localPeerCode, this.handleSignal.bind(this));
     
     this.signalingHandler = new SignalingHandler(
       this.connectionManager,
       this.encryptionService,
       this.signalingService,
       this.localPeerCode,
-      (channel) => this.dataChannelManager.setDataChannel(channel)
+      (channel) => this.dataChannelManager.setupDataChannel(channel)
     );
 
     this.eventManager = new WebRTCEventManager(
@@ -72,133 +75,111 @@ class WebRTCService {
       this.dataChannelManager,
       this.handleError.bind(this)
     );
-
-    this.qualityService = new ConnectionQualityService(
-      this.connectionManager.getPeerConnection()
-    );
-
-    this.networkManager = new NetworkManager(
-      this.onError,
-      () => this.dataChannelManager.pauseAllTransfers(),
-      () => this.dataChannelManager.resumeAllTransfers()
-    );
-  }
-
-  async connect(remotePeerCode: string): Promise<void> {
-    if (!this.networkManager.checkNetworkStatus()) {
-      throw new ConnectionError(
-        "Cannot establish new connections while offline",
-        { detail: "Please check your network connection and try again" }
-      );
-    }
-
-    console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
-    this.remotePeerCode = remotePeerCode;
-    
-    try {
-      const peerConnection = await this.connectionManager.createPeerConnection();
-      await this.setupDataChannel(peerConnection);
-      await this.initiateSignaling(peerConnection);
-    } catch (error) {
-      this.disconnect();
-      throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
-    }
-  }
-
-  private async setupDataChannel(peerConnection: RTCPeerConnection) {
-    const dataChannel = peerConnection.createDataChannel('fileTransfer', {
-      ordered: true,
-      maxRetransmits: 3
-    });
-    this.dataChannelManager.setDataChannel(dataChannel);
-  }
-
-  private async initiateSignaling(peerConnection: RTCPeerConnection) {
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    
-    await this.signalingService.sendSignal('offer', {
-      offer,
-      publicKey: this.encryptionService.getPublicKey(),
-      peerCode: this.localPeerCode
-    }, this.remotePeerCode);
-  }
-
-  private handleIceCandidate(candidate: RTCIceCandidate) {
-    this.signalingService.sendSignal('ice-candidate', candidate, this.remotePeerCode)
-      .catch(error => {
-        console.error('[ICE] Failed to send candidate:', error);
-        this.handleError(error as WebRTCError);
-      });
-  }
-
-  private handleError(error: WebRTCError) {
-    if (!this.networkManager.checkNetworkStatus()) {
-      if (error instanceof ConnectionError) {
-        error = new ConnectionError(
-          "Cannot perform this action while offline",
-          { detail: "Please wait for network connectivity to be restored" }
-        );
-      }
-    }
-    this.retryHandler.handleError(error, this.remotePeerCode);
-  }
-
-  private handleProgress(progress: TransferProgress) {
-    if (this.onProgressCallback) {
-      this.onProgressCallback(progress);
-    }
-  }
-
-  startQualityMonitoring(callback: (metrics: ConnectionQualityMetrics) => void) {
-    this.qualityService.startMonitoring(callback);
-  }
-
-  stopQualityMonitoring() {
-    this.qualityService.stopMonitoring();
-  }
-
-  // Public methods for file transfer
-  async sendFile(file: File) {
-    await this.dataChannelManager.sendFile(file);
-  }
-
-  cancelTransfer(filename: string, isReceiver: boolean = false) {
-    this.dataChannelManager.cancelTransfer(filename, isReceiver);
-  }
-
-  pauseTransfer(filename: string) {
-    this.dataChannelManager.pauseTransfer(filename);
-  }
-
-  resumeTransfer(filename: string) {
-    this.dataChannelManager.resumeTransfer(filename);
-  }
-
-  disconnect() {
-    this.eventManager.handleDisconnect();
-    this.dataChannelManager.disconnect();
-    this.connectionManager.disconnect();
-    this.encryptionService.reset();
-    this.remotePeerCode = '';
-    this.retryHandler.resetAttempts();
-    this.qualityService.stopMonitoring();
   }
 
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
     this.eventManager.setConnectionStateListener(handler);
   }
 
-  setNetworkStateHandler(handler: (isOnline: boolean) => void) {
-    this.networkManager.setNetworkStateHandler(handler);
+  private handleError(error: WebRTCError) {
+    this.retryHandler.handleError(error, this.remotePeerCode);
   }
 
   getRemotePeerCode(): string {
     return this.signalingHandler.getRemotePeerCode();
   }
 
-  getDiscoveryStatus() {
-    return this.signalingService.getDiscoveryStatus();
+  async connect(remotePeerCode: string): Promise<void> {
+    console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
+    
+    const connectionPromise = new Promise<void>(async (resolve, reject) => {
+      try {
+        this.remotePeerCode = remotePeerCode;
+        const peerConnection = await this.connectionManager.createPeerConnection();
+        
+        const dataChannel = peerConnection.createDataChannel('fileTransfer', {
+          ordered: true,
+          maxRetransmits: 3
+        });
+        
+        this.dataChannelManager.setupDataChannel(dataChannel);
+        
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        console.log('[SIGNALING] Created and set local description (offer)');
+        
+        await this.signalingService.sendSignal('offer', {
+          offer,
+          publicKey: this.encryptionService.getPublicKey(),
+          peerCode: this.localPeerCode
+        }, remotePeerCode);
+
+        peerConnection.onconnectionstatechange = () => {
+          const state = peerConnection.connectionState;
+          if (state === 'connected') {
+            console.log('[WEBRTC] Connection established successfully');
+            this.retryHandler.resetAttempts();
+            resolve();
+          } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
+            console.log('[WEBRTC] Connection state changed to:', state);
+            reject(new ConnectionError("Connection failed or closed"));
+          }
+        };
+      } catch (error) {
+        reject(new ConnectionError("Failed to initiate connection", error));
+      }
+    });
+
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      setTimeout(() => {
+        reject(new ConnectionError("Connection timeout"));
+      }, 30000);
+    });
+
+    try {
+      await Promise.race([connectionPromise, timeoutPromise]);
+    } catch (error) {
+      this.disconnect();
+      throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
+    }
+  }
+
+  setProgressCallback(callback: (progress: TransferProgress) => void) {
+    this.onProgressCallback = callback;
+  }
+
+  async sendFile(file: File) {
+    console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
+    await this.dataChannelManager.sendFile(file);
+  }
+
+  cancelTransfer(filename: string, isReceiver: boolean = false) {
+    console.log('[WEBRTC] Cancelling transfer:', filename);
+    this.dataChannelManager.cancelTransfer(filename, isReceiver);
+  }
+
+  disconnect() {
+    console.log('[WEBRTC] Disconnecting');
+    this.eventManager.handleDisconnect();
+    this.dataChannelManager.disconnect();
+    this.connectionManager.disconnect();
+    this.encryptionService.reset();
+    this.remotePeerCode = '';
+    this.retryHandler.resetAttempts();
+  }
+
+  public pauseTransfer(filename: string): void {
+    console.log('[WEBRTC] Pausing transfer for:', filename);
+    if (this.dataChannelManager) {
+      this.dataChannelManager.pauseTransfer(filename);
+    }
+  }
+
+  public resumeTransfer(filename: string): void {
+    console.log('[WEBRTC] Resuming transfer for:', filename);
+    if (this.dataChannelManager) {
+      this.dataChannelManager.resumeTransfer(filename);
+    }
   }
 
   private handleSignal = async (signal: SignalData) => {

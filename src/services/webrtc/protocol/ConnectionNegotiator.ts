@@ -1,50 +1,70 @@
 
-export enum TransportMode {
-  LOCAL = 'local',
-  INTERNET = 'internet',
-  OFFLINE = 'offline'
-}
-
-export interface PeerInfo {
-  id: string;
-  capabilities: {
-    mdns: boolean;
-    webrtc: boolean;
-    encryption: string[];
-  };
-  networkType: TransportMode;
-  timestamp: number;
-}
+import { ProtocolHandler } from './ProtocolHandler';
+import { ConnectionMessage, MessageType } from './ConnectionMessage';
+import { TransportMode, DeviceType } from './ProtocolVersion';
+import { WebRTCError } from '@/types/webrtc-errors';
 
 export class ConnectionNegotiator {
-  private discoveredPeers: Map<string, PeerInfo> = new Map();
-  
-  constructor() {
-    this.setupDiscoveryListener();
-  }
+  constructor(
+    private protocolHandler: ProtocolHandler,
+    private localPeerId: string
+  ) {}
 
-  private setupDiscoveryListener() {
-    window.addEventListener('localbolt-peer-discovered', ((event: CustomEvent<PeerInfo>) => {
-      this.handlePeerDiscovered(event.detail);
-    }) as EventListener);
-  }
+  public async negotiateConnection(
+    remotePeerId: string,
+    remoteDeviceType: DeviceType
+  ): Promise<TransportMode> {
+    console.log('[NEGOTIATOR] Starting connection negotiation with:', remotePeerId);
+    
+    try {
+      // Create initial connection request
+      const preferredTransports = this.getPreferredTransports(remoteDeviceType);
+      const request = this.protocolHandler.createConnectionRequest(
+        this.localPeerId,
+        preferredTransports
+      );
 
-  private handlePeerDiscovered(peer: PeerInfo) {
-    console.log('[NEGOTIATOR] New peer discovered:', peer);
-    this.discoveredPeers.set(peer.id, {
-      ...peer,
-      timestamp: Date.now()
-    });
-  }
+      // Validate capabilities and determine transport mode
+      const localMetadata = this.protocolHandler.getProtocolMetadata();
+      const negotiatedTransport = this.protocolHandler.getNegotiatedTransport(
+        localMetadata,
+        request.protocol
+      );
 
-  getCurrentPeers(): PeerInfo[] {
-    // Clean up old peers (older than 30 seconds)
-    const now = Date.now();
-    for (const [id, peer] of this.discoveredPeers.entries()) {
-      if (now - peer.timestamp > 30000) {
-        this.discoveredPeers.delete(id);
-      }
+      console.log('[NEGOTIATOR] Negotiated transport mode:', negotiatedTransport);
+      return negotiatedTransport;
+    } catch (error) {
+      throw new WebRTCError('Failed to negotiate connection', { remotePeerId, error });
     }
-    return Array.from(this.discoveredPeers.values());
+  }
+
+  private getPreferredTransports(remoteDeviceType: DeviceType): TransportMode[] {
+    const transports: TransportMode[] = [];
+
+    // Web clients must use WebRTC
+    if (remoteDeviceType === DeviceType.Web) {
+      return [TransportMode.WebRTC];
+    }
+
+    // Native clients can use multiple transport modes
+    transports.push(TransportMode.LAN);
+    transports.push(TransportMode.WebRTC);
+    transports.push(TransportMode.Internet);
+
+    return transports;
+  }
+
+  public validateIncomingMessage(message: ConnectionMessage): boolean {
+    if (!this.protocolHandler.validateMessage(message)) {
+      return false;
+    }
+
+    // Additional validation specific to connection negotiation
+    if (!message.peerId) {
+      console.error('[NEGOTIATOR] Missing peer ID in message');
+      return false;
+    }
+
+    return true;
   }
 }
