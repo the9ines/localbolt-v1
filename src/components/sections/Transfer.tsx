@@ -49,11 +49,14 @@ export const Transfer = forwardRef(({
       <div className="absolute inset-0 bg-gradient-to-br from-neon/5 via-transparent to-transparent opacity-50" />
       
       <div className="relative space-y-4 text-center">
-        <div className="flex flex-col items-center">
-          <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-            Fast, Private File Transfer
-          </h2>
-          <div className="flex items-center justify-center space-x-2 text-neon mt-2">
+        <h2 className="text-2xl font-semibold tracking-tight">
+          Fast, Private File Transfer
+        </h2>
+        <div className="space-y-2">
+          <p className="text-muted-foreground">
+            Share files securely with nearby devices or over the internet
+          </p>
+          <div className="flex items-center justify-center space-x-2 text-neon">
             <Shield 
               className={`w-5 h-5 transition-colors duration-300 ${
                 isConnected ? "fill-neon text-neon" : "text-neon"
@@ -62,9 +65,6 @@ export const Transfer = forwardRef(({
             <span className="text-sm">End-to-End Encrypted</span>
           </div>
         </div>
-        <p className="text-muted-foreground">
-          Share files securely with nearby devices or over the internet
-        </p>
       </div>
 
       <div className="relative">
