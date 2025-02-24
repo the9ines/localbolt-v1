@@ -1,4 +1,3 @@
-
 import { FileTransferService } from './FileTransferService';
 import { EncryptionService } from './EncryptionService';
 import { WebRTCError } from '@/types/webrtc-errors';
@@ -14,7 +13,6 @@ export interface IDataChannelManager {
   resumeTransfer(filename: string): void;
   disconnect(): void;
   hasActiveTransfers(): boolean;
-  setTransportMode(mode: TransportMode): void;
 }
 
 export class DataChannelManager implements IDataChannelManager {
@@ -37,22 +35,10 @@ export class DataChannelManager implements IDataChannelManager {
     console.log('[DATACHANNEL] Setting transport mode:', mode);
     this.currentTransportMode = mode;
     
+    // Adjust transfer parameters based on transport mode
     if (this.fileTransferService) {
-      const chunkSize = this.getChunkSizeForMode(mode);
+      const chunkSize = mode === TransportMode.LOCAL ? 65536 : 16384; // Larger chunks for local transfer
       this.fileTransferService.setChunkSize(chunkSize);
-    }
-  }
-
-  private getChunkSizeForMode(mode: TransportMode): number {
-    switch (mode) {
-      case TransportMode.LOCAL:
-        return 65536; // 64KB chunks for local network
-      case TransportMode.INTERNET:
-        return 16384; // 16KB chunks for internet
-      case TransportMode.OFFLINE:
-        return 32768; // 32KB chunks for offline/LAN
-      default:
-        return 16384; // Default to conservative size
     }
   }
 
@@ -64,11 +50,6 @@ export class DataChannelManager implements IDataChannelManager {
       this.encryptionService,
       this.onReceiveFile,
       this.onProgress
-    );
-
-    // Set initial chunk size based on current transport mode
-    this.fileTransferService.setChunkSize(
-      this.getChunkSizeForMode(this.currentTransportMode)
     );
 
     channel.onclose = () => {
@@ -129,6 +110,20 @@ export class DataChannelManager implements IDataChannelManager {
 
   hasActiveTransfers(): boolean {
     return this.activeTransfers.size > 0;
+  }
+
+  pauseAllTransfers(): void {
+    console.log('[DATACHANNEL] Pausing all active transfers');
+    this.activeTransfers.forEach(filename => {
+      this.pauseTransfer(filename);
+    });
+  }
+
+  resumeAllTransfers(): void {
+    console.log('[DATACHANNEL] Resuming all active transfers');
+    this.activeTransfers.forEach(filename => {
+      this.resumeTransfer(filename);
+    });
   }
 
   disconnect(): void {

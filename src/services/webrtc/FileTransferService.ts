@@ -19,7 +19,6 @@ export class FileTransferService implements IFileTransferService {
   private messageHandler: DataChannelMessageHandler;
   private sendFileService: SendFileService;
   private transferControlService: TransferControlService;
-  private chunkSize: number = 16384; // Default chunk size
 
   constructor(
     private dataChannel: RTCDataChannel,
@@ -51,13 +50,6 @@ export class FileTransferService implements IFileTransferService {
       console.log('[TRANSFER] Data channel closed, cleaning up transfer state');
       this.stateManager.reset();
     };
-  }
-
-  setChunkSize(size: number) {
-    console.log('[TRANSFER] Setting chunk size:', size);
-    this.chunkSize = size;
-    this.chunkProcessor.setChunkSize(size);
-    this.transferManager.setChunkSize(size);
   }
 
   async sendFile(file: File) {
