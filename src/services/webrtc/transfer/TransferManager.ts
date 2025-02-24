@@ -10,6 +10,8 @@ export class TransferManager {
   private activeTransfers: Set<string> = new Set();
   private transferProgress: { [key: string]: TransferProgress } = {};
   private isPaused: boolean = false;
+  private processingPromises: { [key: string]: Promise<void>[] } = {};
+  private readonly MAX_PARALLEL_CHUNKS = 3;
   
   private storageHandler: TransferStorageHandler;
   private chunkHandler: ChunkHandler;
@@ -69,8 +71,117 @@ export class TransferManager {
     }
   }
 
+  private async processChunkWithRetry(
+    filename: string,
+    chunk: string,
+    chunkIndex: number,
+    totalChunks: number,
+    fileSize: number
+  ): Promise<number> {
+    const chunkKey = `${filename}-${chunkIndex}`;
+
+    const result = await this.retryHandler.executeWithRetry(
+      chunkKey,
+      async () => {
+        const { received } = await this.chunkHandler.processChunk(
+          chunk,
+          chunkIndex,
+          this.chunksBuffer[filename],
+          fileSize,
+          totalChunks
+        );
+
+        return received;
+      },
+      (attempt, delay) => {
+        console.log(`[RETRY] Attempt ${attempt} for chunk ${chunkIndex} of ${filename}, next retry in ${delay}ms`);
+      }
+    );
+
+    return result;
+  }
+
+  async processReceivedChunk(
+    filename: string,
+    chunk: string,
+    chunkIndex: number,
+    totalChunks: number,
+    fileSize: number
+  ): Promise<Blob | null> {
+    if (!this.chunksBuffer[filename]) {
+      this.chunksBuffer[filename] = new Array(totalChunks);
+      this.activeTransfers.add(filename);
+      this.processingPromises[filename] = [];
+    }
+
+    try {
+      if (this.isPaused) {
+        console.log('[TRANSFER] Skipping chunk processing while paused');
+        return null;
+      }
+
+      // Clean up completed promises
+      this.processingPromises[filename] = this.processingPromises[filename].filter(p => p !== Promise.resolve());
+
+      // Wait if we've reached max parallel processing
+      while (this.processingPromises[filename].length >= this.MAX_PARALLEL_CHUNKS) {
+        await Promise.race(this.processingPromises[filename]);
+      }
+
+      // Process new chunk
+      const processPromise = (async () => {
+        const received = await this.processChunkWithRetry(
+          filename,
+          chunk,
+          chunkIndex,
+          totalChunks,
+          fileSize
+        );
+
+        await this.updateProgress(
+          filename,
+          received * (fileSize / totalChunks),
+          fileSize,
+          'transferring'
+        );
+
+        if (received === totalChunks) {
+          await this.updateProgress(filename, fileSize, fileSize, 'validating');
+          
+          const { file, checksum } = await this.chunkHandler.finalizeFile(
+            this.chunksBuffer[filename]
+          );
+          
+          this.activeTransfers.delete(filename);
+          delete this.chunksBuffer[filename];
+          delete this.processingPromises[filename];
+          
+          this.transferProgress[filename].checksum = checksum;
+          await this.saveProgress();
+          
+          if (this.onProgress) {
+            this.onProgress(this.transferProgress[filename]);
+          }
+          
+          return file;
+        }
+      })();
+
+      this.processingPromises[filename].push(processPromise);
+      const result = await processPromise;
+      return result || null;
+
+    } catch (error) {
+      this.activeTransfers.delete(filename);
+      delete this.chunksBuffer[filename];
+      delete this.processingPromises[filename];
+      throw error;
+    }
+  }
+
   cancelTransfer(filename: string, isReceiver: boolean) {
     this.activeTransfers.delete(filename);
+    delete this.processingPromises[filename];
     
     const message: FileChunkMessage = {
       type: 'file-chunk',
@@ -101,79 +212,6 @@ export class TransferManager {
       missingChunks
     };
     this.dataChannel.send(JSON.stringify(message));
-  }
-
-  async processReceivedChunk(
-    filename: string,
-    chunk: string,
-    chunkIndex: number,
-    totalChunks: number,
-    fileSize: number
-  ): Promise<Blob | null> {
-    if (!this.chunksBuffer[filename]) {
-      this.chunksBuffer[filename] = new Array(totalChunks);
-      this.activeTransfers.add(filename);
-    }
-
-    const chunkKey = `${filename}-${chunkIndex}`;
-
-    try {
-      if (this.isPaused) {
-        console.log('[TRANSFER] Skipping chunk processing while paused');
-        return null;
-      }
-
-      const result = await this.retryHandler.executeWithRetry(
-        chunkKey,
-        async () => {
-          const { received } = await this.chunkHandler.processChunk(
-            chunk,
-            chunkIndex,
-            this.chunksBuffer[filename],
-            fileSize,
-            totalChunks
-          );
-
-          await this.updateProgress(
-            filename,
-            received * (fileSize / totalChunks),
-            fileSize,
-            'transferring'
-          );
-
-          return { received };
-        },
-        (attempt, delay) => {
-          console.log(`[RETRY] Attempt ${attempt} for chunk ${chunkIndex} of ${filename}, next retry in ${delay}ms`);
-        }
-      );
-
-      if (result.received === totalChunks) {
-        await this.updateProgress(filename, fileSize, fileSize, 'validating');
-        
-        const { file, checksum } = await this.chunkHandler.finalizeFile(
-          this.chunksBuffer[filename]
-        );
-        
-        this.activeTransfers.delete(filename);
-        delete this.chunksBuffer[filename];
-        
-        this.transferProgress[filename].checksum = checksum;
-        await this.saveProgress();
-        
-        if (this.onProgress) {
-          this.onProgress(this.transferProgress[filename]);
-        }
-        
-        return file;
-      }
-    } catch (error) {
-      this.activeTransfers.delete(filename);
-      delete this.chunksBuffer[filename];
-      throw error;
-    }
-
-    return null;
   }
 
   handlePause() {
