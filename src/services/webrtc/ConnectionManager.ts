@@ -1,6 +1,6 @@
-
 import { ConnectionError } from '@/types/webrtc-errors';
 import { getPlatformICEServers } from '@/lib/platform-utils';
+import { ConnectionQualityMonitor, type ConnectionQualityMetrics } from './ConnectionQualityMonitor';
 
 export class ConnectionManager {
   private peerConnection: RTCPeerConnection | null = null;
@@ -8,12 +8,23 @@ export class ConnectionManager {
   private readonly connectionTimeout: number = 30000; // 30 seconds timeout
   private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
   private connectionTimer?: NodeJS.Timeout;
+  private qualityMonitor: ConnectionQualityMonitor;
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
     private onError: (error: Error) => void,
-    private onDataChannel?: (channel: RTCDataChannel) => void
-  ) {}
+    private onDataChannel?: (channel: RTCDataChannel) => void,
+    private onQualityChange?: (metrics: ConnectionQualityMetrics) => void
+  ) {
+    this.qualityMonitor = new ConnectionQualityMonitor(
+      (metrics) => {
+        if (this.onQualityChange) {
+          this.onQualityChange(metrics);
+        }
+      },
+      this.onError
+    );
+  }
 
   setConnectionStateChangeHandler(handler: (state: RTCPeerConnectionState) => void) {
     this.connectionStateChangeCallback = handler;
@@ -35,6 +46,10 @@ export class ConnectionManager {
 
     this.setupConnectionListeners();
     this.startConnectionTimer();
+    
+    // Start monitoring connection quality
+    this.qualityMonitor.startMonitoring(this.peerConnection);
+    
     return this.peerConnection;
   }
 
@@ -159,6 +174,7 @@ export class ConnectionManager {
       clearTimeout(this.connectionTimer);
     }
     if (this.peerConnection) {
+      this.qualityMonitor.stop();
       console.log('[WEBRTC] Closing connection');
       this.peerConnection.close();
       this.peerConnection = null;
