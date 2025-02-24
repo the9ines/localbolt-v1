@@ -42,8 +42,8 @@ describe('BandwidthAdapter', () => {
   it('should adjust chunk size based on connection quality', () => {
     const metrics: ConnectionQualityMetrics = {
       rtt: 100,
-      packetsLost: 0,
-      bytesReceived: 1000000,
+      packetLoss: 0,
+      throughput: 1000000,
       timestamp: Date.now()
     };
 
@@ -59,8 +59,8 @@ describe('BandwidthAdapter', () => {
   it('should handle packet loss adjustments', () => {
     const highLossMetrics: ConnectionQualityMetrics = {
       rtt: 100,
-      packetsLost: 20,
-      bytesReceived: 1000000,
+      packetLoss: 0.02,
+      throughput: 1000000,
       timestamp: Date.now()
     };
 
@@ -72,8 +72,8 @@ describe('BandwidthAdapter', () => {
   it('should respect minimum and maximum chunk sizes', () => {
     const poorMetrics: ConnectionQualityMetrics = {
       rtt: 500,
-      packetsLost: 100,
-      bytesReceived: 100000,
+      packetLoss: 0.1,
+      throughput: 100000,
       timestamp: Date.now()
     };
 
@@ -82,8 +82,8 @@ describe('BandwidthAdapter', () => {
 
     const excellentMetrics: ConnectionQualityMetrics = {
       rtt: 20,
-      packetsLost: 0,
-      bytesReceived: 10000000,
+      packetLoss: 0,
+      throughput: 10000000,
       timestamp: Date.now()
     };
 
@@ -94,8 +94,8 @@ describe('BandwidthAdapter', () => {
   it('should calculate transfer rate correctly', () => {
     const metrics: ConnectionQualityMetrics = {
       rtt: 100,
-      packetsLost: 0,
-      bytesReceived: 1000000,
+      packetLoss: 0,
+      throughput: 1000000,
       timestamp: Date.now()
     };
     
@@ -108,8 +108,8 @@ describe('BandwidthAdapter', () => {
   it('should reset to base chunk size', () => {
     adapter.updateQuality('excellent', {
       rtt: 20,
-      packetsLost: 0,
-      bytesReceived: 10000000,
+      packetLoss: 0,
+      throughput: 10000000,
       timestamp: Date.now()
     });
     
