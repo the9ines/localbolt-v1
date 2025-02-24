@@ -1,6 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { SignalingError } from "@/types/webrtc-errors";
+import { TransportMode, type PeerInfo } from './protocol/ConnectionNegotiator';
 
 export interface SignalData {
   type: 'offer' | 'answer' | 'ice-candidate';
@@ -17,6 +18,7 @@ export class SignalingService {
   private isLocalDiscoverySupported: boolean = false;
   private isOnline: boolean = navigator.onLine;
   private supabaseChannel: any = null;
+  private broadcastInterval: number | null = null;
 
   constructor(
     private localPeerId: string,
@@ -61,71 +63,62 @@ export class SignalingService {
         .subscribe();
     } catch (error) {
       console.warn('[SIGNALING] Failed to setup remote channel:', error);
-      // Don't throw - we can still work with local discovery
-    }
-  }
-
-  private disconnectChannel() {
-    if (this.supabaseChannel) {
-      this.supabaseChannel.unsubscribe();
-      this.supabaseChannel = null;
     }
   }
 
   private async initializeLocalDiscovery() {
-    if ('mDNS' in window) {
-      try {
-        // Check if we're in a secure context (HTTPS or localhost)
-        if (window.isSecureContext) {
-          this.isLocalDiscoverySupported = true;
-          console.log('[MDNS] Local discovery supported');
-          await this.startLocalDiscovery();
-        } else {
-          console.log('[MDNS] Secure context required for mDNS');
-        }
-      } catch (error) {
-        console.warn('[MDNS] Local discovery not available:', error);
+    try {
+      if ('mDNS' in window || 'RTCPeerConnection' in window) {
+        this.isLocalDiscoverySupported = true;
+        console.log('[DISCOVERY] Local discovery supported');
+        
+        // Start broadcasting presence
+        this.startLocalBroadcast();
+        
+        // Listen for other peers
+        window.addEventListener('localbolt-peer-announce', ((event: CustomEvent<PeerInfo>) => {
+          if (event.detail.id !== this.localPeerId) {
+            this.handleLocalPeerDiscovered(event.detail);
+          }
+        }) as EventListener);
       }
-    } else {
-      console.log('[MDNS] mDNS not supported in this environment');
+    } catch (error) {
+      console.warn('[DISCOVERY] Local discovery not available:', error);
     }
   }
 
-  private async startLocalDiscovery() {
-    if (!this.isLocalDiscoverySupported) return;
+  private startLocalBroadcast() {
+    // Broadcast presence every 5 seconds
+    this.broadcastInterval = window.setInterval(() => {
+      const peerInfo: PeerInfo = {
+        id: this.localPeerId,
+        capabilities: {
+          mdns: this.isLocalDiscoverySupported,
+          webrtc: true,
+          encryption: ['tweetnacl']
+        },
+        networkType: this.isOnline ? TransportMode.INTERNET : TransportMode.LOCAL,
+        timestamp: Date.now()
+      };
 
-    try {
-      // Publish our service
-      const serviceName = `_localbolt._tcp.local`;
-      const instanceName = `${this.localPeerId}._localbolt._tcp.local`;
-      
-      console.log('[MDNS] Starting local discovery service');
-      
-      // Listen for local peer announcements
-      window.addEventListener('mdns-service-found', (event: any) => {
-        if (event.service.type === '_localbolt._tcp.local') {
-          const peerId = event.service.name.split('.')[0];
-          if (peerId !== this.localPeerId) {
-            this.localPeers.add(peerId);
-            console.log('[MDNS] Found local peer:', peerId);
-          }
-        }
+      const event = new CustomEvent('localbolt-peer-announce', {
+        detail: peerInfo,
+        bubbles: true
       });
+      window.dispatchEvent(event);
+    }, 5000);
+  }
 
-      // Periodically announce our presence on the local network
-      setInterval(() => {
-        if (this.isLocalDiscoverySupported) {
-          const announceEvent = new CustomEvent('localbolt-announce', {
-            detail: { peerId: this.localPeerId },
-            bubbles: true
-          });
-          window.dispatchEvent(announceEvent);
-        }
-      }, 10000); // Announce every 10 seconds
-
-    } catch (error) {
-      console.warn('[MDNS] Failed to start local discovery:', error);
-    }
+  private handleLocalPeerDiscovered(peer: PeerInfo) {
+    console.log('[DISCOVERY] Found local peer:', peer.id);
+    this.localPeers.add(peer.id);
+    
+    // Notify about discovered peer
+    const event = new CustomEvent('localbolt-peer-discovered', {
+      detail: peer,
+      bubbles: true
+    });
+    window.dispatchEvent(event);
   }
 
   async sendSignal(type: SignalData['type'], data: any, remotePeerId: string) {
@@ -139,7 +132,7 @@ export class SignalingService {
           return; // If it's a known local peer, don't try remote signaling
         }
       } catch (error) {
-        console.log('[MDNS] Local signal failed:', error);
+        console.log('[DISCOVERY] Local signal failed:', error);
       }
     }
 
@@ -165,10 +158,6 @@ export class SignalingService {
   }
 
   private async sendLocalSignal(type: SignalData['type'], data: any, remotePeerId: string) {
-    if (!this.isLocalDiscoverySupported) {
-      throw new Error('Local discovery not supported');
-    }
-
     const signal: SignalData = {
       type,
       data,
@@ -176,19 +165,11 @@ export class SignalingService {
       to: remotePeerId
     };
 
-    try {
-      const instanceName = `${remotePeerId}._localbolt._tcp.local`;
-      console.log('[MDNS] Attempting local signal to:', instanceName);
-      
-      const event = new CustomEvent('localbolt-signal', { 
-        detail: signal,
-        bubbles: true 
-      });
-      window.dispatchEvent(event);
-      
-    } catch (error) {
-      throw new SignalingError('Failed to send local signal', error);
-    }
+    const event = new CustomEvent('localbolt-signal', { 
+      detail: signal,
+      bubbles: true 
+    });
+    window.dispatchEvent(event);
   }
 
   isLocalPeer(peerId: string): boolean {
@@ -206,9 +187,19 @@ export class SignalingService {
   }
 
   cleanup() {
+    if (this.broadcastInterval) {
+      clearInterval(this.broadcastInterval);
+    }
     this.disconnectChannel();
     this.localPeers.clear();
-    window.removeEventListener('online', this.setupChannel);
-    window.removeEventListener('offline', this.disconnectChannel);
+    window.removeEventListener('online', () => this.setupChannel());
+    window.removeEventListener('offline', () => this.disconnectChannel());
+  }
+
+  private disconnectChannel() {
+    if (this.supabaseChannel) {
+      this.supabaseChannel.unsubscribe();
+      this.supabaseChannel = null;
+    }
   }
 }
