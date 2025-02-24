@@ -1,4 +1,3 @@
-
 import { useEffect } from "react";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { TransferProgressBar } from "./file-upload/TransferProgress";
@@ -9,6 +8,7 @@ import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 import { usePeerConnection } from "@/hooks/use-peer-connection";
 import { Card } from "./ui/card";
+import { Badge } from "./ui/badge";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
