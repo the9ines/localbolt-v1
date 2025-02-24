@@ -83,9 +83,7 @@ export class ConnectionNegotiator {
     peerConnection: RTCPeerConnection,
     remotePeerCode: string
   ): Promise<void> {
-    // Configure for local network only
-    peerConnection.iceTransportPolicy = 'all';
-    
+    // Configure for local network connection
     const dataChannel = peerConnection.createDataChannel('fileTransfer', {
       ordered: true,
       maxRetransmits: 3
@@ -95,7 +93,12 @@ export class ConnectionNegotiator {
     await peerConnection.setLocalDescription(offer);
 
     // Use local discovery to find peer
-    await this.networkDiscovery.startDiscovery();
+    const localPeers = await this.networkDiscovery.findLocalPeers();
+    const targetPeer = localPeers.find(peer => peer.deviceId === remotePeerCode);
+    
+    if (!targetPeer) {
+      throw new ConnectionError('Target peer not found on local network');
+    }
   }
 
   private async setupSignalingConnection(
