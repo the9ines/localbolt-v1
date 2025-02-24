@@ -8,6 +8,7 @@ import { ConnectionStatus } from "./peer-connection/ConnectionStatus";
 import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 import { usePeerConnection } from "@/hooks/use-peer-connection";
+import { Card } from "./ui/card";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -71,19 +72,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
     console.log('[UI] Connection state changed:', state);
-    const connected = state === 'connected';
-    setIsConnected(connected);
-    onConnectionChange(connected, webrtc || undefined);
+    setIsConnected(state === 'connected');
+    onConnectionChange(state === 'connected', webrtc || undefined);
     
-    if (!connected && transferProgress) {
+    if (state !== 'connected' && transferProgress) {
       clearProgress();
-    }
-    
-    if (connected && webrtc) {
-      const remotePeerCode = webrtc.getRemotePeerCode();
-      console.log('[UI] Setting connected peer code:', remotePeerCode);
-    } else {
-      setTargetPeerCode("");
     }
   };
 
@@ -98,11 +91,29 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     URL.revokeObjectURL(url);
   };
 
+  const discoveryStatus = webrtc?.getDiscoveryStatus?.();
+  const hasLocalPeers = discoveryStatus?.localPeersCount > 0;
+
   return (
     <div className="space-y-4">
       <ConnectionStatus isConnected={isConnected} />
       
       <div className="space-y-4 touch-manipulation">
+        {hasLocalPeers && (
+          <Card className="p-4 border-neon/20 bg-black/20">
+            <p className="text-sm text-neon mb-2">
+              {discoveryStatus.localPeersCount} nearby {discoveryStatus.localPeersCount === 1 ? 'device' : 'devices'} found
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {discoveryStatus.localPeers.map(peerId => (
+                <Badge key={peerId} variant="outline" className="bg-black/30">
+                  {peerId}
+                </Badge>
+              ))}
+            </div>
+          </Card>
+        )}
+
         <PeerCodeInput 
           peerCode={peerCode}
           copied={copied}
