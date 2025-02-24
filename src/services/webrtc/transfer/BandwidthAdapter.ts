@@ -1,5 +1,6 @@
 
 import type { ConnectionQuality, ConnectionQualityMetrics } from '../types/connection-quality';
+import type { NetworkInfo } from '../network/NetworkDetector';
 
 export class BandwidthAdapter {
   private readonly BASE_CHUNK_SIZE = 16384; // 16KB base chunk size
@@ -9,9 +10,39 @@ export class BandwidthAdapter {
   private currentChunkSize: number;
   private lastQuality: ConnectionQuality = 'good';
   private lastMetrics: ConnectionQualityMetrics | null = null;
+  private networkInfo: NetworkInfo | null = null;
 
   constructor() {
     this.currentChunkSize = this.BASE_CHUNK_SIZE;
+  }
+
+  updateNetworkInfo(info: NetworkInfo): void {
+    console.log('[BANDWIDTH] Network info update:', info);
+    this.networkInfo = info;
+    this.adjustChunkSizeForNetwork();
+  }
+
+  private adjustChunkSizeForNetwork(): void {
+    if (!this.networkInfo) return;
+
+    switch (this.networkInfo.speed) {
+      case 'fast':
+        this.currentChunkSize = Math.min(this.MAX_CHUNK_SIZE, this.BASE_CHUNK_SIZE * 2);
+        break;
+      case 'medium':
+        this.currentChunkSize = this.BASE_CHUNK_SIZE;
+        break;
+      case 'slow':
+        this.currentChunkSize = this.MIN_CHUNK_SIZE;
+        break;
+    }
+
+    // Further adjust based on RTT
+    if (this.networkInfo.rtt > 200) {
+      this.decreaseChunkSize(0.8);
+    }
+
+    console.log('[BANDWIDTH] Adjusted chunk size for network:', this.currentChunkSize);
   }
 
   updateQuality(quality: ConnectionQuality, metrics: ConnectionQualityMetrics): void {
