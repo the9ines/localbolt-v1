@@ -1,3 +1,4 @@
+
 import type { TransferProgress, FileChunkMessage } from '../types/transfer';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferError } from '@/types/webrtc-errors';
@@ -165,11 +166,12 @@ export class TransferManager {
           
           return file;
         }
+        return null;
       })();
 
-      this.processingPromises[filename].push(processPromise);
-      const result = await processPromise;
-      return result || null;
+      const voidPromise: Promise<void> = processPromise.then(() => {});
+      this.processingPromises[filename].push(voidPromise);
+      return processPromise;
 
     } catch (error) {
       this.activeTransfers.delete(filename);
