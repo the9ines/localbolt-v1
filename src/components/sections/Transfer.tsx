@@ -4,8 +4,6 @@ import { PeerConnection } from "@/components/PeerConnection";
 import { FileUpload } from "@/components/file-upload/FileUpload";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { ForwardedRef, forwardRef } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Wifi, WifiOff } from "lucide-react";
 
 interface TransferProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -30,7 +28,6 @@ export const Transfer = forwardRef(({
           <h2 className="text-2xl font-semibold tracking-tight">
             Fast, Private File Transfer
           </h2>
-          <ConnectionMode />
         </div>
         <p className="text-muted-foreground">
           Share files securely with nearby devices or over the internet
@@ -49,25 +46,5 @@ export const Transfer = forwardRef(({
     </Card>
   );
 });
-
-const ConnectionMode = () => {
-  const isOnline = navigator.onLine;
-  
-  return (
-    <Badge variant={isOnline ? "default" : "secondary"} className="flex items-center gap-2">
-      {isOnline ? (
-        <>
-          <Wifi className="w-3 h-3" />
-          <span>Online Mode</span>
-        </>
-      ) : (
-        <>
-          <WifiOff className="w-3 h-3" />
-          <span>Nearby Only</span>
-        </>
-      )}
-    </Badge>
-  );
-};
 
 Transfer.displayName = 'Transfer';
