@@ -1,10 +1,8 @@
-
 import { WebRTCError } from '@/types/webrtc-errors';
-import type { TransferProgress } from './types/transfer';
 import { ConnectionManager } from './ConnectionManager';
 import { DataChannelManager } from './DataChannelManager';
 import { ConnectionQualityMonitor } from './monitoring/ConnectionQualityMonitor';
-import type { ConnectionQuality, ConnectionQualityMetrics } from './types/connection-quality';
+import type { ConnectionQuality } from './types/connection-quality';
 
 export class WebRTCEventManager {
   private connectionStateListener?: (state: RTCPeerConnectionState) => void;
@@ -73,6 +71,9 @@ export class WebRTCEventManager {
 
   setConnectionStateListener(handler: (state: RTCPeerConnectionState) => void) {
     this.connectionStateListener = handler;
+    if (this.connectionManager.getPeerConnection()) {
+      handler(this.connectionManager.getPeerConnection()!.connectionState);
+    }
   }
 
   setQualityChangeListener(handler: (quality: ConnectionQuality) => void) {

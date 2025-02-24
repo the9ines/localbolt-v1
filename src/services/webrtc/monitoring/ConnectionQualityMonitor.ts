@@ -10,7 +10,7 @@ export class ConnectionQualityMonitor {
     timestamp: Date.now()
   };
   
-  private statsInterval: NodeJS.Timer | null = null;
+  private statsInterval: ReturnType<typeof setInterval> | null = null;
   private readonly MONITORING_INTERVAL = 2000; // 2 seconds
   private readonly RTT_THRESHOLD_GOOD = 100; // ms
   private readonly RTT_THRESHOLD_FAIR = 300; // ms

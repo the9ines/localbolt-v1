@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -99,9 +98,7 @@ class WebRTCService {
       this.signalingService,
       (state) => {
         if (this.eventManager) {
-          this.eventManager.setConnectionStateListener((newState) => {
-            this.eventManager.connectionStateListener?.(newState);
-          });
+          this.eventManager.setConnectionStateListener(state);
         }
       }
     );
