@@ -1,3 +1,4 @@
+
 import { ConnectionError } from '@/types/webrtc-errors';
 import { getPlatformICEServers } from '@/lib/platform-utils';
 
@@ -6,6 +7,7 @@ export class ConnectionManager {
   private pendingIceCandidates: RTCIceCandidateInit[] = [];
   private readonly connectionTimeout: number = 30000; // 30 seconds timeout
   private connectionStateChangeCallback?: (state: RTCPeerConnectionState) => void;
+  private connectionTimer?: NodeJS.Timeout;
 
   constructor(
     private onIceCandidate: (candidate: RTCIceCandidate) => void,
@@ -32,7 +34,22 @@ export class ConnectionManager {
     });
 
     this.setupConnectionListeners();
+    this.startConnectionTimer();
     return this.peerConnection;
+  }
+
+  private startConnectionTimer() {
+    if (this.connectionTimer) {
+      clearTimeout(this.connectionTimer);
+    }
+
+    this.connectionTimer = setTimeout(() => {
+      if (this.peerConnection?.connectionState !== 'connected') {
+        console.error('[WEBRTC] Connection timeout');
+        this.onError(new ConnectionError("Connection timeout"));
+        this.disconnect();
+      }
+    }, this.connectionTimeout);
   }
 
   private setupConnectionListeners() {
@@ -73,6 +90,9 @@ export class ConnectionManager {
         console.log('[WEBRTC] Establishing connection...');
       } else if (state === 'connected') {
         console.log('[WEBRTC] Connection established successfully');
+        if (this.connectionTimer) {
+          clearTimeout(this.connectionTimer);
+        }
       } else if (state === 'failed' || state === 'closed') {
         console.error('[WEBRTC] Connection failed:', state);
         this.onError(new ConnectionError("WebRTC connection failed", { state }));
@@ -135,6 +155,9 @@ export class ConnectionManager {
   }
 
   disconnect() {
+    if (this.connectionTimer) {
+      clearTimeout(this.connectionTimer);
+    }
     if (this.peerConnection) {
       console.log('[WEBRTC] Closing connection');
       this.peerConnection.close();
