@@ -1,3 +1,4 @@
+
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { DragDropArea } from "./DragDropArea";
@@ -61,6 +62,15 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
 
   const handleProgress = (transferProgress: TransferProgress) => {
     console.log('[TRANSFER] Progress update in UI:', transferProgress);
+    
+    // Ignore empty error states that come after successful completion
+    if (transferProgress.status === 'error' && 
+        !transferProgress.filename && 
+        transferProgress.loaded === 0 && 
+        transferProgress.total === 0) {
+      return;
+    }
+    
     setProgress(transferProgress);
     
     // Check for successful transfer completion
@@ -82,7 +92,8 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
         title: "Transfer cancelled",
         description: "The file transfer was cancelled"
       });
-    } else if (transferProgress.status === 'error') {
+    } else if (transferProgress.status === 'error' && transferProgress.filename) {
+      // Only show error toast for actual file transfer errors
       setProgress(null);
       toast({
         title: "Transfer error",
