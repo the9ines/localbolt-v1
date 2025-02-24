@@ -15,45 +15,42 @@ export class ConnectionManager {
     private onError: (error: Error) => void,
     private onDataChannel?: (channel: RTCDataChannel) => void
   ) {
-    // First define the methods that will be bound
-    this.handleReconnect = this.handleReconnect.bind(this);
-    this.handleConnectionStateChange = this.handleConnectionStateChange.bind(this);
+    // Define handlers as arrow functions to preserve 'this' binding
+    const handleReconnect = async (): Promise<void> => {
+      console.log('[CONNECTION] Initiating reconnection');
+      
+      if (this.peerConnection) {
+        this.peerConnection.close();
+      }
 
-    // Then create the ConnectionStateHandler with the bound methods
+      const newConnection = await this.createPeerConnection();
+      
+      const cachedCandidates = this.connectionStateHandler.getCachedCandidates();
+      for (const candidate of cachedCandidates) {
+        try {
+          await newConnection.addIceCandidate(candidate);
+          console.log('[CONNECTION] Restored cached ICE candidate');
+        } catch (error) {
+          console.warn('[CONNECTION] Failed to restore cached candidate:', error);
+        }
+      }
+    };
+
+    const handleConnectionStateChange = (state: RTCPeerConnectionState): void => {
+      if (this.connectionStateChangeCallback) {
+        this.connectionStateChangeCallback(state);
+      }
+    };
+
+    // Create the ConnectionStateHandler with the handlers
     this.connectionStateHandler = new ConnectionStateHandler(
-      this.handleReconnect,
-      this.handleConnectionStateChange
+      handleReconnect,
+      handleConnectionStateChange
     );
   }
 
   setConnectionStateChangeHandler(handler: (state: RTCPeerConnectionState) => void): void {
     this.connectionStateChangeCallback = handler;
-  }
-
-  private handleConnectionStateChange(state: RTCPeerConnectionState): void {
-    if (this.connectionStateChangeCallback) {
-      this.connectionStateChangeCallback(state);
-    }
-  }
-
-  private async handleReconnect(): Promise<void> {
-    console.log('[CONNECTION] Initiating reconnection');
-    
-    if (this.peerConnection) {
-      this.peerConnection.close();
-    }
-
-    const newConnection = await this.createPeerConnection();
-    
-    const cachedCandidates = this.connectionStateHandler.getCachedCandidates();
-    for (const candidate of cachedCandidates) {
-      try {
-        await newConnection.addIceCandidate(candidate);
-        console.log('[CONNECTION] Restored cached ICE candidate');
-      } catch (error) {
-        console.warn('[CONNECTION] Failed to restore cached candidate:', error);
-      }
-    }
   }
 
   async createPeerConnection(): Promise<RTCPeerConnection> {
