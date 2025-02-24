@@ -57,22 +57,16 @@ export class DataChannelMessageHandler {
 
     } catch (error) {
       console.error('[TRANSFER] Error processing message:', error);
-      // Handle error gracefully without throwing
       this.handleTransferError(error);
     }
   }
 
   private handleTransferError(error: any) {
     console.error('[TRANSFER] Transfer error occurred:', error);
-    // Clean up transfer state but don't throw
     if (this.stateManager.getCurrentTransfer()?.filename) {
       const filename = this.stateManager.getCurrentTransfer()?.filename;
       this.transferManager.cancelTransfer(filename, true);
     }
-    // Reset state after a short delay to allow UI updates
-    setTimeout(() => {
-      this.stateManager.reset();
-    }, 100);
   }
 
   private handlePauseMessage(filename: string): boolean {
@@ -142,16 +136,26 @@ export class DataChannelMessageHandler {
 
       if (completeFile) {
         console.log(`[TRANSFER] Completed transfer of ${filename}`);
-        // Handle the file first
-        this.onReceiveFile(completeFile, filename);
-        // Then reset state after a delay to ensure UI updates complete
-        setTimeout(() => {
-          this.stateManager.reset();
-        }, 100);
+        
+        // Create a promise to handle file saving
+        const saveFilePromise = new Promise<void>((resolve) => {
+          try {
+            this.onReceiveFile(completeFile, filename);
+            resolve();
+          } catch (error) {
+            console.error('[TRANSFER] Error saving file:', error);
+            resolve(); // Resolve anyway to ensure cleanup
+          }
+        });
+
+        // Wait for file saving to complete before state reset
+        await saveFilePromise;
+        
+        console.log(`[TRANSFER] File ${filename} saved successfully, performing cleanup`);
+        this.stateManager.reset();
       }
     } catch (error) {
       console.error('[TRANSFER] Error processing chunk:', error);
-      // Handle chunk processing error gracefully
       this.handleTransferError(error);
     }
   }
