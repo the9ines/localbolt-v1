@@ -1,4 +1,3 @@
-
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { DragDropArea } from "./DragDropArea";
@@ -64,15 +63,14 @@ export const UploadContainer = ({ webrtc }: UploadContainerProps) => {
     console.log('[TRANSFER] Progress update in UI:', transferProgress);
     setProgress(transferProgress);
     
-    // Check if all chunks are received (complete transfer)
-    if (transferProgress.currentChunk === transferProgress.totalChunks - 1) {
-      setTimeout(() => {
-        setProgress(null);
-        toast({
-          title: "Transfer complete",
-          description: "File downloaded successfully"
-        });
-      }, 1000);
+    // Check for successful transfer completion
+    if (transferProgress.loaded === transferProgress.total && transferProgress.total > 0) {
+      console.log('[TRANSFER] Transfer completed successfully');
+      setProgress(null);
+      toast({
+        title: "Transfer complete",
+        description: "File downloaded successfully"
+      });
       return;
     }
     
