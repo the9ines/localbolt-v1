@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -69,6 +68,10 @@ class WebRTCService {
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
     this.connectionStateHandler = handler;
     this.connectionManager.setConnectionStateChangeHandler(handler);
+  }
+
+  setProgressCallback(callback: (progress: TransferProgress) => void) {
+    this.onProgressCallback = callback;
   }
 
   getRemotePeerCode(): string {
