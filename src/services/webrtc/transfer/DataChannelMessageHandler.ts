@@ -57,7 +57,7 @@ export class DataChannelMessageHandler {
 
     } catch (error) {
       console.error('[TRANSFER] Error processing message:', error);
-      this.stateManager.reset();
+      // Don't reset state on message processing errors
       throw new TransferError("Failed to process received data", error);
     }
   }
@@ -118,18 +118,27 @@ export class DataChannelMessageHandler {
 
     console.log(`[TRANSFER] Processing chunk ${chunkIndex + 1}/${totalChunks} for ${filename}`);
     
-    const completeFile = await this.transferManager.processReceivedChunk(
-      filename,
-      chunk,
-      chunkIndex,
-      totalChunks,
-      fileSize
-    );
+    try {
+      const completeFile = await this.transferManager.processReceivedChunk(
+        filename,
+        chunk,
+        chunkIndex,
+        totalChunks,
+        fileSize
+      );
 
-    if (completeFile) {
-      console.log(`[TRANSFER] Completed transfer of ${filename}`);
-      this.stateManager.reset();
-      this.onReceiveFile(completeFile, filename);
+      if (completeFile) {
+        console.log(`[TRANSFER] Completed transfer of ${filename}`);
+        // Only reset state AFTER handling the file
+        this.onReceiveFile(completeFile, filename);
+        // Delay state reset to ensure file handling is complete
+        setTimeout(() => {
+          this.stateManager.reset();
+        }, 100);
+      }
+    } catch (error) {
+      console.error('[TRANSFER] Error processing chunk:', error);
+      throw new TransferError("Failed to process chunk", error);
     }
   }
 }
