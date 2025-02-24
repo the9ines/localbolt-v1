@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -7,6 +6,8 @@ import { SignalingHandler } from './SignalingHandler';
 import { DataChannelManager } from './DataChannelManager';
 import { WebRTCEventManager } from './WebRTCEventManager';
 import { WebRTCRetryHandler } from './WebRTCRetryHandler';
+import { ConnectionNegotiator } from './protocol/ConnectionNegotiator';
+import { NetworkDiscovery } from './discovery/NetworkDiscovery';
 import type { TransferProgress } from './types/transfer';
 
 class WebRTCService {
@@ -18,6 +19,8 @@ class WebRTCService {
   private signalingService: SignalingService;
   private eventManager: WebRTCEventManager;
   private retryHandler: WebRTCRetryHandler;
+  private networkDiscovery: NetworkDiscovery;
+  private connectionNegotiator: ConnectionNegotiator;
   private onProgressCallback?: (progress: TransferProgress) => void;
 
   constructor(
@@ -36,6 +39,8 @@ class WebRTCService {
   }
 
   private initializeServices() {
+    this.networkDiscovery = new NetworkDiscovery();
+    
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
@@ -75,6 +80,17 @@ class WebRTCService {
       this.dataChannelManager,
       this.handleError.bind(this)
     );
+
+    this.connectionNegotiator = new ConnectionNegotiator(
+      this.networkDiscovery,
+      this.connectionManager,
+      this.signalingService,
+      (state) => {
+        if (this.eventManager) {
+          this.eventManager.handleConnectionStateChange(state);
+        }
+      }
+    );
   }
 
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
@@ -92,53 +108,11 @@ class WebRTCService {
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
-    const connectionPromise = new Promise<void>(async (resolve, reject) => {
-      try {
-        this.remotePeerCode = remotePeerCode;
-        const peerConnection = await this.connectionManager.createPeerConnection();
-        
-        const dataChannel = peerConnection.createDataChannel('fileTransfer', {
-          ordered: true,
-          maxRetransmits: 3
-        });
-        
-        this.dataChannelManager.setupDataChannel(dataChannel);
-        
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        console.log('[SIGNALING] Created and set local description (offer)');
-        
-        await this.signalingService.sendSignal('offer', {
-          offer,
-          publicKey: this.encryptionService.getPublicKey(),
-          peerCode: this.localPeerCode
-        }, remotePeerCode);
-
-        peerConnection.onconnectionstatechange = () => {
-          const state = peerConnection.connectionState;
-          if (state === 'connected') {
-            console.log('[WEBRTC] Connection established successfully');
-            this.retryHandler.resetAttempts();
-            resolve();
-          } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
-            console.log('[WEBRTC] Connection state changed to:', state);
-            reject(new ConnectionError("Connection failed or closed"));
-          }
-        };
-      } catch (error) {
-        reject(new ConnectionError("Failed to initiate connection", error));
-      }
-    });
-
-    const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => {
-        reject(new ConnectionError("Connection timeout"));
-      }, 30000);
-    });
-
     try {
-      await Promise.race([connectionPromise, timeoutPromise]);
+      this.remotePeerCode = remotePeerCode;
+      await this.connectionNegotiator.negotiateConnection(remotePeerCode);
     } catch (error) {
+      console.error('[WEBRTC] Connection failed:', error);
       this.disconnect();
       throw error instanceof WebRTCError ? error : new ConnectionError("Connection failed", error);
     }
@@ -164,6 +138,7 @@ class WebRTCService {
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
     this.encryptionService.reset();
+    this.connectionNegotiator.reset();
     this.remotePeerCode = '';
     this.retryHandler.resetAttempts();
   }
