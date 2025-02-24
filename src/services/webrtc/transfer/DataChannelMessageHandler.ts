@@ -48,6 +48,14 @@ export class DataChannelMessageHandler {
         return;
       }
 
+      // Check if this is a resumption request
+      if (message.requestMissingChunks) {
+        const missingChunks = this.stateManager.getMissingChunks(filename);
+        // Send missing chunks request back to sender
+        this.transferManager.requestMissingChunks(filename, missingChunks);
+        return;
+      }
+
       // Handle file chunks
       if (!this.shouldProcessChunk(filename, chunkIndex || 0)) {
         return;

@@ -29,16 +29,14 @@ export class TransferManager {
 
   private updateProgress(
     filename: string,
-    currentChunk: number,
-    totalChunks: number,
     loaded: number,
     total: number,
     status: TransferProgress['status'] = 'transferring'
   ) {
     const progress: TransferProgress = {
       filename,
-      currentChunk,
-      totalChunks,
+      currentChunk: 0,
+      totalChunks: 0,
       loaded,
       total,
       status
@@ -74,30 +72,21 @@ export class TransferManager {
       this.updateProgress(
         filename,
         0,
-        totalChunks,
-        0,
         0,
         'canceled_by_sender'
       );
     }
   }
 
-  isTransferActive(filename: string): boolean {
-    return this.activeTransfers.has(filename);
-  }
-
-  handlePause() {
-    console.log('[TRANSFER] Transfer manager paused');
-    this.isPaused = true;
-  }
-
-  handleResume() {
-    console.log('[TRANSFER] Transfer manager resumed');
-    this.isPaused = false;
-  }
-
-  isPauseActive() {
-    return this.isPaused;
+  requestMissingChunks(filename: string, missingChunks: number[]): void {
+    console.log(`[TRANSFER] Requesting missing chunks for ${filename}:`, missingChunks);
+    const message: FileChunkMessage = {
+      type: 'file-chunk',
+      filename,
+      requestMissingChunks: true,
+      missingChunks
+    };
+    this.dataChannel.send(JSON.stringify(message));
   }
 
   async processReceivedChunk(
@@ -108,7 +97,7 @@ export class TransferManager {
     fileSize: number
   ): Promise<Blob | null> {
     if (!this.chunksBuffer[filename]) {
-      this.chunksBuffer[filename] = [];
+      this.chunksBuffer[filename] = new Array(totalChunks);
       this.activeTransfers.add(filename);
     }
 
@@ -125,26 +114,42 @@ export class TransferManager {
       
       this.updateProgress(
         filename,
-        received,
-        totalChunks,
         received * (fileSize / totalChunks),
-        fileSize
+        fileSize,
+        'transferring'
       );
 
+      // Check if we have all chunks
       if (received === totalChunks) {
         const completeFile = new Blob(this.chunksBuffer[filename]);
         this.activeTransfers.delete(filename);
         delete this.chunksBuffer[filename];
-        delete this.transferProgress[filename];
         return completeFile;
       }
     } catch (error) {
       this.activeTransfers.delete(filename);
       delete this.chunksBuffer[filename];
-      delete this.transferProgress[filename];
       throw error;
     }
 
     return null;
+  }
+
+  handlePause() {
+    console.log('[TRANSFER] Transfer manager paused');
+    this.isPaused = true;
+  }
+
+  handleResume() {
+    console.log('[TRANSFER] Transfer manager resumed');
+    this.isPaused = false;
+  }
+
+  isPauseActive() {
+    return this.isPaused;
+  }
+
+  isTransferActive(filename: string): boolean {
+    return this.activeTransfers.has(filename);
   }
 }
