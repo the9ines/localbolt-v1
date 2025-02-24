@@ -1,3 +1,4 @@
+
 import type { TransferProgress } from '../types/transfer';
 import type { TransferControlMessage, TransferState } from '../types/transfer-control';
 import { TransferStore } from './TransferStore';
@@ -13,6 +14,8 @@ export class TransferStateManager {
   private isCleaningUp: boolean = false;
   private stateUpdateTimeout: NodeJS.Timeout | null = null;
   private readonly STATE_UPDATE_DELAY = 16; // ~1 frame @ 60fps
+  private lastProgressUpdate: number = 0;
+  private readonly PROGRESS_UPDATE_THRESHOLD = 50; // 50ms minimum between updates
 
   constructor(onProgress?: (progress: TransferProgress) => void) {
     this.store = new TransferStore();
@@ -57,7 +60,7 @@ export class TransferStateManager {
         return;
       }
       
-      // Clear any existing transfer state first
+      // Ensure clean state before starting new transfer
       this.reset();
       
       const newTransfer: TransferState = {
@@ -70,6 +73,8 @@ export class TransferStateManager {
           totalChunks: 0
         }
       };
+
+      this.lastProgressUpdate = Date.now();
 
       this.debouncedStateUpdate(() => {
         // Initialize transfer state
@@ -90,7 +95,13 @@ export class TransferStateManager {
   }
 
   updateProgress(progress: TransferProgress): void {
+    const now = Date.now();
+    if (now - this.lastProgressUpdate < this.PROGRESS_UPDATE_THRESHOLD) {
+      return; // Skip update if too soon
+    }
+
     if (!this.isCleaningUp && !this.store.isCancelled()) {
+      this.lastProgressUpdate = now;
       this.progressEmitter.emit(progress.filename, progress.status || 'transferring', progress);
     }
   }
@@ -149,11 +160,17 @@ export class TransferStateManager {
       return;
     }
 
+    const now = Date.now();
+    if (now - this.lastProgressUpdate < this.PROGRESS_UPDATE_THRESHOLD) {
+      return; // Skip update if too soon
+    }
+
     // Create transfer if it doesn't exist
     if (!this.store.isTransferActive(filename)) {
       this.startTransfer(filename, total);
     }
 
+    this.lastProgressUpdate = now;
     this.debouncedStateUpdate(() => {
       this.progressHandler.updateProgress(filename, loaded, total, currentChunk, totalChunks);
     });
@@ -180,5 +197,6 @@ export class TransferStateManager {
     // Clear all state
     this.store.clear();
     this.controlHandler.reset();
+    this.lastProgressUpdate = 0;
   }
 }
