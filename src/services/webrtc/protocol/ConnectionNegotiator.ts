@@ -1,70 +1,119 @@
 
-import { ProtocolHandler } from './ProtocolHandler';
-import { ConnectionMessage, MessageType } from './ConnectionMessage';
-import { TransportMode, DeviceType } from './ProtocolVersion';
 import { WebRTCError } from '@/types/webrtc-errors';
 
+export enum TransportMode {
+  LOCAL = 'local',
+  INTERNET = 'internet',
+  OFFLINE = 'offline'
+}
+
+export interface PeerInfo {
+  id: string;
+  capabilities: {
+    mdns: boolean;
+    webrtc: boolean;
+    encryption: string[];
+  };
+  networkType: TransportMode;
+  timestamp: number;
+}
+
 export class ConnectionNegotiator {
-  constructor(
-    private protocolHandler: ProtocolHandler,
-    private localPeerId: string
-  ) {}
+  private discoveredPeers: Map<string, PeerInfo> = new Map();
+  
+  constructor() {
+    this.setupDiscoveryListener();
+  }
 
-  public async negotiateConnection(
-    remotePeerId: string,
-    remoteDeviceType: DeviceType
-  ): Promise<TransportMode> {
-    console.log('[NEGOTIATOR] Starting connection negotiation with:', remotePeerId);
+  private setupDiscoveryListener() {
+    window.addEventListener('localbolt-peer-discovered', ((event: CustomEvent<PeerInfo>) => {
+      this.handlePeerDiscovered(event.detail);
+    }) as EventListener);
+  }
+
+  private handlePeerDiscovered(peer: PeerInfo) {
+    console.log('[NEGOTIATOR] New peer discovered:', peer);
+    this.discoveredPeers.set(peer.id, {
+      ...peer,
+      timestamp: Date.now()
+    });
+  }
+
+  async selectBestTransport(peerId: string): Promise<TransportMode> {
+    const peer = this.discoveredPeers.get(peerId);
     
+    if (!navigator.onLine) {
+      return TransportMode.OFFLINE;
+    }
+
+    if (peer && await this.isLocalNetworkAvailable(peer)) {
+      console.log('[NEGOTIATOR] Local network available for peer:', peerId);
+      return TransportMode.LOCAL;
+    }
+
+    console.log('[NEGOTIATOR] Falling back to internet transport for peer:', peerId);
+    return TransportMode.INTERNET;
+  }
+
+  private async isLocalNetworkAvailable(peer: PeerInfo): Promise<boolean> {
+    // Check if both peers support mDNS and are on the same network
+    if (!peer.capabilities.mdns) {
+      return false;
+    }
+
+    // Check if the peer was discovered recently (within last 30 seconds)
+    const isRecent = (Date.now() - peer.timestamp) < 30000;
+    
+    // Additional check for local network connectivity
     try {
-      // Create initial connection request
-      const preferredTransports = this.getPreferredTransports(remoteDeviceType);
-      const request = this.protocolHandler.createConnectionRequest(
-        this.localPeerId,
-        preferredTransports
-      );
-
-      // Validate capabilities and determine transport mode
-      const localMetadata = this.protocolHandler.getProtocolMetadata();
-      const negotiatedTransport = this.protocolHandler.getNegotiatedTransport(
-        localMetadata,
-        request.protocol
-      );
-
-      console.log('[NEGOTIATOR] Negotiated transport mode:', negotiatedTransport);
-      return negotiatedTransport;
+      const rtcPeerConnection = new RTCPeerConnection({
+        iceServers: [],  // Empty array forces local candidates only
+        iceTransportPolicy: 'relay'
+      });
+      
+      const candidates = await this.gatherLocalCandidates(rtcPeerConnection);
+      rtcPeerConnection.close();
+      
+      return candidates.some(candidate => 
+        candidate.type === 'host' && 
+        !candidate.address.includes('127.0.0.1')
+      ) && isRecent;
     } catch (error) {
-      throw new WebRTCError('Failed to negotiate connection', { remotePeerId, error });
+      console.warn('[NEGOTIATOR] Error checking local network:', error);
+      return false;
     }
   }
 
-  private getPreferredTransports(remoteDeviceType: DeviceType): TransportMode[] {
-    const transports: TransportMode[] = [];
+  private async gatherLocalCandidates(pc: RTCPeerConnection): Promise<RTCIceCandidate[]> {
+    return new Promise((resolve) => {
+      const candidates: RTCIceCandidate[] = [];
+      
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          candidates.push(event.candidate);
+        } else {
+          resolve(candidates);
+        }
+      };
 
-    // Web clients must use WebRTC
-    if (remoteDeviceType === DeviceType.Web) {
-      return [TransportMode.WebRTC];
-    }
-
-    // Native clients can use multiple transport modes
-    transports.push(TransportMode.LAN);
-    transports.push(TransportMode.WebRTC);
-    transports.push(TransportMode.Internet);
-
-    return transports;
+      pc.createDataChannel('probe');
+      pc.createOffer()
+        .then(offer => pc.setLocalDescription(offer))
+        .catch(error => {
+          console.error('[NEGOTIATOR] Error gathering candidates:', error);
+          resolve([]);
+        });
+    });
   }
 
-  public validateIncomingMessage(message: ConnectionMessage): boolean {
-    if (!this.protocolHandler.validateMessage(message)) {
-      return false;
+  getCurrentPeers(): PeerInfo[] {
+    // Clean up old peers (older than 30 seconds)
+    const now = Date.now();
+    for (const [id, peer] of this.discoveredPeers.entries()) {
+      if (now - peer.timestamp > 30000) {
+        this.discoveredPeers.delete(id);
+      }
     }
-
-    // Additional validation specific to connection negotiation
-    if (!message.peerId) {
-      console.error('[NEGOTIATOR] Missing peer ID in message');
-      return false;
-    }
-
-    return true;
+    return Array.from(this.discoveredPeers.values());
   }
 }

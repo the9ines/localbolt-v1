@@ -1,8 +1,8 @@
-
 import { FileTransferService } from './FileTransferService';
 import { EncryptionService } from './EncryptionService';
 import { WebRTCError } from '@/types/webrtc-errors';
 import type { TransferProgress } from './FileTransferService';
+import { TransportMode } from './protocol/ConnectionNegotiator';
 
 export interface IDataChannelManager {
   setupDataChannel(channel: RTCDataChannel): void;
@@ -20,6 +20,7 @@ export class DataChannelManager implements IDataChannelManager {
   private stateChangeHandler: ((state: RTCDataChannelState) => void) | undefined;
   private isDisconnecting: boolean = false;
   private activeTransfers: Set<string> = new Set();
+  private currentTransportMode: TransportMode = TransportMode.INTERNET;
 
   constructor(
     private encryptionService: EncryptionService,
@@ -28,6 +29,17 @@ export class DataChannelManager implements IDataChannelManager {
     private onError: (error: WebRTCError) => void
   ) {
     console.log('[DATACHANNEL] Initializing DataChannelManager');
+  }
+
+  setTransportMode(mode: TransportMode) {
+    console.log('[DATACHANNEL] Setting transport mode:', mode);
+    this.currentTransportMode = mode;
+    
+    // Adjust transfer parameters based on transport mode
+    if (this.fileTransferService) {
+      const chunkSize = mode === TransportMode.LOCAL ? 65536 : 16384; // Larger chunks for local transfer
+      this.fileTransferService.setChunkSize(chunkSize);
+    }
   }
 
   setupDataChannel(channel: RTCDataChannel): void {
