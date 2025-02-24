@@ -98,7 +98,11 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
 
   return (
     <div className="space-y-4">
-      <ConnectionStatus isConnected={isConnected} />
+      <ConnectionStatus 
+        isConnected={isConnected} 
+        webrtc={webrtc}
+        isLocalConnection={webrtc?.getDiscoveryStatus()?.localPeersCount > 0}
+      />
       
       <div className="space-y-4 touch-manipulation">
         {hasLocalPeers && (
