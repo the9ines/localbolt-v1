@@ -46,7 +46,7 @@ export class WebRTCEventManager {
     this.connectionStateListener = handler;
   }
 
-  private handleDisconnect() {
+  handleDisconnect() {
     if (this.isDisconnecting) return;
     this.isDisconnecting = true;
 
@@ -65,9 +65,5 @@ export class WebRTCEventManager {
       console.log('[CONNECTION] Resetting disconnect state');
       this.isDisconnecting = false;
     }, 100);
-  }
-
-  handleDisconnect() {
-    this.handleDisconnect();
   }
 }

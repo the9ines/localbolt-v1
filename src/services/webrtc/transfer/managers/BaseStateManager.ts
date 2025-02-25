@@ -20,4 +20,5 @@ export interface IStateManager {
   resetTransferState(reason: 'cancel' | 'disconnect' | 'error' | 'complete'): void;
   isCancelled(): boolean;
   isPaused(): boolean;
+  reset(): void;
 }

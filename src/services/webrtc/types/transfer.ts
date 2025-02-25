@@ -8,6 +8,7 @@ export interface TransferStats {
   startTime: number;
   pauseDuration: number;
   lastPausedAt?: number;
+  retryDelay?: number;
 }
 
 export interface TransferProgress {

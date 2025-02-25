@@ -1,4 +1,3 @@
-
 import type { TransferProgress } from '../types/transfer';
 import type { TransferControlMessage, TransferState } from '../types/transfer-control';
 import { TransferStore } from './TransferStore';
@@ -24,6 +23,15 @@ export class TransferStateManager implements IStateManager {
     this.controlHandler = new TransferControlHandler(this.store, this.progressEmitter);
     this.sessionManager = new SessionManager();
     this.stateUpdateManager = new StateUpdateManager();
+  }
+
+  reset(): void {
+    console.log('[STATE] Full reset of transfer state');
+    this.resetTransferState('complete');
+    this.store.clear();
+    this.controlHandler.reset();
+    this.sessionManager.clearSession();
+    this.stateUpdateManager.reset();
   }
 
   resetTransferState(reason: 'cancel' | 'disconnect' | 'error' | 'complete'): void {
