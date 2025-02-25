@@ -87,7 +87,7 @@ export class TransferProgressHandler {
       });
 
       // Check for transfer completion
-      if (loaded === total) {
+      if (loaded === total && total > 0) {
         console.log(`[STATE] Transfer completed for ${filename}`);
         this.cleanup(filename);
       }
@@ -112,11 +112,12 @@ export class TransferProgressHandler {
       maxRetries: 3,
       startTime: now,
       pauseDuration: 0,
-      lastProgressUpdate: now
+      lastProgressUpdate: now,
+      lastLoadedBytes: 0 // Initialize with 0
     };
 
     // Calculate current speed
-    const timeDiff = (now - stats.lastProgressUpdate) / 1000; // Convert to seconds
+    const timeDiff = (now - (stats.lastProgressUpdate || now)) / 1000; // Convert to seconds
     const bytesDiff = loaded - (stats.lastLoadedBytes || 0);
     const currentSpeed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
 
@@ -139,7 +140,7 @@ export class TransferProgressHandler {
       averageSpeed,
       estimatedTimeRemaining,
       lastProgressUpdate: now,
-      lastLoadedBytes: loaded
+      lastLoadedBytes: loaded // Update last loaded bytes
     };
 
     this.transferStats.set(filename, stats);

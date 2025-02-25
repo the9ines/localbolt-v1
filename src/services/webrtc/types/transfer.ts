@@ -10,6 +10,7 @@ export interface TransferStats {
   lastPausedAt?: number;
   retryDelay?: number;
   lastProgressUpdate?: number;
+  lastLoadedBytes?: number; // Added this property for tracking previous loaded bytes
 }
 
 export interface TransferProgress {
