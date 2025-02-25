@@ -77,7 +77,9 @@ export class SendFileService {
     try {
       // Read the chunk data
       const arrayBuffer = await chunk.arrayBuffer();
-      const encryptedChunk = await this.chunkProcessor.encryptChunk(arrayBuffer);
+      // Convert ArrayBuffer to Uint8Array as required by encryptChunk
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const encryptedChunk = await this.chunkProcessor.encryptChunk(uint8Array);
       
       // Prepare the message
       const message: FileChunkMessage = {
