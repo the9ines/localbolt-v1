@@ -6,6 +6,7 @@ import { TransferStateManager } from './TransferStateManager';
 
 export class DataChannelMessageHandler {
   private processingMessages: boolean = false;
+  private knownSessionIds: Map<string, string> = new Map(); // track filename -> sessionId
 
   constructor(
     private transferManager: TransferManager,
@@ -81,6 +82,64 @@ export class DataChannelMessageHandler {
     }
   }
 
+  private shouldProcessChunk(filename: string, chunkIndex: number, sessionId?: string): boolean {
+    // If this is the first chunk of a new transfer, always process it
+    if (chunkIndex === 0 && sessionId) {
+      console.log(`[TRANSFER] New transfer session detected for ${filename}: ${sessionId}`);
+      this.knownSessionIds.set(filename, sessionId);
+      return true;
+    }
+    
+    // If we have a known session for this file, make sure it matches
+    if (sessionId && this.knownSessionIds.has(filename)) {
+      const knownSessionId = this.knownSessionIds.get(filename);
+      if (sessionId !== knownSessionId) {
+        console.log(`[TRANSFER] Session mismatch for ${filename}: expected ${knownSessionId}, got ${sessionId}`);
+        return false;
+      }
+    }
+    
+    // Check if the transfer is cancelled or paused
+    if (this.stateManager.isCancelled()) {
+      console.log(`[TRANSFER] Transfer is cancelled, skipping chunk`);
+      return false;
+    }
+    
+    return true;
+  }
+
+  private async processChunk(
+    filename: string, 
+    chunk?: string, 
+    chunkIndex?: number, 
+    totalChunks?: number, 
+    fileSize?: number
+  ) {
+    if (!chunk || chunkIndex === undefined || !totalChunks || !fileSize) {
+      console.warn('[TRANSFER] Incomplete chunk data:', { filename, chunkIndex, totalChunks, fileSize });
+      return;
+    }
+    
+    try {
+      const completeFile = await this.transferManager.processReceivedChunk(
+        filename,
+        chunk,
+        chunkIndex,
+        totalChunks,
+        fileSize
+      );
+      
+      if (completeFile) {
+        console.log(`[TRANSFER] Completed receiving ${filename}`);
+        this.onReceiveFile(completeFile, filename);
+        this.knownSessionIds.delete(filename);
+      }
+    } catch (error) {
+      console.error(`[TRANSFER] Error processing chunk ${chunkIndex}:`, error);
+      this.handleTransferError(error);
+    }
+  }
+
   private handleTransferError(error: any) {
     console.error('[TRANSFER] Transfer error occurred:', error);
     const currentTransfer = this.stateManager.getCurrentTransfer();
@@ -123,4 +182,7 @@ export class DataChannelMessageHandler {
   private async handleCancelMessage(filename: string, isReceiver: boolean): Promise<void> {
     console.log(`[TRANSFER] Processing cancel message for ${filename}`);
     this.stateManager.handleCancel({ filename, isReceiver });
-    this.transferManager.
+    this.transferManager.handleCleanup(filename);
+    this.knownSessionIds.delete(filename);
+  }
+}
