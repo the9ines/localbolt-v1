@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { File, Pause, Play, X } from "lucide-react";
 import type { TransferProgress as TransferProgressType } from "@/services/webrtc/FileTransferService";
+import { useEffect, useRef } from "react";
 
 interface TransferProgressProps {
   progress: TransferProgressType;
@@ -42,16 +43,21 @@ const formatSize = (bytes: number): string => {
 };
 
 export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: TransferProgressProps) => {
+  const renderCount = useRef(0);
+  
   // Debug log every time progress is updated
-  console.log('[PROGRESS-UI] Rendering progress bar with:', {
-    filename: progress.filename,
-    loaded: progress.loaded,
-    total: progress.total,
-    status: progress.status,
-    currentChunk: progress.currentChunk,
-    totalChunks: progress.totalChunks,
-    hasStats: !!progress.stats
-  });
+  useEffect(() => {
+    renderCount.current += 1;
+    console.log(`[PROGRESS-UI] Rendering progress bar (render #${renderCount.current}):`, {
+      filename: progress.filename,
+      loaded: progress.loaded,
+      total: progress.total,
+      status: progress.status,
+      currentChunk: progress.currentChunk,
+      totalChunks: progress.totalChunks,
+      hasStats: !!progress.stats
+    });
+  }, [progress.loaded, progress.total, progress.status]);
 
   const isPaused = progress.status === 'paused';
   const isActive = progress.status === 'transferring' || progress.status === 'paused';

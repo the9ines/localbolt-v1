@@ -38,7 +38,21 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   } = useTransferProgress(webrtc);
 
   useEffect(() => {
+    // Debug log when transfer progress changes
+    if (transferProgress) {
+      console.log(`[PEER-CONNECTION] Transfer progress updated:`, {
+        filename: transferProgress.filename,
+        loaded: transferProgress.loaded,
+        total: transferProgress.total,
+        status: transferProgress.status,
+        percent: Math.round((transferProgress.loaded / transferProgress.total) * 100)
+      });
+    }
+  }, [transferProgress]);
+
+  useEffect(() => {
     if (!isConnected && transferProgress) {
+      console.log('[PEER-CONNECTION] Clearing progress due to disconnection');
       clearProgress();
     }
   }, [isConnected, transferProgress, clearProgress]);
@@ -46,7 +60,7 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   useEffect(() => {
     if (webrtc && isConnected) {
       const remotePeer = webrtc.getRemotePeerCode();
-      console.log('[UI] Remote peer code updated:', remotePeer);
+      console.log('[PEER-CONNECTION] Remote peer code updated:', remotePeer);
     }
   }, [webrtc, isConnected]);
 
@@ -54,23 +68,26 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     if (!webrtc) {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
-      console.log('[WEBRTC] Creating new service with code:', code);
+      console.log('[PEER-CONNECTION] Creating new service with code:', code);
       const rtcService = new WebRTCService(code, handleFileReceive, handleConnectionError, handleProgress);
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
       setWebrtc(rtcService);
 
       return () => {
-        console.log('[WEBRTC] Cleaning up service');
+        console.log('[PEER-CONNECTION] Cleaning up service');
         rtcService.disconnect();
         setIsConnected(false);
         onConnectionChange(false);
         clearProgress();
       };
     }
+
+    // Ensure webrtc has the correct progress callback
+    webrtc.setProgressCallback(handleProgress);
   }, []); 
 
   const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
-    console.log('[UI] Connection state changed:', state);
+    console.log('[PEER-CONNECTION] Connection state changed:', state);
     const connected = state === 'connected';
     setIsConnected(connected);
     onConnectionChange(connected, webrtc || undefined);
@@ -81,13 +98,14 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     
     if (connected && webrtc) {
       const remotePeerCode = webrtc.getRemotePeerCode();
-      console.log('[UI] Setting connected peer code:', remotePeerCode);
+      console.log('[PEER-CONNECTION] Setting connected peer code:', remotePeerCode);
     } else {
       setTargetPeerCode("");
     }
   };
 
   const handleFileReceive = (file: Blob, filename: string) => {
+    console.log(`[PEER-CONNECTION] File received: ${filename}, size: ${file.size}`);
     const url = URL.createObjectURL(file);
     const a = document.createElement('a');
     a.href = url;

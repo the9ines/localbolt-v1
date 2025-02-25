@@ -6,25 +6,78 @@ import type WebRTCService from '@/services/webrtc/WebRTCService';
 export const useTransferProgress = (webrtc: WebRTCService | null) => {
   const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const lastEventTime = useRef<{ [key: string]: number }>({});
-  const EVENT_COOLDOWN = 500; // 500ms cooldown between same events
+  const lastProcessedProgress = useRef<TransferProgress | null>(null);
+  const EVENT_COOLDOWN = 100; // Reduced to 100ms to show more frequent updates
+  
+  useEffect(() => {
+    // Register the progress callback whenever webrtc changes
+    if (webrtc) {
+      console.log('[TRANSFER-PROGRESS] Setting up progress callback on WebRTC service');
+      
+      const handleProgressUpdate = (progress: TransferProgress) => {
+        console.log('[TRANSFER-PROGRESS] Progress update received:', {
+          filename: progress.filename,
+          loaded: progress.loaded,
+          total: progress.total,
+          status: progress.status,
+          currentChunk: progress.currentChunk,
+          totalChunks: progress.totalChunks
+        });
+        
+        // Force update the progress state directly
+        setTransferProgress(progress);
+      };
+      
+      // Register our callback
+      webrtc.setProgressCallback(handleProgressUpdate);
+      
+      // Cleanup function
+      return () => {
+        console.log('[TRANSFER-PROGRESS] Cleaning up progress callback');
+        webrtc.setProgressCallback(undefined);
+      };
+    }
+  }, [webrtc]);
   
   useEffect(() => {
     if (!transferProgress?.status) return;
+    
+    console.log('[TRANSFER-PROGRESS] Progress state updated:', {
+      filename: transferProgress.filename,
+      loaded: transferProgress.loaded,
+      total: transferProgress.total,
+      status: transferProgress.status,
+      percent: transferProgress.total > 0 ? 
+        Math.round((transferProgress.loaded / transferProgress.total) * 100) : 0
+    });
+
+    // Store the last progress update for comparison
+    lastProcessedProgress.current = transferProgress;
 
     // Only clear progress for completed or error states
     if (transferProgress.status === 'canceled_by_sender' || 
         transferProgress.status === 'canceled_by_receiver' ||
-        transferProgress.status === 'error') {
-      setTransferProgress(null);
+        transferProgress.status === 'error' ||
+        (transferProgress.loaded === transferProgress.total && transferProgress.total > 0)) {
+      
+      console.log('[TRANSFER-PROGRESS] Clearing progress due to completion or error:', transferProgress.status);
+      
+      // Give the UI a chance to show 100% before clearing
+      if (transferProgress.loaded === transferProgress.total && transferProgress.total > 0) {
+        setTimeout(() => {
+          setTransferProgress(null);
+        }, 1000);
+      } else {
+        setTransferProgress(null);
+      }
     }
-  }, [transferProgress?.status]);
+  }, [transferProgress?.status, transferProgress?.loaded, transferProgress?.total]);
 
   const shouldProcessEvent = useCallback((eventType: string, filename: string) => {
     const now = Date.now();
     const lastTime = lastEventTime.current[`${eventType}-${filename}`] || 0;
     
     if (now - lastTime < EVENT_COOLDOWN) {
-      console.log(`[PROGRESS] Skipping duplicate ${eventType} event for ${filename}`);
       return false;
     }
     
@@ -33,51 +86,22 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
   }, []);
 
   const handleProgress = useCallback((progress: TransferProgress) => {
-    console.log('[PROGRESS] Received progress update:', progress);
+    console.log('[TRANSFER-PROGRESS] Handling external progress update:', progress);
     
     if (!progress?.filename || !progress?.status) {
-      console.log('[PROGRESS] Ignoring invalid progress update');
+      console.log('[TRANSFER-PROGRESS] Ignoring invalid progress update');
       return;
     }
 
-    // Check for duplicate events
-    if (!shouldProcessEvent(progress.status, progress.filename)) {
+    // Always process completion events regardless of cooldown
+    const isCompletion = progress.loaded === progress.total && progress.total > 0;
+    const isStatusChange = lastProcessedProgress.current?.status !== progress.status;
+    
+    if (!isCompletion && !isStatusChange && !shouldProcessEvent('progress', progress.filename)) {
       return;
     }
 
-    switch (progress.status) {
-      case 'canceled_by_sender':
-      case 'canceled_by_receiver':
-        setTransferProgress(null);
-        break;
-
-      case 'error':
-        setTransferProgress(null);
-        break;
-
-      case 'transferring':
-      case 'paused':
-        setTransferProgress(prev => {
-          // Don't update if nothing changed
-          if (prev?.status === progress.status &&
-              prev?.loaded === progress.loaded &&
-              prev?.total === progress.total) {
-            return prev;
-          }
-
-          // For completed transfer
-          if (progress.loaded === progress.total && progress.total > 0) {
-            return null;
-          }
-
-          return progress;
-        });
-        break;
-
-      default:
-        console.log('[PROGRESS] Unhandled progress status:', progress.status);
-        break;
-    }
+    setTransferProgress(progress);
   }, [shouldProcessEvent]);
 
   const handleCancelReceiving = useCallback(() => {
@@ -87,7 +111,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
       return;
     }
 
-    console.log('[PROGRESS] Canceling transfer:', transferProgress.filename);
+    console.log('[TRANSFER-PROGRESS] Canceling transfer:', transferProgress.filename);
     webrtc.cancelTransfer(transferProgress.filename, true);
     setTransferProgress(null);
   }, [webrtc, transferProgress, shouldProcessEvent]);
@@ -99,7 +123,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
       return;
     }
 
-    console.log('[PROGRESS] Pausing transfer:', transferProgress.filename);
+    console.log('[TRANSFER-PROGRESS] Pausing transfer:', transferProgress.filename);
     webrtc.pauseTransfer(transferProgress.filename);
     setTransferProgress(prev => prev ? { ...prev, status: 'paused' } : null);
   }, [webrtc, transferProgress, shouldProcessEvent]);
@@ -111,14 +135,16 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
       return;
     }
 
-    console.log('[PROGRESS] Resuming transfer:', transferProgress.filename);
+    console.log('[TRANSFER-PROGRESS] Resuming transfer:', transferProgress.filename);
     webrtc.resumeTransfer(transferProgress.filename);
     setTransferProgress(prev => prev ? { ...prev, status: 'transferring' } : null);
   }, [webrtc, transferProgress, shouldProcessEvent]);
 
   const clearProgress = useCallback(() => {
+    console.log('[TRANSFER-PROGRESS] Manually clearing progress state');
     setTransferProgress(null);
     lastEventTime.current = {};
+    lastProcessedProgress.current = null;
   }, []);
 
   return {

@@ -1,13 +1,10 @@
 
-import type { FileChunkMessage } from '../types/transfer';
-import { TransferError } from '@/types/webrtc-errors';
 import { TransferManager } from './TransferManager';
 import { TransferStateManager } from './TransferStateManager';
+import type { FileChunkMessage } from '../types/transfer';
+import { TransferError } from '@/types/webrtc-errors';
 
 export class DataChannelMessageHandler {
-  private processingMessages: boolean = false;
-  private knownSessionIds: Map<string, string> = new Map(); // track filename -> sessionId
-
   constructor(
     private transferManager: TransferManager,
     private stateManager: TransferStateManager,
@@ -15,174 +12,97 @@ export class DataChannelMessageHandler {
   ) {}
 
   async handleMessage(event: MessageEvent) {
-    if (this.processingMessages) {
-      console.log('[TRANSFER] Already processing a message, queuing...');
-      setTimeout(() => this.handleMessage(event), 10);
-      return;
-    }
-
-    this.processingMessages = true;
-
     try {
-      const jsonString = event.data;
-      let message: FileChunkMessage;
+      // Parse the message data
+      const messageData = JSON.parse(event.data);
       
-      try {
-        message = JSON.parse(jsonString);
-      } catch (error) {
-        console.error('[TRANSFER] Failed to parse message:', error);
-        this.processingMessages = false;
-        return;
-      }
+      // Log every message for debugging
+      console.log('[MESSAGE-HANDLER] Received message:', {
+        type: messageData.type,
+        filename: messageData.filename,
+        chunkIndex: messageData.chunkIndex,
+        totalChunks: messageData.totalChunks,
+        hasChunk: !!messageData.chunk,
+        cancelled: messageData.cancelled,
+      });
       
-      const { type, filename, chunk, chunkIndex, totalChunks, fileSize, cancelled, cancelledBy, paused, resumed, sessionId } = message;
-
-      if (!type || type !== 'file-chunk' || !filename) {
-        console.warn('[TRANSFER] Invalid message format:', message);
-        this.processingMessages = false;
+      if (messageData.type !== 'file-chunk') {
+        console.log('[MESSAGE-HANDLER] Ignoring non-file-chunk message');
         return;
       }
 
-      // Handle control messages first (they are high priority)
-      if (cancelled) {
-        console.log(`[TRANSFER] Processing cancel message for ${filename} by ${cancelledBy}`);
-        const isReceiver = cancelledBy === 'receiver';
-        await this.handleCancelMessage(filename, isReceiver);
-        this.processingMessages = false;
+      const message = messageData as FileChunkMessage;
+
+      // Handle control messages
+      if (message.cancelled) {
+        console.log('[MESSAGE-HANDLER] Received cancel message for:', message.filename);
+        this.transferManager.handleCleanup(message.filename);
+        this.stateManager.handleCancel({
+          type: 'cancel',
+          filename: message.filename,
+          sessionId: message.sessionId
+        });
         return;
       }
 
-      if (paused) {
-        console.log(`[TRANSFER] Processing pause message for ${filename}`);
-        const success = this.handlePauseMessage(filename, sessionId);
-        this.processingMessages = false;
+      if (message.paused) {
+        console.log('[MESSAGE-HANDLER] Received pause message for:', message.filename);
+        this.transferManager.handlePause();
+        this.stateManager.handlePause({
+          type: 'pause',
+          filename: message.filename,
+          sessionId: message.sessionId
+        });
         return;
       }
 
-      if (resumed) {
-        console.log(`[TRANSFER] Processing resume message for ${filename}`);
-        const success = this.handleResumeMessage(filename, sessionId);
-        this.processingMessages = false;
+      if (message.resumed) {
+        console.log('[MESSAGE-HANDLER] Received resume message for:', message.filename);
+        this.transferManager.handleResume();
+        this.stateManager.handleResume({
+          type: 'resume',
+          filename: message.filename,
+          sessionId: message.sessionId
+        });
         return;
       }
 
-      // Handle file chunks - check if we should process this chunk
-      if (!this.shouldProcessChunk(filename, chunkIndex || 0, sessionId)) {
-        console.log(`[TRANSFER] Skipping chunk processing for ${filename} (chunk ${chunkIndex})`);
-        this.processingMessages = false;
-        return;
-      }
+      // Handle chunk messages
+      if (message.chunk && message.chunkIndex !== undefined && 
+          message.totalChunks !== undefined && message.fileSize !== undefined) {
+          
+        // Process the received chunk
+        const file = await this.transferManager.processReceivedChunk(
+          message.filename,
+          message.chunk,
+          message.chunkIndex,
+          message.totalChunks,
+          message.fileSize
+        );
 
-      await this.processChunk(filename, chunk, chunkIndex, totalChunks, fileSize);
-    } catch (error) {
-      console.error('[TRANSFER] Error processing message:', error);
-      this.handleTransferError(error);
-    } finally {
-      this.processingMessages = false;
-    }
-  }
+        // Update progress state
+        const loaded = Math.min(
+          (message.chunkIndex + 1) * (message.fileSize / message.totalChunks),
+          message.fileSize
+        );
+        
+        this.stateManager.updateProgress(
+          message.filename,
+          loaded,
+          message.fileSize,
+          message.chunkIndex + 1,
+          message.totalChunks
+        );
 
-  private shouldProcessChunk(filename: string, chunkIndex: number, sessionId?: string): boolean {
-    // If this is the first chunk of a new transfer, always process it
-    if (chunkIndex === 0 && sessionId) {
-      console.log(`[TRANSFER] New transfer session detected for ${filename}: ${sessionId}`);
-      this.knownSessionIds.set(filename, sessionId);
-      return true;
-    }
-    
-    // If we have a known session for this file, make sure it matches
-    if (sessionId && this.knownSessionIds.has(filename)) {
-      const knownSessionId = this.knownSessionIds.get(filename);
-      if (sessionId !== knownSessionId) {
-        console.log(`[TRANSFER] Session mismatch for ${filename}: expected ${knownSessionId}, got ${sessionId}`);
-        return false;
-      }
-    }
-    
-    // Check if the transfer is cancelled or paused
-    if (this.stateManager.isCancelled()) {
-      console.log(`[TRANSFER] Transfer is cancelled, skipping chunk`);
-      return false;
-    }
-    
-    return true;
-  }
-
-  private async processChunk(
-    filename: string, 
-    chunk?: string, 
-    chunkIndex?: number, 
-    totalChunks?: number, 
-    fileSize?: number
-  ) {
-    if (!chunk || chunkIndex === undefined || !totalChunks || !fileSize) {
-      console.warn('[TRANSFER] Incomplete chunk data:', { filename, chunkIndex, totalChunks, fileSize });
-      return;
-    }
-    
-    try {
-      const completeFile = await this.transferManager.processReceivedChunk(
-        filename,
-        chunk,
-        chunkIndex,
-        totalChunks,
-        fileSize
-      );
-      
-      if (completeFile) {
-        console.log(`[TRANSFER] Completed receiving ${filename}`);
-        this.onReceiveFile(completeFile, filename);
-        this.knownSessionIds.delete(filename);
+        // If the transfer is complete, notify
+        if (file) {
+          console.log('[MESSAGE-HANDLER] Transfer complete for:', message.filename);
+          this.onReceiveFile(file, message.filename);
+        }
       }
     } catch (error) {
-      console.error(`[TRANSFER] Error processing chunk ${chunkIndex}:`, error);
-      this.handleTransferError(error);
+      console.error('[MESSAGE-HANDLER] Error handling message:', error);
+      throw new TransferError("Error processing file chunk", error);
     }
-  }
-
-  private handleTransferError(error: any) {
-    console.error('[TRANSFER] Transfer error occurred:', error);
-    const currentTransfer = this.stateManager.getCurrentTransfer();
-    
-    if (currentTransfer?.filename) {
-      console.log(`[TRANSFER] Cancelling transfer due to error: ${currentTransfer.filename}`);
-      this.transferManager.cancelTransfer(currentTransfer.filename, true);
-      this.stateManager.handleError();
-    }
-  }
-
-  private handlePauseMessage(filename: string, sessionId?: string): boolean {
-    console.log(`[TRANSFER] Processing pause message for ${filename}`);
-    const pauseSuccess = this.stateManager.handlePause({ filename, sessionId });
-    
-    if (pauseSuccess) {
-      this.transferManager.handlePause();
-      console.log('[TRANSFER] Pause state updated successfully');
-    } else {
-      console.log('[TRANSFER] Failed to update pause state');
-    }
-    
-    return pauseSuccess;
-  }
-
-  private handleResumeMessage(filename: string, sessionId?: string): boolean {
-    console.log(`[TRANSFER] Processing resume message for ${filename}`);
-    const resumeSuccess = this.stateManager.handleResume({ filename, sessionId });
-    
-    if (resumeSuccess) {
-      this.transferManager.handleResume();
-      console.log('[TRANSFER] Resume state updated successfully');
-    } else {
-      console.log('[TRANSFER] Failed to update resume state');
-    }
-    
-    return resumeSuccess;
-  }
-
-  private async handleCancelMessage(filename: string, isReceiver: boolean): Promise<void> {
-    console.log(`[TRANSFER] Processing cancel message for ${filename}`);
-    this.stateManager.handleCancel({ filename, isReceiver });
-    this.transferManager.handleCleanup(filename);
-    this.knownSessionIds.delete(filename);
   }
 }
