@@ -1,11 +1,14 @@
 
 import type { TransferState } from '../../types/transfer-control';
+import type { TransferStats } from '../../types/transfer';
 import { TransferStore } from '../TransferStore';
 import { ProgressEmitter } from '../ProgressEmitter';
 
 export class TransferProgressHandler {
   private lastProgressUpdate: Map<string, number> = new Map();
+  private transferStats: Map<string, TransferStats> = new Map();
   private readonly UPDATE_THRESHOLD_MS = 50; // Only update progress every 50ms max
+  private readonly SPEED_CALCULATION_WINDOW = 5000; // Calculate speed over 5 second window
 
   constructor(
     private store: TransferStore,
@@ -23,6 +26,7 @@ export class TransferProgressHandler {
       // Throttle updates to prevent excessive updates
       const now = Date.now();
       const lastUpdate = this.lastProgressUpdate.get(filename) || 0;
+      
       if (now - lastUpdate < this.UPDATE_THRESHOLD_MS) {
         // Skip this update if it's too soon after the last one
         return;
@@ -37,29 +41,9 @@ export class TransferProgressHandler {
         return;
       }
 
-      // Calculate speed if we have previous progress data
-      let stats = undefined;
+      // Calculate transfer statistics
+      const stats = this.calculateTransferStats(filename, loaded, total, now);
       
-      if (transfer.progress) {
-        const timeDiff = now - (transfer.progress.lastUpdated || now);
-        const bytesDiff = loaded - (transfer.progress.loaded || 0);
-        
-        if (timeDiff > 0) {
-          const currentSpeed = bytesDiff / (timeDiff / 1000);
-          
-          stats = {
-            speed: currentSpeed,
-            averageSpeed: currentSpeed, // Use current speed as average for simple implementation
-            estimatedTimeRemaining: currentSpeed > 0 ? (total - loaded) / currentSpeed : 0,
-            retryCount: 0,
-            maxRetries: 3,
-            startTime: transfer.progress.lastUpdated || now,
-            pauseDuration: 0,
-            lastProgressUpdate: now
-          };
-        }
-      }
-
       // Create new progress object
       const progressUpdate = { 
         loaded, 
@@ -78,7 +62,7 @@ export class TransferProgressHandler {
         this.store.updateState({ currentTransfer: transfer });
       }
 
-      // Always emit progress update with current state
+      // Emit progress update with stats
       requestAnimationFrame(() => {
         console.log('[STATE] Emitting progress update:', {
           filename,
@@ -101,16 +85,79 @@ export class TransferProgressHandler {
           }
         );
       });
+
+      // Check for transfer completion
+      if (loaded === total) {
+        console.log(`[STATE] Transfer completed for ${filename}`);
+        this.cleanup(filename);
+      }
     } catch (error) {
       console.error('[STATE] Error updating transfer progress:', error);
+      this.cleanup(filename);
+      throw error;
     }
+  }
+
+  private calculateTransferStats(
+    filename: string,
+    loaded: number,
+    total: number,
+    now: number
+  ): TransferStats {
+    let stats = this.transferStats.get(filename) || {
+      speed: 0,
+      averageSpeed: 0,
+      estimatedTimeRemaining: 0,
+      retryCount: 0,
+      maxRetries: 3,
+      startTime: now,
+      pauseDuration: 0,
+      lastProgressUpdate: now
+    };
+
+    // Calculate current speed
+    const timeDiff = (now - stats.lastProgressUpdate) / 1000; // Convert to seconds
+    const bytesDiff = loaded - (stats.lastLoadedBytes || 0);
+    const currentSpeed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
+
+    // Update moving average speed
+    const alpha = 0.2; // Smoothing factor for exponential moving average
+    const averageSpeed = stats.averageSpeed === 0 
+      ? currentSpeed 
+      : (alpha * currentSpeed + (1 - alpha) * stats.averageSpeed);
+
+    // Calculate estimated time remaining
+    const remainingBytes = total - loaded;
+    const estimatedTimeRemaining = averageSpeed > 0 
+      ? remainingBytes / averageSpeed 
+      : 0;
+
+    // Update stats
+    stats = {
+      ...stats,
+      speed: currentSpeed,
+      averageSpeed,
+      estimatedTimeRemaining,
+      lastProgressUpdate: now,
+      lastLoadedBytes: loaded
+    };
+
+    this.transferStats.set(filename, stats);
+    return stats;
+  }
+
+  cleanup(filename: string) {
+    console.log(`[STATE] Cleaning up progress handler for ${filename}`);
+    this.lastProgressUpdate.delete(filename);
+    this.transferStats.delete(filename);
   }
   
   reset(filename?: string) {
     if (filename) {
-      this.lastProgressUpdate.delete(filename);
+      this.cleanup(filename);
     } else {
       this.lastProgressUpdate.clear();
+      this.transferStats.clear();
     }
   }
 }
