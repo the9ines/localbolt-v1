@@ -7,7 +7,7 @@ import { ProgressEmitter } from '../ProgressEmitter';
 export class TransferProgressHandler {
   private lastProgressUpdate: Map<string, number> = new Map();
   private transferStats: Map<string, TransferStats> = new Map();
-  private readonly UPDATE_THRESHOLD_MS = 16; // Reduced from 50ms to match UI refresh rate
+  private readonly UPDATE_THRESHOLD_MS = 16; // Using 16ms to synchronize with typical frame rate
   private readonly SPEED_CALCULATION_WINDOW = 5000;
 
   constructor(
@@ -38,11 +38,9 @@ export class TransferProgressHandler {
         timeSinceLastUpdate: now - lastUpdate
       });
 
-      // Always process first update, completion, or if enough time has passed
-      if (!isFirst && !isComplete && now - lastUpdate < this.UPDATE_THRESHOLD_MS) {
-        console.log('[PROGRESS-HANDLER] Skipping update due to throttling');
-        return;
-      }
+      // IMPORTANT FIX: Don't throttle updates for UI performance
+      // Let the ProgressEmitter decide what to emit
+      // Always process first update, completion, or every update
       
       this.lastProgressUpdate.set(filename, now);
       
@@ -75,18 +73,17 @@ export class TransferProgressHandler {
         this.store.updateState({ currentTransfer: transfer });
       }
 
-      // Emit progress update with stats immediately
+      // Emit progress update immediately - removed throttling
       console.log('[PROGRESS-HANDLER] Emitting progress update:', {
         filename,
         status: this.store.isPaused() ? 'paused' : 'transferring',
         loaded,
         total,
         currentChunk,
-        totalChunks,
-        stats
+        totalChunks
       });
       
-      // Make sure we emit a progress update for EVERY chunk, regardless of throttling
+      // Always emit progress updates, let the emitter decide what to filter
       this.progressEmitter.emit(
         filename,
         this.store.isPaused() ? 'paused' : 'transferring',

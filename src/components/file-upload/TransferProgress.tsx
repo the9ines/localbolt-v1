@@ -42,6 +42,17 @@ const formatSize = (bytes: number): string => {
 };
 
 export const TransferProgressBar = ({ progress, onCancel, onPause, onResume }: TransferProgressProps) => {
+  // Debug log every time progress is updated
+  console.log('[PROGRESS-UI] Rendering progress bar with:', {
+    filename: progress.filename,
+    loaded: progress.loaded,
+    total: progress.total,
+    status: progress.status,
+    currentChunk: progress.currentChunk,
+    totalChunks: progress.totalChunks,
+    hasStats: !!progress.stats
+  });
+
   const isPaused = progress.status === 'paused';
   const isActive = progress.status === 'transferring' || progress.status === 'paused';
   

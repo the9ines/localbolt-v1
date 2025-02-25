@@ -20,8 +20,15 @@ export const Transfer = forwardRef(({
   useEffect(() => {
     if (webrtc) {
       console.log('[UI] Transfer component received WebRTC service:', !!webrtc);
+      
+      // Register a direct progress callback to ensure we're getting updates
       webrtc.setProgressCallback((progress) => {
-        console.log('[UI] Direct progress callback in Transfer component:', progress);
+        console.log('[UI] Direct progress callback in Transfer component received update:', {
+          filename: progress.filename,
+          loaded: progress.loaded,
+          total: progress.total,
+          status: progress.status
+        });
       });
     }
   }, [webrtc]);

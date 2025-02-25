@@ -21,21 +21,18 @@ export class ProgressEmitter {
       totalChunks: number;
     }
   ) {
+    // Always log the attempt to emit progress
+    console.log(`[PROGRESS] Attempting to emit progress for ${filename}: ${progress?.loaded}/${progress?.total} (${status})`);
+    
     if (!this.onProgress) {
-      console.log('[PROGRESS] No progress handler registered');
+      console.log('[PROGRESS] No progress handler registered, skipping update');
       return;
     }
 
-    console.log(`[PROGRESS] Emitting progress for ${filename}: ${progress?.loaded}/${progress?.total} (${status})`);
-
-    if (this.emitLock) {
-      console.log('[PROGRESS] Emit locked, skipping update');
-      return;
-    }
-
+    // Don't use emitLock - it's causing updates to be skipped
+    // Removed lock to ensure all updates get through
+    
     try {
-      this.emitLock = true;
-
       // Skip emission if this is an empty error state
       if (status === 'error' && !filename) {
         console.log('[PROGRESS] Skipping empty error state emission');
@@ -80,13 +77,23 @@ export class ProgressEmitter {
         return;
       }
 
-      // For all other states, check if we should emit based on progress change
+      // For normal progress updates - send more updates
+      // IMPORTANT: Reduced filtering to ensure more updates reach the UI
+      const progressUpdate: TransferProgress = {
+        status,
+        filename,
+        currentChunk: progress?.currentChunk || 0,
+        totalChunks: progress?.totalChunks || 0,
+        loaded: progress?.loaded || 0,
+        total: progress?.total || 0,
+        timestamp: Date.now()
+      };
+
+      // For normal updates, send them more frequently
       const lastProgress = this.lastEmittedProgress.get(filename);
-      
-      // Always emit for the first progress update of a file
       const isFirstUpdate = !lastProgress;
       
-      // For normal updates, always send at least every 1 second regardless of progress amount
+      // Calculate if we should send this update
       let shouldEmitProgress = isFirstUpdate;
       
       if (!isFirstUpdate && progress) {
@@ -94,40 +101,26 @@ export class ProgressEmitter {
         const currentPercent = progress.loaded / progress.total;
         const lastPercent = lastProgress.loaded / lastProgress.total;
         
-        // Emit if status changed, significant progress change, or time threshold exceeded
+        // Send more frequent updates by lowering the threshold
         shouldEmitProgress = 
           lastProgress.status !== status ||
-          Math.abs(currentPercent - lastPercent) >= this.PROGRESS_THRESHOLD / 100 ||
-          (Date.now() - (lastProgress.timestamp || 0) > 250); // More frequent updates
+          Math.abs(currentPercent - lastPercent) >= 0.002 || // 0.2% is enough to update
+          (Date.now() - (lastProgress.timestamp || 0) > 100); // Update at least every 100ms
           
-        console.log(`[PROGRESS] Progress change: ${(Math.abs(currentPercent - lastPercent) * 100).toFixed(2)}%, threshold: ${this.PROGRESS_THRESHOLD}%, should emit: ${shouldEmitProgress}`);
+        console.log(`[PROGRESS] Progress change: ${(Math.abs(currentPercent - lastPercent) * 100).toFixed(2)}%, should emit: ${shouldEmitProgress}`);
       }
 
       if (shouldEmitProgress || isFirstUpdate) {
-        // Use callback directly without extra setTimeout
-        console.log(`[PROGRESS] Emitting progress update - status: ${status}, filename: ${filename}, loaded: ${progress?.loaded}/${progress?.total}`);
+        console.log(`[PROGRESS] Emitting progress update: ${filename}, ${progress?.loaded}/${progress?.total}`);
         
-        const progressUpdate: TransferProgress = {
-          status,
-          filename,
-          currentChunk: progress?.currentChunk || 0,
-          totalChunks: progress?.totalChunks || 0,
-          loaded: progress?.loaded || 0,
-          total: progress?.total || 0,
-          timestamp: Date.now()
-        };
-
-        // Direct callback for immediate update
+        // Always invoke callback directly
         this.onProgress(progressUpdate);
         this.lastEmittedProgress.set(filename, progressUpdate);
       } else {
-        console.log(`[PROGRESS] Skipping progress update - small change or too frequent`);
+        console.log(`[PROGRESS] Skipping this update - too small or too frequent`);
       }
     } catch (error) {
       console.error('[PROGRESS] Error in progress emission:', error);
-    } finally {
-      // Release the lock immediately to prevent update buildup
-      this.emitLock = false;
     }
   }
 
@@ -138,6 +131,5 @@ export class ProgressEmitter {
     } else {
       this.lastEmittedProgress.clear();
     }
-    this.emitLock = false;
   }
 }
