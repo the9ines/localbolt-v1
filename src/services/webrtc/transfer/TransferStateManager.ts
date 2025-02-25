@@ -5,6 +5,7 @@ import { TransferStore } from './TransferStore';
 import { ProgressEmitter } from './ProgressEmitter';
 import { TransferProgressHandler } from './handlers/TransferProgressHandler';
 import { TransferControlHandler } from './handlers/TransferControlHandler';
+import { v4 as uuidv4 } from 'uuid';
 
 export class TransferStateManager {
   private store: TransferStore;
@@ -13,9 +14,10 @@ export class TransferStateManager {
   private controlHandler: TransferControlHandler;
   private isCleaningUp: boolean = false;
   private stateUpdateTimeout: NodeJS.Timeout | null = null;
-  private readonly STATE_UPDATE_DELAY = 16; // ~1 frame @ 60fps
+  private readonly STATE_UPDATE_DELAY = 16;
   private lastProgressUpdate: number = 0;
-  private readonly PROGRESS_UPDATE_THRESHOLD = 50; // 50ms minimum between updates
+  private readonly PROGRESS_UPDATE_THRESHOLD = 50;
+  private currentSessionId: string | null = null;
 
   constructor(onProgress?: (progress: TransferProgress) => void) {
     this.store = new TransferStore();
@@ -24,31 +26,65 @@ export class TransferStateManager {
     this.controlHandler = new TransferControlHandler(this.store, this.progressEmitter);
   }
 
+  private generateSessionId(): string {
+    return uuidv4();
+  }
+
   private debouncedStateUpdate(callback: () => void) {
     if (this.stateUpdateTimeout) {
       clearTimeout(this.stateUpdateTimeout);
     }
 
     this.stateUpdateTimeout = setTimeout(() => {
-      callback();
+      if (!this.isCleaningUp) {
+        callback();
+      }
       this.stateUpdateTimeout = null;
     }, this.STATE_UPDATE_DELAY);
   }
 
+  resetTransferState(reason: 'cancel' | 'disconnect' | 'error' | 'complete'): void {
+    console.log(`[STATE] Resetting transfer state due to: ${reason}`);
+    
+    // Prevent new updates during cleanup
+    this.isCleaningUp = true;
+
+    try {
+      // Clear any pending updates
+      if (this.stateUpdateTimeout) {
+        clearTimeout(this.stateUpdateTimeout);
+        this.stateUpdateTimeout = null;
+      }
+
+      // Get current transfer for final event emission
+      const currentTransfer = this.store.getCurrentTransfer();
+      
+      // Reset all state tracking
+      this.store.clear();
+      this.controlHandler.reset();
+      this.lastProgressUpdate = 0;
+      this.currentSessionId = null;
+
+      // Emit final status if needed
+      if (currentTransfer?.progress && reason !== 'complete') {
+        const status = reason === 'cancel' ? 'canceled_by_sender' : 
+                      reason === 'error' ? 'error' : 
+                      'disconnected';
+        
+        this.progressEmitter.emit(
+          currentTransfer.filename,
+          status,
+          currentTransfer.progress
+        );
+      }
+    } finally {
+      // Re-enable updates
+      this.isCleaningUp = false;
+    }
+  }
+
   getCurrentTransfer() {
     return this.store.getCurrentTransfer();
-  }
-
-  isPaused() {
-    return this.store.isPaused();
-  }
-
-  isCancelled() {
-    return this.store.isCancelled();
-  }
-
-  isTransferActive(filename: string): boolean {
-    return this.store.isTransferActive(filename);
   }
 
   startTransfer(filename: string, total: number) {
@@ -60,29 +96,32 @@ export class TransferStateManager {
         return;
       }
       
-      // Ensure clean state before starting new transfer
-      this.reset();
+      // Generate new session ID
+      this.currentSessionId = this.generateSessionId();
+      
+      // Reset state before starting new transfer
+      this.resetTransferState('complete');
       
       const newTransfer: TransferState = {
         filename,
         total,
+        sessionId: this.currentSessionId,
         progress: {
           loaded: 0,
           total,
           currentChunk: 0,
-          totalChunks: 0
+          totalChunks: 0,
+          lastUpdated: Date.now()
         }
       };
 
-      this.lastProgressUpdate = Date.now();
-
       this.debouncedStateUpdate(() => {
-        // Initialize transfer state
         this.store.setTransfer(newTransfer);
         this.store.updateState({
           isPaused: false,
           isCancelled: false,
-          currentTransfer: newTransfer
+          currentTransfer: newTransfer,
+          activeSessionId: this.currentSessionId
         });
         
         console.log('[STATE] Transfer started, initial state:', newTransfer);
@@ -90,25 +129,55 @@ export class TransferStateManager {
       });
     } catch (error) {
       console.error('[STATE] Error starting transfer:', error);
-      this.reset();
+      this.resetTransferState('error');
     }
   }
 
-  updateProgress(progress: TransferProgress): void {
+  updateProgress(
+    filename: string,
+    loaded: number,
+    total: number,
+    currentChunk: number,
+    totalChunks: number
+  ) {
     const now = Date.now();
     if (now - this.lastProgressUpdate < this.PROGRESS_UPDATE_THRESHOLD) {
-      return; // Skip update if too soon
+      return;
     }
 
-    if (!this.isCleaningUp && !this.store.isCancelled()) {
-      this.lastProgressUpdate = now;
-      this.progressEmitter.emit(progress.filename, progress.status || 'transferring', progress);
+    const transfer = this.store.getCurrentTransfer();
+    
+    // Verify active transfer and session
+    if (!transfer || 
+        transfer.filename !== filename || 
+        transfer.sessionId !== this.currentSessionId ||
+        this.isCleaningUp || 
+        this.store.isCancelled()) {
+      return;
     }
+
+    this.lastProgressUpdate = now;
+
+    this.debouncedStateUpdate(() => {
+      this.progressHandler.updateProgress(
+        filename,
+        loaded,
+        total,
+        currentChunk,
+        totalChunks
+      );
+    });
   }
 
   handlePause(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling pause request', message);
     if (this.isCleaningUp) return false;
+    
+    // Verify session ID if present
+    if (message.sessionId && message.sessionId !== this.currentSessionId) {
+      console.log('[STATE] Ignoring pause for inactive session');
+      return false;
+    }
     
     const success = this.controlHandler.handlePause(message);
     if (success) {
@@ -123,6 +192,12 @@ export class TransferStateManager {
     console.log('[STATE] Handling resume request', message);
     if (this.isCleaningUp) return false;
     
+    // Verify session ID if present
+    if (message.sessionId && message.sessionId !== this.currentSessionId) {
+      console.log('[STATE] Ignoring resume for inactive session');
+      return false;
+    }
+    
     const success = this.controlHandler.handleResume(message);
     if (success) {
       this.debouncedStateUpdate(() => {
@@ -134,69 +209,19 @@ export class TransferStateManager {
 
   handleCancel(message: TransferControlMessage): void {
     console.log('[STATE] Handling cancel request', message);
-    if (this.isCleaningUp) return;
     
-    this.isCleaningUp = true;
-    
-    try {
-      this.controlHandler.handleCancel(message);
-    } finally {
-      this.debouncedStateUpdate(() => {
-        this.reset();
-        this.isCleaningUp = false;
-      });
-    }
+    // Always allow cancellation regardless of session ID
+    this.resetTransferState('cancel');
+    this.controlHandler.handleCancel(message);
   }
 
-  updateTransferProgress(
-    filename: string,
-    loaded: number,
-    total: number,
-    currentChunk: number,
-    totalChunks: number
-  ) {
-    // Don't update progress if we're cleaning up
-    if (this.isCleaningUp || this.store.isCancelled()) {
-      return;
-    }
-
-    const now = Date.now();
-    if (now - this.lastProgressUpdate < this.PROGRESS_UPDATE_THRESHOLD) {
-      return; // Skip update if too soon
-    }
-
-    // Create transfer if it doesn't exist
-    if (!this.store.isTransferActive(filename)) {
-      this.startTransfer(filename, total);
-    }
-
-    this.lastProgressUpdate = now;
-    this.debouncedStateUpdate(() => {
-      this.progressHandler.updateProgress(filename, loaded, total, currentChunk, totalChunks);
-    });
+  handleDisconnect(): void {
+    console.log('[STATE] Handling disconnect');
+    this.resetTransferState('disconnect');
   }
 
-  reset() {
-    console.log('[STATE] Resetting transfer state');
-    if (this.stateUpdateTimeout) {
-      clearTimeout(this.stateUpdateTimeout);
-      this.stateUpdateTimeout = null;
-    }
-    
-    const currentTransfer = this.store.getCurrentTransfer();
-    
-    if (currentTransfer?.progress) {
-      // Emit final progress update if transfer was in progress
-      this.progressEmitter.emit(
-        currentTransfer.filename,
-        'transferring',
-        currentTransfer.progress
-      );
-    }
-    
-    // Clear all state
-    this.store.clear();
-    this.controlHandler.reset();
-    this.lastProgressUpdate = 0;
+  handleError(): void {
+    console.log('[STATE] Handling error');
+    this.resetTransferState('error');
   }
 }
