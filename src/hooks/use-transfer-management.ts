@@ -20,52 +20,54 @@ export const useTransferManagement = (
     console.log('[TRANSFER] Progress update in UI:', transferProgress);
     
     if (!transferProgress || !transferProgress.filename) {
+      console.log('[TRANSFER] Ignoring invalid progress update');
       return;
     }
 
-    // Prevent duplicate status notifications
-    if (lastStatus.current === transferProgress.status) {
-      return;
-    }
-
-    lastStatus.current = transferProgress.status;
-
-    // Handle completed transfer
+    // For completion states, always process
     if (transferProgress.status === 'transferring' && 
         transferProgress.loaded === transferProgress.total && 
         transferProgress.total > 0) {
+      console.log('[TRANSFER] Transfer complete, resetting state');
       resetTransfer();
       return;
     }
 
-    // Update progress for active transfer
-    if (transferProgress.status === 'transferring' || transferProgress.status === 'paused') {
-      setProgress(prevProgress => {
-        // Preserve pause state when receiving new progress
-        if (prevProgress?.status === 'paused' && transferProgress.status === 'transferring') {
-          return { ...transferProgress, status: 'paused' };
-        }
-        return transferProgress;
-      });
-      return;
-    }
-
-    // Handle cancellation
+    // For cancel states, reset immediately
     if (transferProgress.status === 'canceled_by_sender' || 
         transferProgress.status === 'canceled_by_receiver') {
+      console.log('[TRANSFER] Transfer canceled, resetting state');
       resetTransfer();
       return;
     }
 
-    // Handle errors
+    // For error states, reset
     if (transferProgress.status === 'error') {
+      console.log('[TRANSFER] Transfer error, resetting state');
       resetTransfer();
       return;
     }
+
+    // For normal progress updates, update the state
+    console.log('[TRANSFER] Updating progress state:', transferProgress);
+    setProgress(prevProgress => {
+      // If status was paused and we're getting a transferring update,
+      // preserve the pause state (this happens when we receive progress from the peer)
+      if (prevProgress?.status === 'paused' && transferProgress.status === 'transferring') {
+        return { ...transferProgress, status: 'paused' };
+      }
+      
+      // Normal update
+      return transferProgress;
+    });
+    
+    // Update last status for tracking
+    lastStatus.current = transferProgress.status;
   }, [resetTransfer]);
 
   const handlePauseTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
+      console.log('[TRANSFER] Pausing transfer:', progress.filename);
       webrtc.pauseTransfer(progress.filename);
       setProgress(prev => prev ? { ...prev, status: 'paused' } : null);
     }
@@ -73,6 +75,7 @@ export const useTransferManagement = (
 
   const handleResumeTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
+      console.log('[TRANSFER] Resuming transfer:', progress.filename);
       webrtc.resumeTransfer(progress.filename);
       setProgress(prev => prev ? { ...prev, status: 'transferring' } : null);
     }
@@ -80,16 +83,20 @@ export const useTransferManagement = (
 
   const cancelTransfer = useCallback(() => {
     if (webrtc && progress?.filename) {
+      console.log('[TRANSFER] Canceling transfer:', progress.filename);
       webrtc.cancelTransfer(progress.filename);
+      resetTransfer();
     }
-  }, [webrtc, progress]);
+  }, [webrtc, progress, resetTransfer]);
 
   const startTransfer = useCallback(async () => {
     if (!webrtc || !files.length) {
+      console.log('[TRANSFER] Cannot start transfer - no WebRTC or files');
       return;
     }
 
     if (progress) {
+      console.log('[TRANSFER] Canceling current transfer before starting new one');
       await cancelTransfer();
       await new Promise(resolve => setTimeout(resolve, 100));
     }

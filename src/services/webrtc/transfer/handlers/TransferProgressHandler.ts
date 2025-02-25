@@ -27,7 +27,11 @@ export class TransferProgressHandler {
       const now = Date.now();
       const lastUpdate = this.lastProgressUpdate.get(filename) || 0;
       
-      if (now - lastUpdate < this.UPDATE_THRESHOLD_MS) {
+      // Always process the first update and completion
+      const isFirst = !this.lastProgressUpdate.has(filename);
+      const isComplete = loaded === total && total > 0;
+      
+      if (!isFirst && !isComplete && now - lastUpdate < this.UPDATE_THRESHOLD_MS) {
         // Skip this update if it's too soon after the last one
         return;
       }
@@ -63,28 +67,27 @@ export class TransferProgressHandler {
       }
 
       // Emit progress update with stats
-      requestAnimationFrame(() => {
-        console.log('[STATE] Emitting progress update:', {
-          filename,
-          status: this.store.isPaused() ? 'paused' : 'transferring',
+      console.log('[STATE] Preparing to emit progress update:', {
+        filename,
+        status: this.store.isPaused() ? 'paused' : 'transferring',
+        loaded,
+        total,
+        currentChunk,
+        totalChunks,
+        stats
+      });
+      
+      // Ensure we always emit progress updates for the UI, not just for throttled state updates
+      this.progressEmitter.emit(
+        filename,
+        this.store.isPaused() ? 'paused' : 'transferring',
+        {
           loaded,
           total,
           currentChunk,
-          totalChunks,
-          stats
-        });
-        
-        this.progressEmitter.emit(
-          filename,
-          this.store.isPaused() ? 'paused' : 'transferring',
-          {
-            loaded,
-            total,
-            currentChunk,
-            totalChunks
-          }
-        );
-      });
+          totalChunks
+        }
+      );
 
       // Check for transfer completion
       if (loaded === total && total > 0) {

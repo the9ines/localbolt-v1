@@ -78,14 +78,28 @@ export class ProgressEmitter {
 
       // For all other states, check if we should emit based on progress change
       const lastProgress = this.lastEmittedProgress.get(filename);
-      const shouldEmitProgress = !lastProgress || 
-        !progress || 
-        lastProgress.status !== status ||
-        Math.abs((progress.loaded / progress.total) - (lastProgress.loaded / lastProgress.total)) >= this.PROGRESS_THRESHOLD ||
-        // Always emit if more than 1 second since last update
-        (Date.now() - (lastProgress.timestamp || 0) > 1000);
+      
+      // Always emit for the first progress update of a file
+      const isFirstUpdate = !lastProgress;
+      
+      // If not the first update, check if we should throttle based on progress change
+      let shouldEmitProgress = isFirstUpdate;
+      
+      if (!isFirstUpdate && progress) {
+        // Calculate progress percentage for comparison
+        const currentPercent = progress.loaded / progress.total;
+        const lastPercent = lastProgress.loaded / lastProgress.total;
+        
+        // Emit if status changed, significant progress change, or time threshold exceeded
+        shouldEmitProgress = 
+          lastProgress.status !== status ||
+          Math.abs(currentPercent - lastPercent) >= this.PROGRESS_THRESHOLD / 100 ||
+          (Date.now() - (lastProgress.timestamp || 0) > 1000);
+          
+        console.log(`[PROGRESS] Progress change: ${(Math.abs(currentPercent - lastPercent) * 100).toFixed(2)}%, threshold: ${this.PROGRESS_THRESHOLD}%, should emit: ${shouldEmitProgress}`);
+      }
 
-      if (shouldEmitProgress) {
+      if (shouldEmitProgress || isFirstUpdate) {
         // Use setTimeout to break out of the current execution context
         setTimeout(() => {
           if (!this.onProgress) return;
