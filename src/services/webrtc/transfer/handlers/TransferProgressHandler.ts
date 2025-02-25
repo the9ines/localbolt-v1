@@ -91,8 +91,11 @@ export class TransferProgressHandler {
         filename,
         this.store.isPaused() ? 'paused' : 'transferring',
         {
-          ...progressUpdate,
-          stats
+          loaded,
+          total,
+          currentChunk,
+          totalChunks
+          // Remove stats from here as it's not in the expected type
         }
       );
 
