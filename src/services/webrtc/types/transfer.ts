@@ -9,6 +9,7 @@ export interface TransferStats {
   pauseDuration: number;
   lastPausedAt?: number;
   retryDelay?: number;
+  lastProgressUpdate?: number;
 }
 
 export interface TransferProgress {
@@ -19,6 +20,7 @@ export interface TransferProgress {
   total: number;
   status?: 'transferring' | 'paused' | 'canceled_by_sender' | 'canceled_by_receiver' | 'error';
   stats?: TransferStats;
+  timestamp?: number; // Added to track when updates occur
 }
 
 export interface FileChunkMessage {
@@ -32,4 +34,5 @@ export interface FileChunkMessage {
   cancelledBy?: 'sender' | 'receiver';
   paused?: boolean;
   resumed?: boolean;
+  sessionId?: string; // Track session to prevent stale updates
 }

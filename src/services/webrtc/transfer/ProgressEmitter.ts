@@ -2,11 +2,14 @@
 import type { TransferProgress } from '../types/transfer';
 
 export class ProgressEmitter {
-  private lastEmittedProgress: TransferProgress | null = null;
+  private lastEmittedProgress: Map<string, TransferProgress> = new Map();
   private emitLock: boolean = false;
   private readonly EMIT_COOLDOWN = 16; // ~1 frame @ 60fps
+  private readonly PROGRESS_THRESHOLD = 0.5; // Only emit if progress changed by 0.5%
 
-  constructor(private onProgress?: (progress: TransferProgress) => void) {}
+  constructor(private onProgress?: (progress: TransferProgress) => void) {
+    console.log('[PROGRESS] Initializing ProgressEmitter');
+  }
 
   emit(
     filename: string,
@@ -18,78 +21,109 @@ export class ProgressEmitter {
       totalChunks: number;
     }
   ) {
-    if (!this.onProgress || this.emitLock) return;
+    if (!this.onProgress) {
+      console.log('[PROGRESS] No progress handler registered');
+      return;
+    }
+
+    if (this.emitLock) {
+      console.log('[PROGRESS] Emit locked, skipping update');
+      return;
+    }
 
     try {
       this.emitLock = true;
 
       // Skip emission if this is an empty error state
       if (status === 'error' && !filename) {
-        console.log('[STATE] Skipping empty error state emission');
+        console.log('[PROGRESS] Skipping empty error state emission');
         return;
       }
 
-      // For completion states, always emit as 'transferring' with final progress
+      // For completion states, always emit
       if (progress?.loaded === progress?.total && progress?.total > 0) {
-        console.log('[STATE] Emitting completion state for:', filename);
+        console.log('[PROGRESS] Emitting completion state for:', filename);
         const completionState: TransferProgress = {
           status: 'transferring',
           filename,
           currentChunk: progress.totalChunks,
           totalChunks: progress.totalChunks,
           loaded: progress.total,
-          total: progress.total
+          total: progress.total,
+          timestamp: Date.now()
         };
         
-        // Prevent duplicate completion states
-        if (JSON.stringify(this.lastEmittedProgress) !== JSON.stringify(completionState)) {
-          this.onProgress(completionState);
-          this.lastEmittedProgress = completionState;
-        }
+        this.onProgress(completionState);
+        this.lastEmittedProgress.set(filename, completionState);
         return;
       }
 
-      // For cancel states, emit immediately without progress data
+      // For cancel states, emit immediately and clear state
       if (status === 'canceled_by_sender' || status === 'canceled_by_receiver') {
+        console.log('[PROGRESS] Emitting cancellation state for:', filename);
         const cancelState: TransferProgress = {
           status,
           filename,
           currentChunk: 0,
           totalChunks: 0,
           loaded: 0,
-          total: 0
+          total: 0,
+          timestamp: Date.now()
         };
         
         this.onProgress(cancelState);
-        this.lastEmittedProgress = null;
+        this.lastEmittedProgress.delete(filename);
         return;
       }
 
-      // For all other states, debounce updates
-      setTimeout(() => {
-        if (!this.onProgress) return;
+      // For all other states, check if we should emit based on progress change
+      const lastProgress = this.lastEmittedProgress.get(filename);
+      const shouldEmitProgress = !lastProgress || 
+        !progress || 
+        lastProgress.status !== status ||
+        Math.abs((progress.loaded / progress.total) - (lastProgress.loaded / lastProgress.total)) >= this.PROGRESS_THRESHOLD ||
+        // Always emit if more than 1 second since last update
+        (Date.now() - (lastProgress.timestamp || 0) > 1000);
 
-        console.log(`[STATE] Emitting progress update - status: ${status}, filename: ${filename}`);
-        const progressUpdate: TransferProgress = {
-          status,
-          filename,
-          currentChunk: progress?.currentChunk || 0,
-          totalChunks: progress?.totalChunks || 0,
-          loaded: progress?.loaded || 0,
-          total: progress?.total || 0
-        };
+      if (shouldEmitProgress) {
+        // Use setTimeout to break out of the current execution context
+        setTimeout(() => {
+          if (!this.onProgress) return;
 
-        // Only emit if the progress has actually changed
-        if (JSON.stringify(this.lastEmittedProgress) !== JSON.stringify(progressUpdate)) {
+          console.log(`[PROGRESS] Emitting progress update - status: ${status}, filename: ${filename}, loaded: ${progress?.loaded}/${progress?.total}`);
+          
+          const progressUpdate: TransferProgress = {
+            status,
+            filename,
+            currentChunk: progress?.currentChunk || 0,
+            totalChunks: progress?.totalChunks || 0,
+            loaded: progress?.loaded || 0,
+            total: progress?.total || 0,
+            timestamp: Date.now()
+          };
+
           this.onProgress(progressUpdate);
-          this.lastEmittedProgress = progressUpdate;
-        }
-      }, this.EMIT_COOLDOWN);
-
+          this.lastEmittedProgress.set(filename, progressUpdate);
+        }, 0);
+      } else {
+        console.log(`[PROGRESS] Skipping progress update - small change or too frequent`);
+      }
+    } catch (error) {
+      console.error('[PROGRESS] Error in progress emission:', error);
     } finally {
       setTimeout(() => {
         this.emitLock = false;
       }, this.EMIT_COOLDOWN);
     }
+  }
+
+  reset(filename?: string) {
+    console.log(`[PROGRESS] Resetting progress emitter${filename ? ` for ${filename}` : ''}`);
+    if (filename) {
+      this.lastEmittedProgress.delete(filename);
+    } else {
+      this.lastEmittedProgress.clear();
+    }
+    this.emitLock = false;
   }
 }

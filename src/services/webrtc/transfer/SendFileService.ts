@@ -3,75 +3,102 @@ import { TransferError } from '@/types/webrtc-errors';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferStateManager } from './TransferStateManager';
 import { RetryHandler } from './handlers/RetryHandler';
-import type { FileChunkMessage } from '../types/transfer';
+import type { FileChunkMessage, TransferProgress } from '../types/transfer';
+import type { TransferState } from '../types/transfer-control';
 
 export class SendFileService {
   private retryHandler: RetryHandler;
+  private activeTransfers: Map<string, { 
+    file: File, 
+    sessionId: string,
+    aborted: boolean 
+  }> = new Map();
 
   constructor(
     private dataChannel: RTCDataChannel,
     private chunkProcessor: ChunkProcessor,
-    private stateManager: TransferStateManager
+    private stateManager: TransferStateManager,
+    private onProgress?: (progress: TransferProgress) => void
   ) {
     this.retryHandler = new RetryHandler(
       this.retryChunk.bind(this),
       this.handleError.bind(this),
-      this.stateManager.updateProgress.bind(this.stateManager)
+      this.handleProgressUpdate.bind(this)
     );
     console.log('[TRANSFER] Initialized SendFileService with RetryHandler');
   }
 
+  private handleProgressUpdate(progress: TransferProgress): void {
+    if (this.onProgress) {
+      this.onProgress(progress);
+    }
+  }
+
   private handleError(error: TransferError): void {
     console.error('[TRANSFER] Error in transfer:', error);
+    
+    // If the error is associated with a specific file, mark that transfer as aborted
+    if (error.details && typeof error.details === 'object' && 'filename' in error.details) {
+      const filename = error.details.filename as string;
+      const transferInfo = this.activeTransfers.get(filename);
+      
+      if (transferInfo) {
+        console.log(`[TRANSFER] Marking transfer as aborted: ${filename}`);
+        this.activeTransfers.set(filename, {
+          ...transferInfo,
+          aborted: true
+        });
+      }
+    }
+    
     this.stateManager.resetTransferState('error');
   }
 
   private async retryChunk(chunkIndex: number, filename: string): Promise<void> {
-    const transfer = this.stateManager.getCurrentTransfer();
-    if (!transfer || transfer.filename !== filename) {
-      throw new TransferError('No active transfer for retry');
+    const transferInfo = this.activeTransfers.get(filename);
+    if (!transferInfo || transferInfo.aborted) {
+      throw new TransferError('No active transfer for retry or transfer was aborted');
     }
 
     console.log(`[TRANSFER] Retrying chunk ${chunkIndex} for ${filename}`);
-    await this.processChunk(transfer.file, chunkIndex);
+    await this.processChunk(transferInfo.file, chunkIndex, transferInfo.sessionId);
   }
 
-  private async processChunk(file: File, chunkIndex: number): Promise<void> {
+  private async processChunk(file: File, chunkIndex: number, sessionId: string): Promise<void> {
+    if (!this.dataChannel || this.dataChannel.readyState !== 'open') {
+      throw new TransferError('Data channel not open');
+    }
+
     const CHUNK_SIZE = 16384;
     const start = chunkIndex * CHUNK_SIZE;
     const end = Math.min(start + CHUNK_SIZE, file.size);
+    const chunk = file.slice(start, end);
     
     try {
-      console.log(`[TRANSFER] Processing chunk ${chunkIndex + 1} for ${file.name}`);
-      const chunk = file.slice(start, end);
+      // Read the chunk data
       const arrayBuffer = await chunk.arrayBuffer();
-      const chunkArray = new Uint8Array(arrayBuffer);
-      const base64 = await this.chunkProcessor.encryptChunk(chunkArray);
-
+      const encryptedChunk = await this.chunkProcessor.encryptChunk(arrayBuffer);
+      
+      // Prepare the message
       const message: FileChunkMessage = {
         type: 'file-chunk',
         filename: file.name,
-        chunk: base64,
-        chunkIndex: chunkIndex,
+        chunk: encryptedChunk,
+        chunkIndex,
         totalChunks: Math.ceil(file.size / CHUNK_SIZE),
-        fileSize: file.size
+        fileSize: file.size,
+        sessionId
       };
-
-      if (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
-        await new Promise(resolve => {
-          const handler = () => {
-            this.dataChannel.onbufferedamountlow = null;
-            resolve(null);
-          };
-          this.dataChannel.onbufferedamountlow = handler;
-        });
-      }
-
+      
+      // Send the chunk
       this.dataChannel.send(JSON.stringify(message));
-      console.log(`[TRANSFER] Sent chunk ${chunkIndex + 1} for ${file.name}`);
     } catch (error) {
       console.error(`[TRANSFER] Error processing chunk ${chunkIndex}:`, error);
-      throw error;
+      throw new TransferError(`Failed to process chunk ${chunkIndex}`, { 
+        error, 
+        chunkIndex, 
+        filename: file.name 
+      });
     }
   }
 
@@ -80,24 +107,40 @@ export class SendFileService {
     const CHUNK_SIZE = 16384;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
+    // Generate a unique session ID for this transfer
+    const sessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    
+    // Initialize transfer state
     this.stateManager.startTransfer(file.name, file.size);
+    
+    // Store the file and session ID for retries
+    this.activeTransfers.set(file.name, {
+      file,
+      sessionId,
+      aborted: false
+    });
 
     try {
       for (let i = 0; i < totalChunks; i++) {
-        if (this.stateManager.isCancelled()) {
+        // Check if transfer was canceled
+        if (this.stateManager.isCancelled() || this.activeTransfers.get(file.name)?.aborted) {
           console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
           throw new TransferError("Transfer cancelled by user");
         }
 
-        while (this.stateManager.isPaused()) {
+        // Handle pause state
+        while (this.stateManager.isPaused() && !this.stateManager.isCancelled()) {
           await new Promise(resolve => setTimeout(resolve, 100));
-          if (this.stateManager.isCancelled()) {
+          
+          // Re-check canceled status after waiting
+          if (this.stateManager.isCancelled() || this.activeTransfers.get(file.name)?.aborted) {
             throw new TransferError("Transfer cancelled while paused");
           }
         }
 
         try {
-          await this.processChunk(file, i);
+          // Process and send the chunk
+          await this.processChunk(file, i, sessionId);
           
           // Update progress
           const loaded = Math.min((i + 1) * CHUNK_SIZE, file.size);
@@ -122,12 +165,24 @@ export class SendFileService {
       }
       
       console.log(`[TRANSFER] Completed sending ${file.name}`);
+      
+      // Clean up the active transfer
+      this.activeTransfers.delete(file.name);
     } catch (error) {
       console.error('[TRANSFER] Error sending file:', error);
+      
+      // Clean up the active transfer
+      this.activeTransfers.delete(file.name);
+      
       throw error instanceof Error ? error : new TransferError("Failed to send file", error);
     } finally {
-      this.retryHandler.reset();
-      this.stateManager.resetTransferState('complete');
+      // Clean up retry state
+      this.retryHandler.cancelRetries(file.name);
+      
+      // Reset state only if it's not already being reset
+      if (!this.stateManager.isCancelled()) {
+        this.stateManager.resetTransferState('complete');
+      }
     }
   }
 }
