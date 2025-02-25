@@ -8,7 +8,7 @@ export class ProgressEmitter {
   private readonly PROGRESS_THRESHOLD = 0.5; // Only emit if progress changed by 0.5%
 
   constructor(private onProgress?: (progress: TransferProgress) => void) {
-    console.log('[PROGRESS] Initializing ProgressEmitter');
+    console.log('[PROGRESS] Initializing ProgressEmitter with callback:', !!this.onProgress);
   }
 
   emit(
@@ -25,6 +25,8 @@ export class ProgressEmitter {
       console.log('[PROGRESS] No progress handler registered');
       return;
     }
+
+    console.log(`[PROGRESS] Emitting progress for ${filename}: ${progress?.loaded}/${progress?.total} (${status})`);
 
     if (this.emitLock) {
       console.log('[PROGRESS] Emit locked, skipping update');
@@ -53,6 +55,7 @@ export class ProgressEmitter {
           timestamp: Date.now()
         };
         
+        // Call onProgress directly for important state changes
         this.onProgress(completionState);
         this.lastEmittedProgress.set(filename, completionState);
         return;
@@ -71,6 +74,7 @@ export class ProgressEmitter {
           timestamp: Date.now()
         };
         
+        // Call onProgress directly for important state changes
         this.onProgress(cancelState);
         this.lastEmittedProgress.delete(filename);
         return;
@@ -82,7 +86,7 @@ export class ProgressEmitter {
       // Always emit for the first progress update of a file
       const isFirstUpdate = !lastProgress;
       
-      // If not the first update, check if we should throttle based on progress change
+      // For normal updates, always send at least every 1 second regardless of progress amount
       let shouldEmitProgress = isFirstUpdate;
       
       if (!isFirstUpdate && progress) {
@@ -94,40 +98,36 @@ export class ProgressEmitter {
         shouldEmitProgress = 
           lastProgress.status !== status ||
           Math.abs(currentPercent - lastPercent) >= this.PROGRESS_THRESHOLD / 100 ||
-          (Date.now() - (lastProgress.timestamp || 0) > 1000);
+          (Date.now() - (lastProgress.timestamp || 0) > 250); // More frequent updates
           
         console.log(`[PROGRESS] Progress change: ${(Math.abs(currentPercent - lastPercent) * 100).toFixed(2)}%, threshold: ${this.PROGRESS_THRESHOLD}%, should emit: ${shouldEmitProgress}`);
       }
 
       if (shouldEmitProgress || isFirstUpdate) {
-        // Use setTimeout to break out of the current execution context
-        setTimeout(() => {
-          if (!this.onProgress) return;
+        // Use callback directly without extra setTimeout
+        console.log(`[PROGRESS] Emitting progress update - status: ${status}, filename: ${filename}, loaded: ${progress?.loaded}/${progress?.total}`);
+        
+        const progressUpdate: TransferProgress = {
+          status,
+          filename,
+          currentChunk: progress?.currentChunk || 0,
+          totalChunks: progress?.totalChunks || 0,
+          loaded: progress?.loaded || 0,
+          total: progress?.total || 0,
+          timestamp: Date.now()
+        };
 
-          console.log(`[PROGRESS] Emitting progress update - status: ${status}, filename: ${filename}, loaded: ${progress?.loaded}/${progress?.total}`);
-          
-          const progressUpdate: TransferProgress = {
-            status,
-            filename,
-            currentChunk: progress?.currentChunk || 0,
-            totalChunks: progress?.totalChunks || 0,
-            loaded: progress?.loaded || 0,
-            total: progress?.total || 0,
-            timestamp: Date.now()
-          };
-
-          this.onProgress(progressUpdate);
-          this.lastEmittedProgress.set(filename, progressUpdate);
-        }, 0);
+        // Direct callback for immediate update
+        this.onProgress(progressUpdate);
+        this.lastEmittedProgress.set(filename, progressUpdate);
       } else {
         console.log(`[PROGRESS] Skipping progress update - small change or too frequent`);
       }
     } catch (error) {
       console.error('[PROGRESS] Error in progress emission:', error);
     } finally {
-      setTimeout(() => {
-        this.emitLock = false;
-      }, this.EMIT_COOLDOWN);
+      // Release the lock immediately to prevent update buildup
+      this.emitLock = false;
     }
   }
 

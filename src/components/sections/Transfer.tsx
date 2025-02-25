@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { PeerConnection } from "@/components/PeerConnection";
 import { FileUpload } from "@/components/file-upload/FileUpload";
 import WebRTCService from "@/services/webrtc/WebRTCService";
-import { ForwardedRef, forwardRef } from "react";
+import { ForwardedRef, forwardRef, useEffect } from "react";
 
 interface TransferProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -16,6 +16,16 @@ export const Transfer = forwardRef(({
   isConnected, 
   webrtc 
 }: TransferProps, ref: ForwardedRef<HTMLDivElement>) => {
+  // Add logging when the webrtc service changes
+  useEffect(() => {
+    if (webrtc) {
+      console.log('[UI] Transfer component received WebRTC service:', !!webrtc);
+      webrtc.setProgressCallback((progress) => {
+        console.log('[UI] Direct progress callback in Transfer component:', progress);
+      });
+    }
+  }, [webrtc]);
+
   return (
     <Card 
       ref={ref}

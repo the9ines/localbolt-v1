@@ -86,7 +86,7 @@ export class TransferProgressHandler {
         stats
       });
       
-      // Emit progress update directly without any delay
+      // Make sure we emit a progress update for EVERY chunk, regardless of throttling
       this.progressEmitter.emit(
         filename,
         this.store.isPaused() ? 'paused' : 'transferring',
@@ -95,7 +95,6 @@ export class TransferProgressHandler {
           total,
           currentChunk,
           totalChunks
-          // Remove stats from here as it's not in the expected type
         }
       );
 
