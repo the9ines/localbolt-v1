@@ -57,7 +57,7 @@ export class TransferControlService {
     } catch (error) {
       console.error('[TRANSFER] Error during pause:', error);
       // Reset state if message sending fails
-      this.stateManager.reset();
+      this.stateManager.resetTransferState('error');
     }
   }
 
@@ -92,7 +92,7 @@ export class TransferControlService {
     } catch (error) {
       console.error('[TRANSFER] Error during resume:', error);
       // Reset state if message sending fails
-      this.stateManager.reset();
+      this.stateManager.resetTransferState('error');
     }
   }
 }

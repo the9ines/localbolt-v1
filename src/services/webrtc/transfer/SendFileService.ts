@@ -1,3 +1,4 @@
+
 import { TransferError } from '@/types/webrtc-errors';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferStateManager } from './TransferStateManager';
@@ -22,7 +23,7 @@ export class SendFileService {
 
   private handleError(error: TransferError): void {
     console.error('[TRANSFER] Error in transfer:', error);
-    this.stateManager.reset();
+    this.stateManager.resetTransferState('error');
   }
 
   private async retryChunk(chunkIndex: number, filename: string): Promise<void> {
@@ -100,7 +101,7 @@ export class SendFileService {
           
           // Update progress
           const loaded = Math.min((i + 1) * CHUNK_SIZE, file.size);
-          this.stateManager.updateTransferProgress(
+          this.stateManager.updateProgress(
             file.name,
             loaded,
             file.size,
@@ -126,7 +127,7 @@ export class SendFileService {
       throw error instanceof Error ? error : new TransferError("Failed to send file", error);
     } finally {
       this.retryHandler.reset();
-      this.stateManager.reset();
+      this.stateManager.resetTransferState('complete');
     }
   }
 }
