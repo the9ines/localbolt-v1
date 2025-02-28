@@ -28,9 +28,21 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   } = usePeerConnection(onConnectionChange);
 
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
-  const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
+  const { 
+    transferProgress, 
+    handleProgress, 
+    handleCancelReceiving,
+    handlePauseTransfer,
+    handleResumeTransfer,
+    clearProgress 
+  } = useTransferProgress(webrtc);
 
-  // Update connected peer code whenever connection state changes
+  useEffect(() => {
+    if (!isConnected && transferProgress) {
+      clearProgress();
+    }
+  }, [isConnected, transferProgress, clearProgress]);
+
   useEffect(() => {
     if (webrtc && isConnected) {
       const remotePeer = webrtc.getRemotePeerCode();
@@ -52,9 +64,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
         rtcService.disconnect();
         setIsConnected(false);
         onConnectionChange(false);
+        clearProgress();
       };
     }
-  }, []); // Empty dependency array since we only want this to run once
+  }, []); 
 
   const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
     console.log('[UI] Connection state changed:', state);
@@ -62,7 +75,10 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     setIsConnected(connected);
     onConnectionChange(connected, webrtc || undefined);
     
-    // Update connected peer code when connection state changes
+    if (!connected && transferProgress) {
+      clearProgress();
+    }
+    
     if (connected && webrtc) {
       const remotePeerCode = webrtc.getRemotePeerCode();
       console.log('[UI] Setting connected peer code:', remotePeerCode);
@@ -108,6 +124,8 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           <TransferProgressBar 
             progress={transferProgress}
             onCancel={handleCancelReceiving}
+            onPause={handlePauseTransfer}
+            onResume={handleResumeTransfer}
           />
         </div>
       )}

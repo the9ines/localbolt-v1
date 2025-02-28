@@ -9,6 +9,8 @@ export interface IDataChannelManager {
   setStateChangeHandler(handler: (state: RTCDataChannelState) => void): void;
   sendFile(file: File): Promise<void>;
   cancelTransfer(filename: string, isReceiver?: boolean): void;
+  pauseTransfer(filename: string): void;
+  resumeTransfer(filename: string): void;
   disconnect(): void;
 }
 
@@ -73,6 +75,20 @@ export class DataChannelManager implements IDataChannelManager {
     console.log('[DATACHANNEL] Cancelling transfer for:', filename);
     if (this.fileTransferService) {
       this.fileTransferService.cancelCurrentTransfer(filename, isReceiver);
+    }
+  }
+
+  pauseTransfer(filename: string): void {
+    console.log('[DATACHANNEL] Pausing transfer for:', filename);
+    if (this.fileTransferService) {
+      this.fileTransferService.pauseTransfer(filename);
+    }
+  }
+
+  resumeTransfer(filename: string): void {
+    console.log('[DATACHANNEL] Resuming transfer for:', filename);
+    if (this.fileTransferService) {
+      this.fileTransferService.resumeTransfer(filename);
     }
   }
 
