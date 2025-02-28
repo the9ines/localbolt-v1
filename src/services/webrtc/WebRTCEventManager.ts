@@ -7,8 +7,6 @@ import { DataChannelManager } from './DataChannelManager';
 export class WebRTCEventManager {
   private connectionStateListener?: (state: RTCPeerConnectionState) => void;
   private isDisconnecting: boolean = false;
-  private reconnectAttempts: number = 0;
-  private readonly MAX_RECONNECT_ATTEMPTS = 3;
 
   constructor(
     private connectionManager: ConnectionManager,
@@ -24,10 +22,7 @@ export class WebRTCEventManager {
       
       if (state === 'disconnected' || state === 'failed' || state === 'closed') {
         console.log('[CONNECTION] Peer disconnected, cleaning up connection state');
-        this.handleDisconnect();
-      } else if (state === 'connected') {
-        console.log('[CONNECTION] Connection established, resetting reconnect attempts');
-        this.reconnectAttempts = 0;
+        this.forceDisconnect();
       } else if (!this.isDisconnecting && this.connectionStateListener) {
         this.connectionStateListener(state);
       }
@@ -37,7 +32,7 @@ export class WebRTCEventManager {
       console.log('[DATACHANNEL] State changed:', state);
       if (state === 'closed' || state === 'closing') {
         console.log('[DATACHANNEL] Channel closed/closing, initiating disconnect');
-        this.handleDisconnect();
+        this.forceDisconnect();
       }
     });
   }
@@ -46,7 +41,7 @@ export class WebRTCEventManager {
     this.connectionStateListener = handler;
   }
 
-  handleDisconnect() {
+  private forceDisconnect() {
     if (this.isDisconnecting) return;
     this.isDisconnecting = true;
 
@@ -56,14 +51,18 @@ export class WebRTCEventManager {
       this.connectionStateListener('disconnected');
     }
 
-    // Force the connection to close and cleanup
-    this.dataChannelManager.disconnect();
+    // Force the connection to close
     this.connectionManager.disconnect();
+    this.dataChannelManager.disconnect();
 
-    // Reset the disconnecting flag after cleanup
+    // Reset the disconnecting flag after all cleanup
     setTimeout(() => {
       console.log('[CONNECTION] Resetting disconnect state');
       this.isDisconnecting = false;
     }, 100);
+  }
+
+  handleDisconnect() {
+    this.forceDisconnect();
   }
 }

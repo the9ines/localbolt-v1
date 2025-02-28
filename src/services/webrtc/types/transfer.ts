@@ -1,16 +1,20 @@
 
+export type TransferStatus = 
+  | 'initializing'
+  | 'transferring'
+  | 'paused'
+  | 'completed'
+  | 'error'
+  | 'canceled_by_sender'
+  | 'canceled_by_receiver';
+
 export interface TransferStats {
-  speed: number;
+  speed: number; // bytes per second
   averageSpeed: number;
-  estimatedTimeRemaining: number;
-  retryCount: number;
-  maxRetries: number;
+  estimatedTimeRemaining: number; // in seconds
   startTime: number;
-  pauseDuration: number;
-  lastPausedAt?: number;
-  retryDelay?: number;
-  lastProgressUpdate?: number;
-  lastLoadedBytes?: number;
+  pausedTime: number;
+  resumeTime?: number;
 }
 
 export interface TransferProgress {
@@ -19,21 +23,35 @@ export interface TransferProgress {
   totalChunks: number;
   loaded: number;
   total: number;
-  status?: 'transferring' | 'paused' | 'canceled_by_sender' | 'canceled_by_receiver' | 'error';
+  status: TransferStatus;
   stats?: TransferStats;
-  timestamp?: number;
+  error?: {
+    code: string;
+    message: string;
+  };
 }
 
 export interface FileChunkMessage {
-  type: 'file-chunk';
+  type: 'file-chunk' | 'transfer-control';
   filename: string;
   chunk?: string;
   chunkIndex?: number;
   totalChunks?: number;
   fileSize?: number;
-  cancelled?: boolean;
+  controlType?: 'cancel' | 'pause' | 'resume';
   cancelledBy?: 'sender' | 'receiver';
-  paused?: boolean;
-  resumed?: boolean;
-  sessionId?: string;
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
+export interface TransferState {
+  [filename: string]: {
+    chunks: Blob[];
+    received: number;
+    total: number;
+    stats: TransferStats;
+    status: TransferStatus;
+  };
 }

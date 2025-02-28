@@ -28,39 +28,13 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
   } = usePeerConnection(onConnectionChange);
 
   const { peerCode, setPeerCode, copied, copyToClipboard } = usePeerCode();
-  const { 
-    transferProgress, 
-    handleProgress, 
-    handleCancelReceiving,
-    handlePauseTransfer,
-    handleResumeTransfer,
-    clearProgress 
-  } = useTransferProgress(webrtc);
+  const { transferProgress, handleProgress, handleCancelReceiving } = useTransferProgress(webrtc);
 
-  useEffect(() => {
-    // Debug log when transfer progress changes
-    if (transferProgress) {
-      console.log(`[PEER-CONNECTION] Transfer progress updated:`, {
-        filename: transferProgress.filename,
-        loaded: transferProgress.loaded,
-        total: transferProgress.total,
-        status: transferProgress.status,
-        percent: Math.round((transferProgress.loaded / transferProgress.total) * 100)
-      });
-    }
-  }, [transferProgress]);
-
-  useEffect(() => {
-    if (!isConnected && transferProgress) {
-      console.log('[PEER-CONNECTION] Clearing progress due to disconnection');
-      clearProgress();
-    }
-  }, [isConnected, transferProgress, clearProgress]);
-
+  // Update connected peer code whenever connection state changes
   useEffect(() => {
     if (webrtc && isConnected) {
       const remotePeer = webrtc.getRemotePeerCode();
-      console.log('[PEER-CONNECTION] Remote peer code updated:', remotePeer);
+      console.log('[UI] Remote peer code updated:', remotePeer);
     }
   }, [webrtc, isConnected]);
 
@@ -68,44 +42,36 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     if (!webrtc) {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
       setPeerCode(code);
-      console.log('[PEER-CONNECTION] Creating new service with code:', code);
+      console.log('[WEBRTC] Creating new service with code:', code);
       const rtcService = new WebRTCService(code, handleFileReceive, handleConnectionError, handleProgress);
       rtcService.setConnectionStateHandler(handleConnectionStateChange);
       setWebrtc(rtcService);
 
       return () => {
-        console.log('[PEER-CONNECTION] Cleaning up service');
+        console.log('[WEBRTC] Cleaning up service');
         rtcService.disconnect();
         setIsConnected(false);
         onConnectionChange(false);
-        clearProgress();
       };
     }
-
-    // Ensure webrtc has the correct progress callback
-    webrtc.setProgressCallback(handleProgress);
-  }, []); 
+  }, []); // Empty dependency array since we only want this to run once
 
   const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
-    console.log('[PEER-CONNECTION] Connection state changed:', state);
+    console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
     setIsConnected(connected);
     onConnectionChange(connected, webrtc || undefined);
     
-    if (!connected && transferProgress) {
-      clearProgress();
-    }
-    
+    // Update connected peer code when connection state changes
     if (connected && webrtc) {
       const remotePeerCode = webrtc.getRemotePeerCode();
-      console.log('[PEER-CONNECTION] Setting connected peer code:', remotePeerCode);
+      console.log('[UI] Setting connected peer code:', remotePeerCode);
     } else {
       setTargetPeerCode("");
     }
   };
 
   const handleFileReceive = (file: Blob, filename: string) => {
-    console.log(`[PEER-CONNECTION] File received: ${filename}, size: ${file.size}`);
     const url = URL.createObjectURL(file);
     const a = document.createElement('a');
     a.href = url;
@@ -142,8 +108,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
           <TransferProgressBar 
             progress={transferProgress}
             onCancel={handleCancelReceiving}
-            onPause={handlePauseTransfer}
-            onResume={handleResumeTransfer}
           />
         </div>
       )}

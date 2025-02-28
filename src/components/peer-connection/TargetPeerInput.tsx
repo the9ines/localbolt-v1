@@ -19,23 +19,17 @@ export const TargetPeerInput = ({
   isConnected,
   remotePeerCode
 }: TargetPeerInputProps) => {
+  // When connected, show the remote peer's code (with fallback to target code)
+  // When not connected, show the input value for connecting
   const displayValue = isConnected ? (remotePeerCode || targetPeerCode) : targetPeerCode;
-  
-  const handleDisconnect = () => {
-    if (onDisconnect) {
-      onDisconnect();
-    }
-    onTargetPeerCodeChange(''); // Clear the input when disconnecting
-  };
   
   return (
     <div className="space-y-2">
-      <label htmlFor="targetPeerCode" className="text-sm font-medium leading-none">
+      <label className="text-sm font-medium leading-none">
         Connect to Peer
       </label>
       <div className="flex space-x-2">
         <Input
-          id="targetPeerCode"
           value={displayValue || ""}
           onChange={(e) => !isConnected && onTargetPeerCodeChange(e.target.value.toUpperCase())}
           placeholder="Enter Peer Code"
@@ -43,13 +37,11 @@ export const TargetPeerInput = ({
           maxLength={6}
           disabled={isConnected}
           readOnly={isConnected}
-          aria-label="Target peer code for connection"
         />
         <Button 
           variant="outline"
-          onClick={isConnected ? handleDisconnect : onConnect} 
+          onClick={isConnected ? onDisconnect : onConnect} 
           className="shrink-0 hover:bg-neon hover:text-black transition-colors"
-          aria-label={isConnected ? "Disconnect from peer" : "Connect to peer"}
         >
           {isConnected ? 'Disconnect' : 'Connect'}
         </Button>
