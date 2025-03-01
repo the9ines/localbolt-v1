@@ -5,18 +5,21 @@ import { ProgressEmitter } from '../ProgressEmitter';
 import { PauseHandler } from './PauseHandler';
 import { ResumeHandler } from './ResumeHandler';
 import { CancelHandler } from './CancelHandler';
+import { TransferProgressHandler } from './TransferProgressHandler';
 import { BaseTransferHandler } from './base/BaseTransferHandler';
 
 export class TransferControlHandler extends BaseTransferHandler {
   private pauseHandler: PauseHandler;
   private resumeHandler: ResumeHandler;
   private cancelHandler: CancelHandler;
+  private progressHandler: TransferProgressHandler;
 
   constructor(store: TransferStore, progressEmitter: ProgressEmitter) {
     super(store, progressEmitter);
     this.pauseHandler = new PauseHandler(store, progressEmitter);
     this.resumeHandler = new ResumeHandler(store, progressEmitter);
     this.cancelHandler = new CancelHandler(store, progressEmitter);
+    this.progressHandler = new TransferProgressHandler(store, progressEmitter);
   }
 
   handlePause(message: TransferControlMessage): boolean {
