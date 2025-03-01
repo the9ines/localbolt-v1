@@ -30,6 +30,10 @@ class WebRTCService {
     this.fileManager = new FileOperationsManager(this.context);
   }
 
+  /**
+   * Initializes the WebRTC service, including setting up the signaling service
+   * This must be called before using any other methods
+   */
   public async initialize(): Promise<void> {
     await this.context.initialize();
   }
