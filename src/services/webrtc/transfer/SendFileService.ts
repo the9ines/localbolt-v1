@@ -1,3 +1,4 @@
+
 import { TransferError } from '@/types/webrtc-errors';
 import { ChunkProcessor } from './ChunkProcessor';
 import { TransferStateManager } from './TransferStateManager';
@@ -74,6 +75,35 @@ export class SendFileService {
     }
   }
 
+  private async checkCancellationAndPause(i: number, totalChunks: number): Promise<boolean> {
+    if (this.stateManager.isCancelled()) {
+      console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
+      throw new TransferError("Transfer cancelled by user");
+    }
+
+    while (this.stateManager.isPaused()) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      if (this.stateManager.isCancelled()) {
+        throw new TransferError("Transfer cancelled while paused");
+      }
+    }
+    
+    return true;
+  }
+
+  private updateTransferProgress(file: File, chunkIndex: number, totalChunks: number): void {
+    const CHUNK_SIZE = 16384;
+    const loaded = Math.min((chunkIndex + 1) * CHUNK_SIZE, file.size);
+    
+    this.stateManager.updateTransferProgress(
+      file.name,
+      loaded,
+      file.size,
+      chunkIndex + 1,
+      totalChunks
+    );
+  }
+
   async sendFile(file: File) {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
     const CHUNK_SIZE = 16384;
@@ -83,30 +113,11 @@ export class SendFileService {
 
     try {
       for (let i = 0; i < totalChunks; i++) {
-        if (this.stateManager.isCancelled()) {
-          console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
-          throw new TransferError("Transfer cancelled by user");
-        }
-
-        while (this.stateManager.isPaused()) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          if (this.stateManager.isCancelled()) {
-            throw new TransferError("Transfer cancelled while paused");
-          }
-        }
+        await this.checkCancellationAndPause(i, totalChunks);
 
         try {
           await this.processChunk(file, i);
-          
-          // Update progress
-          const loaded = Math.min((i + 1) * CHUNK_SIZE, file.size);
-          this.stateManager.updateTransferProgress(
-            file.name,
-            loaded,
-            file.size,
-            i + 1,
-            totalChunks
-          );
+          this.updateTransferProgress(file, i, totalChunks);
         } catch (error) {
           console.log(`[TRANSFER] Chunk ${i + 1} failed, attempting retry`);
           const retrySuccess = await this.retryHandler.handleFailedChunk(i, file.name, error as Error);
