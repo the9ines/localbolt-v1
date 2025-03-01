@@ -1,4 +1,3 @@
-
 import { useEffect } from "react";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { TransferProgressBar } from "./file-upload/TransferProgress";
@@ -8,6 +7,7 @@ import { ConnectionStatus } from "./peer-connection/ConnectionStatus";
 import { usePeerCode } from "@/hooks/use-peer-code";
 import { useTransferProgress } from "@/hooks/use-transfer-progress";
 import { usePeerConnection } from "@/hooks/use-peer-connection";
+import { WebRTCError } from "@/types/webrtc-errors";
 
 interface PeerConnectionProps {
   onConnectionChange: (connected: boolean, service?: WebRTCService) => void;
@@ -69,7 +69,6 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   }, []); 
 
-  // Initialize the WebRTC service when it's created
   useEffect(() => {
     const initializeWebRTC = async () => {
       if (webrtc) {
