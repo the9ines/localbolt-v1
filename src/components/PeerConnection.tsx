@@ -69,6 +69,24 @@ export const PeerConnection = ({ onConnectionChange }: PeerConnectionProps) => {
     }
   }, []); 
 
+  // Initialize the WebRTC service when it's created
+  useEffect(() => {
+    const initializeWebRTC = async () => {
+      if (webrtc) {
+        try {
+          console.log('[WEBRTC] Initializing WebRTC service');
+          await webrtc.initialize();
+          console.log('[WEBRTC] WebRTC service initialized successfully');
+        } catch (error) {
+          console.error('[WEBRTC] Failed to initialize WebRTC service:', error);
+          handleConnectionError(error instanceof WebRTCError ? error : new WebRTCError("Failed to initialize WebRTC service", error));
+        }
+      }
+    };
+    
+    initializeWebRTC();
+  }, [webrtc, handleConnectionError]);
+
   const handleConnectionStateChange = (state: RTCPeerConnectionState) => {
     console.log('[UI] Connection state changed:', state);
     const connected = state === 'connected';
