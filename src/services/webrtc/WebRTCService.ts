@@ -1,4 +1,3 @@
-
 import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { SignalingService, type SignalData } from './SignalingService';
 import { EncryptionService } from './EncryptionService';
@@ -19,6 +18,7 @@ class WebRTCService {
   private eventManager: WebRTCEventManager;
   private retryHandler: WebRTCRetryHandler;
   private onProgressCallback?: (progress: TransferProgress) => void;
+  private isInitialized: boolean = false;
 
   constructor(
     private localPeerCode: string,
@@ -31,11 +31,22 @@ class WebRTCService {
     this.encryptionService = new EncryptionService();
     this.onProgressCallback = onProgress;
     
-    this.initializeServices();
+    this.createServices();
     this.retryHandler = new WebRTCRetryHandler(this.onError, this.connect.bind(this));
   }
 
-  private initializeServices() {
+  public async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      console.log('[INIT] Service already initialized');
+      return;
+    }
+    
+    console.log('[INIT] Initializing WebRTC service');
+    await this.signalingService.initialize();
+    this.isInitialized = true;
+  }
+
+  private createServices() {
     this.dataChannelManager = new DataChannelManager(
       this.encryptionService,
       this.onReceiveFile,
@@ -92,8 +103,11 @@ class WebRTCService {
   async connect(remotePeerCode: string): Promise<void> {
     console.log('[WEBRTC] Initiating connection to peer:', remotePeerCode);
     
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    
     const connectionPromise = new Promise<void>((resolve, reject) => {
-      // Moved the async logic outside the Promise constructor
       this.initiateConnection(remotePeerCode, resolve, reject);
     });
 
@@ -111,7 +125,6 @@ class WebRTCService {
     }
   }
 
-  // New helper method to handle the connection logic
   private async initiateConnection(
     remotePeerCode: string,
     resolve: (value: void | PromiseLike<void>) => void,

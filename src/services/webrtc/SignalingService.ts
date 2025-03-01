@@ -12,11 +12,23 @@ export interface SignalData {
 export type SignalHandler = (signal: SignalData) => void;
 
 export class SignalingService {
+  private initialized: boolean = false;
+  
   constructor(
     private localPeerId: string,
     private onSignal: SignalHandler
   ) {
-    this.setupChannel();
+    console.log('[SIGNALING] Creating signaling service for peer:', localPeerId);
+  }
+
+  async initialize(): Promise<void> {
+    if (this.initialized) {
+      console.log('[SIGNALING] Signaling service already initialized');
+      return;
+    }
+    
+    await this.setupChannel();
+    this.initialized = true;
   }
 
   private async setupChannel() {
@@ -34,6 +46,11 @@ export class SignalingService {
   }
 
   async sendSignal(type: SignalData['type'], data: any, remotePeerId: string) {
+    // Ensure initialization before sending signals
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    
     console.log('[SIGNALING] Sending signal:', type, 'to:', remotePeerId);
     try {
       await supabase.channel('signals').send({
