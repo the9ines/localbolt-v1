@@ -24,6 +24,10 @@ export class WebRTCContext {
   private retryHandler: WebRTCRetryHandler;
   private onProgressCallback?: (progress: TransferProgress) => void;
   private isInitialized: boolean = false;
+  private connectionPromiseHandlers: { 
+    resolve: (value: void | PromiseLike<void>) => void, 
+    reject: (reason?: any) => void 
+  } | null = null;
 
   constructor(
     private localPeerCode: string,
@@ -56,7 +60,6 @@ export class WebRTCContext {
       this.encryptionService,
       this.onReceiveFile,
       (progress) => {
-        console.log('[TRANSFER] Progress update:', progress);
         if (this.onProgressCallback) {
           this.onProgressCallback(progress);
         }
@@ -69,7 +72,7 @@ export class WebRTCContext {
         this.signalingService.sendSignal('ice-candidate', candidate, this.remotePeerCode)
           .catch(error => {
             console.error('[ICE] Failed to send candidate:', error);
-            this.handleError(error as WebRTCError);
+            this.handleError(error instanceof WebRTCError ? error : new ConnectionError("Failed to send ICE candidate", error));
           });
       },
       this.handleError.bind(this),
@@ -91,6 +94,19 @@ export class WebRTCContext {
       this.dataChannelManager,
       this.handleError.bind(this)
     );
+    
+    // Set up connection state listener to resolve/reject the connection promise
+    this.eventManager.setConnectionStateListener((state) => {
+      if (state === 'connected' && this.connectionPromiseHandlers) {
+        console.log('[WEBRTC] Connection established, resolving promise');
+        this.connectionPromiseHandlers.resolve();
+        this.connectionPromiseHandlers = null;
+      } else if ((state === 'failed' || state === 'closed') && this.connectionPromiseHandlers) {
+        console.log('[WEBRTC] Connection failed, rejecting promise');
+        this.connectionPromiseHandlers.reject(new ConnectionError(`Connection ${state}`));
+        this.connectionPromiseHandlers = null;
+      }
+    });
   }
 
   private handleError(error: WebRTCError) {
@@ -111,6 +127,13 @@ export class WebRTCContext {
 
   disconnect() {
     console.log('[WEBRTC] Disconnecting');
+    
+    // Reject any pending connection promise
+    if (this.connectionPromiseHandlers) {
+      this.connectionPromiseHandlers.reject(new ConnectionError("Connection cancelled"));
+      this.connectionPromiseHandlers = null;
+    }
+    
     this.eventManager.handleDisconnect();
     this.dataChannelManager.disconnect();
     this.connectionManager.disconnect();
@@ -130,14 +153,24 @@ export class WebRTCContext {
       await this.initialize();
     }
     
+    // Clear any existing connection promise
+    if (this.connectionPromiseHandlers) {
+      this.connectionPromiseHandlers.reject(new ConnectionError("New connection initiated before previous completed"));
+      this.connectionPromiseHandlers = null;
+    }
+    
     const connectionPromise = new Promise<void>((resolve, reject) => {
-      this.initiateConnection(remotePeerCode, resolve, reject);
+      this.connectionPromiseHandlers = { resolve, reject };
+      this.initiateConnection(remotePeerCode).catch(reject);
     });
 
     const timeoutPromise = new Promise<void>((_, reject) => {
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         reject(new ConnectionError("Connection timeout"));
       }, 30000);
+      
+      // Clear the timeout if connection succeeds
+      connectionPromise.then(() => clearTimeout(timeoutId)).catch(() => clearTimeout(timeoutId));
     });
 
     try {
@@ -148,11 +181,7 @@ export class WebRTCContext {
     }
   }
 
-  private async initiateConnection(
-    remotePeerCode: string,
-    resolve: (value: void | PromiseLike<void>) => void,
-    reject: (reason?: any) => void
-  ): Promise<void> {
+  private async initiateConnection(remotePeerCode: string): Promise<void> {
     try {
       this.remotePeerCode = remotePeerCode;
       const peerConnection = await this.connectionManager.createPeerConnection();
@@ -173,20 +202,10 @@ export class WebRTCContext {
         publicKey: this.encryptionService.getPublicKey(),
         peerCode: this.localPeerCode
       }, remotePeerCode);
-
-      peerConnection.onconnectionstatechange = () => {
-        const state = peerConnection.connectionState;
-        if (state === 'connected') {
-          console.log('[WEBRTC] Connection established successfully');
-          this.retryHandler.resetAttempts();
-          resolve();
-        } else if (state === 'failed' || state === 'closed' || state === 'disconnected') {
-          console.log('[WEBRTC] Connection state changed to:', state);
-          reject(new ConnectionError("Connection failed or closed"));
-        }
-      };
     } catch (error) {
-      reject(new ConnectionError("Failed to initiate connection", error));
+      // Connection promise will be rejected by the connection state listener
+      console.error('[WEBRTC] Failed to initiate connection:', error);
+      throw new ConnectionError("Failed to initiate connection", error);
     }
   }
 }

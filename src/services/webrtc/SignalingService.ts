@@ -32,8 +32,13 @@ export class SignalingService {
       return;
     }
     
-    await this.setupChannel();
-    this.initialized = true;
+    try {
+      await this.setupChannel();
+      this.initialized = true;
+    } catch (error) {
+      console.error('[SIGNALING] Failed to initialize:', error);
+      throw new SignalingError("Failed to initialize signaling service", error);
+    }
   }
 
   private async setupChannel() {
@@ -41,8 +46,10 @@ export class SignalingService {
     try {
       this.channel = supabase.channel('signals')
         .on('broadcast', { event: 'signal' }, ({ payload }) => {
-          console.log('[SIGNALING] Received signal:', payload.type);
-          this.onSignal(payload as SignalData);
+          if (payload?.to === this.localPeerId) {
+            console.log('[SIGNALING] Received signal:', payload.type, 'from:', payload.from);
+            this.onSignal(payload as SignalData);
+          }
         })
         .subscribe();
     } catch (error) {
@@ -54,6 +61,10 @@ export class SignalingService {
     // Ensure initialization before sending signals
     if (!this.initialized) {
       await this.initialize();
+    }
+    
+    if (!remotePeerId) {
+      throw new SignalingError("Cannot send signal: No remote peer ID specified");
     }
     
     console.log('[SIGNALING] Sending signal:', type, 'to:', remotePeerId);

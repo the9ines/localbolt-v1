@@ -6,6 +6,7 @@ import type WebRTCService from '@/services/webrtc/WebRTCService';
 export const useTransferProgress = (webrtc: WebRTCService | null) => {
   const [transferProgress, setTransferProgress] = useState<TransferProgress | null>(null);
   const lastEventTime = useRef<{ [key: string]: number }>({});
+  const pendingOperations = useRef<Set<string>>(new Set());
   const EVENT_COOLDOWN = 500; // 500ms cooldown between same events
   
   useEffect(() => {
@@ -19,16 +20,31 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
     }
   }, [transferProgress?.status]);
 
-  const shouldProcessEvent = useCallback((eventType: string, filename: string) => {
+  const shouldProcessEvent = useCallback((eventType: string, filename: string): boolean => {
+    const eventKey = `${eventType}-${filename}`;
     const now = Date.now();
-    const lastTime = lastEventTime.current[`${eventType}-${filename}`] || 0;
+    const lastTime = lastEventTime.current[eventKey] || 0;
     
-    if (now - lastTime < EVENT_COOLDOWN) {
-      console.log(`[PROGRESS] Skipping duplicate ${eventType} event for ${filename}`);
+    // Check if we're already processing this type of operation
+    if (pendingOperations.current.has(eventKey)) {
+      console.log(`[PROGRESS] Already processing ${eventType} for ${filename}`);
       return false;
     }
     
-    lastEventTime.current[`${eventType}-${filename}`] = now;
+    // Check event cooldown
+    if (now - lastTime < EVENT_COOLDOWN) {
+      console.log(`[PROGRESS] Skipping duplicate ${eventType} event for ${filename} (cooldown)`);
+      return false;
+    }
+    
+    lastEventTime.current[eventKey] = now;
+    pendingOperations.current.add(eventKey);
+    
+    // Automatically remove from pending after a delay
+    setTimeout(() => {
+      pendingOperations.current.delete(eventKey);
+    }, 200);
+    
     return true;
   }, []);
 
@@ -119,6 +135,7 @@ export const useTransferProgress = (webrtc: WebRTCService | null) => {
   const clearProgress = useCallback(() => {
     setTransferProgress(null);
     lastEventTime.current = {};
+    pendingOperations.current.clear();
   }, []);
 
   return {

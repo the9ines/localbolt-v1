@@ -17,6 +17,7 @@ export class TransferStateManager {
   private stateUpdateManager: StateUpdateManager;
   private progressUpdateManager: ProgressUpdateManager;
   private lifecycleManager: TransferLifecycleManager;
+  private isResetting = false;
 
   constructor(onProgress?: (progress: TransferProgress) => void) {
     this.store = new TransferStore();
@@ -49,11 +50,15 @@ export class TransferStateManager {
   }
 
   startTransfer(filename: string, total: number) {
+    if (this.isResetting) {
+      console.log('[STATE] Cannot start transfer during reset');
+      return;
+    }
     this.lifecycleManager.startTransfer(filename, total);
   }
 
   updateProgress(progress: TransferProgress): void {
-    if (this.lifecycleManager.isInCleanup() || this.store.isCancelled()) {
+    if (this.isResetting || this.lifecycleManager.isInCleanup() || this.store.isCancelled()) {
       return;
     }
 
@@ -70,7 +75,7 @@ export class TransferStateManager {
 
   handlePause(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling pause request', message);
-    if (this.lifecycleManager.isInCleanup()) return false;
+    if (this.isResetting || this.lifecycleManager.isInCleanup()) return false;
     
     const success = this.controlHandler.handlePause(message);
     if (success) {
@@ -83,7 +88,7 @@ export class TransferStateManager {
 
   handleResume(message: TransferControlMessage): boolean {
     console.log('[STATE] Handling resume request', message);
-    if (this.lifecycleManager.isInCleanup()) return false;
+    if (this.isResetting || this.lifecycleManager.isInCleanup()) return false;
     
     const success = this.controlHandler.handleResume(message);
     if (success) {
@@ -96,7 +101,7 @@ export class TransferStateManager {
 
   handleCancel(message: TransferControlMessage): void {
     console.log('[STATE] Handling cancel request', message);
-    if (this.lifecycleManager.isInCleanup()) return;
+    if (this.isResetting || this.lifecycleManager.isInCleanup()) return;
     
     this.lifecycleManager.startCleanup();
     
@@ -116,6 +121,8 @@ export class TransferStateManager {
     currentChunk: number,
     totalChunks: number
   ) {
+    if (this.isResetting) return;
+    
     this.progressUpdateManager.updateTransferProgress(
       filename,
       loaded,
@@ -126,8 +133,16 @@ export class TransferStateManager {
   }
 
   reset() {
-    this.lifecycleManager.reset();
-    this.controlHandler.reset();
-    this.progressUpdateManager.reset();
+    if (this.isResetting) return;
+    
+    this.isResetting = true;
+    try {
+      this.lifecycleManager.reset();
+      this.controlHandler.reset();
+      this.progressUpdateManager.reset();
+      this.store.clear();
+    } finally {
+      this.isResetting = false;
+    }
   }
 }
