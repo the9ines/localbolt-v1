@@ -7,7 +7,6 @@ import type { FileChunkMessage } from '../types/transfer';
 
 export class SendFileService {
   private retryHandler: RetryHandler;
-  private readonly CHUNK_SIZE = 16384;
 
   constructor(
     private dataChannel: RTCDataChannel,
@@ -38,8 +37,9 @@ export class SendFileService {
   }
 
   private async processChunk(file: File, chunkIndex: number): Promise<void> {
-    const start = chunkIndex * this.CHUNK_SIZE;
-    const end = Math.min(start + this.CHUNK_SIZE, file.size);
+    const CHUNK_SIZE = 16384;
+    const start = chunkIndex * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, file.size);
     
     try {
       console.log(`[TRANSFER] Processing chunk ${chunkIndex + 1} for ${file.name}`);
@@ -53,15 +53,15 @@ export class SendFileService {
         filename: file.name,
         chunk: base64,
         chunkIndex: chunkIndex,
-        totalChunks: Math.ceil(file.size / this.CHUNK_SIZE),
+        totalChunks: Math.ceil(file.size / CHUNK_SIZE),
         fileSize: file.size
       };
 
       if (this.dataChannel.bufferedAmount > this.dataChannel.bufferedAmountLowThreshold) {
-        await new Promise<void>(resolve => {
+        await new Promise(resolve => {
           const handler = () => {
             this.dataChannel.onbufferedamountlow = null;
-            resolve();
+            resolve(null);
           };
           this.dataChannel.onbufferedamountlow = handler;
         });
@@ -71,11 +71,11 @@ export class SendFileService {
       console.log(`[TRANSFER] Sent chunk ${chunkIndex + 1} for ${file.name}`);
     } catch (error) {
       console.error(`[TRANSFER] Error processing chunk ${chunkIndex}:`, error);
-      throw new TransferError(`Failed to process chunk ${chunkIndex}`, error);
+      throw error;
     }
   }
 
-  private async checkCancellationAndPause(i: number, totalChunks: number): Promise<void> {
+  private async checkCancellationAndPause(i: number, totalChunks: number): Promise<boolean> {
     if (this.stateManager.isCancelled()) {
       console.log(`[TRANSFER] Transfer cancelled at chunk ${i + 1}/${totalChunks}`);
       throw new TransferError("Transfer cancelled by user");
@@ -87,10 +87,13 @@ export class SendFileService {
         throw new TransferError("Transfer cancelled while paused");
       }
     }
+    
+    return true;
   }
 
   private updateTransferProgress(file: File, chunkIndex: number, totalChunks: number): void {
-    const loaded = Math.min((chunkIndex + 1) * this.CHUNK_SIZE, file.size);
+    const CHUNK_SIZE = 16384;
+    const loaded = Math.min((chunkIndex + 1) * CHUNK_SIZE, file.size);
     
     this.stateManager.updateTransferProgress(
       file.name,
@@ -103,12 +106,31 @@ export class SendFileService {
 
   async sendFile(file: File) {
     console.log(`[TRANSFER] Starting transfer of ${file.name} (${file.size} bytes)`);
-    const totalChunks = Math.ceil(file.size / this.CHUNK_SIZE);
+    const CHUNK_SIZE = 16384;
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     
     this.stateManager.startTransfer(file.name, file.size);
 
     try {
-      await this.processSendingAllChunks(file, totalChunks);
+      for (let i = 0; i < totalChunks; i++) {
+        await this.checkCancellationAndPause(i, totalChunks);
+
+        try {
+          await this.processChunk(file, i);
+          this.updateTransferProgress(file, i, totalChunks);
+        } catch (error) {
+          console.log(`[TRANSFER] Chunk ${i + 1} failed, attempting retry`);
+          const retrySuccess = await this.retryHandler.handleFailedChunk(i, file.name, error as Error);
+          
+          if (!retrySuccess) {
+            throw new TransferError(
+              "Failed to send file chunk after retries",
+              { chunkIndex: i, totalChunks, error }
+            );
+          }
+        }
+      }
+      
       console.log(`[TRANSFER] Completed sending ${file.name}`);
     } catch (error) {
       console.error('[TRANSFER] Error sending file:', error);
@@ -116,27 +138,6 @@ export class SendFileService {
     } finally {
       this.retryHandler.reset();
       this.stateManager.reset();
-    }
-  }
-
-  private async processSendingAllChunks(file: File, totalChunks: number): Promise<void> {
-    for (let i = 0; i < totalChunks; i++) {
-      await this.checkCancellationAndPause(i, totalChunks);
-
-      try {
-        await this.processChunk(file, i);
-        this.updateTransferProgress(file, i, totalChunks);
-      } catch (error) {
-        console.log(`[TRANSFER] Chunk ${i + 1} failed, attempting retry`);
-        const retrySuccess = await this.retryHandler.handleFailedChunk(i, file.name, error as Error);
-        
-        if (!retrySuccess) {
-          throw new TransferError(
-            "Failed to send file chunk after retries",
-            { chunkIndex: i, totalChunks, error }
-          );
-        }
-      }
     }
   }
 }

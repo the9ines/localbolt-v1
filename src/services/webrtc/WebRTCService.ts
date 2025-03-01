@@ -11,7 +11,6 @@ import type { TransferProgress } from './types/transfer';
 class WebRTCService {
   private context: WebRTCContext;
   private fileManager: FileOperationsManager;
-  private isInitialized = false;
 
   constructor(
     private localPeerCode: string,
@@ -36,19 +35,7 @@ class WebRTCService {
    * This must be called before using any other methods
    */
   public async initialize(): Promise<void> {
-    if (this.isInitialized) {
-      console.log('[INIT] WebRTC service already initialized');
-      return;
-    }
-    
-    try {
-      await this.context.initialize();
-      this.isInitialized = true;
-    } catch (error) {
-      console.error('[INIT] Failed to initialize WebRTC service:', error);
-      this.onError(error instanceof WebRTCError ? error : new ConnectionError("Failed to initialize", error));
-      throw error;
-    }
+    await this.context.initialize();
   }
 
   setConnectionStateHandler(handler: (state: RTCPeerConnectionState) => void) {
@@ -60,9 +47,6 @@ class WebRTCService {
   }
 
   async connect(remotePeerCode: string): Promise<void> {
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
     return this.context.connect(remotePeerCode);
   }
 
@@ -71,9 +55,6 @@ class WebRTCService {
   }
 
   async sendFile(file: File) {
-    if (!this.isInitialized) {
-      throw new WebRTCError("WebRTC service not initialized");
-    }
     await this.fileManager.sendFile(file);
   }
 
@@ -83,7 +64,6 @@ class WebRTCService {
 
   disconnect() {
     this.context.disconnect();
-    this.isInitialized = false;
   }
 
   public pauseTransfer(filename: string): void {
