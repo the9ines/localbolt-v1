@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { toast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import WebRTCService from "@/services/webrtc/WebRTCService";
 import { Separator } from "@/components/ui/separator";
-import Header from '@/components/Header';
+import { Header } from '@/components/Header';
 
 const defaultDocumentation = `# LocalBolt: Secure P2P File Sharing
 
