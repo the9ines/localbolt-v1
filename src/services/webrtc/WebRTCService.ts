@@ -3,6 +3,7 @@ import { WebRTCError, ConnectionError } from '@/types/webrtc-errors';
 import { WebRTCContext } from './context/WebRTCContext';
 import { FileOperationsManager } from './file/FileOperationsManager';
 import type { TransferProgress } from './types/transfer';
+import { SignalingService } from './SignalingService';
 
 /**
  * Main WebRTCService that provides the public API for the WebRTC functionality.
@@ -72,6 +73,22 @@ class WebRTCService {
 
   public resumeTransfer(filename: string): void {
     this.fileManager.resumeTransfer(filename);
+  }
+
+  /**
+   * Saves documentation to the database
+   * Static method that doesn't require an instance
+   */
+  static async saveDocumentation(title: string, content: string): Promise<{ success: boolean; message: string; id?: string }> {
+    return SignalingService.saveDocumentation(title, content);
+  }
+
+  /**
+   * Retrieves documentation from the database
+   * Static method that doesn't require an instance
+   */
+  static async getDocumentation(id?: string): Promise<{ title: string; content: string } | null> {
+    return SignalingService.getDocumentation(id);
   }
 }
 

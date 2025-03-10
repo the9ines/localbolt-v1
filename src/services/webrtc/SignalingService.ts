@@ -72,4 +72,61 @@ export class SignalingService {
       throw new SignalingError(`Failed to send ${type} signal`, error);
     }
   }
+
+  /**
+   * Saves documentation to the database
+   * @param title Title of the documentation
+   * @param content Markdown content to save
+   * @returns Object with success status and message
+   */
+  static async saveDocumentation(title: string, content: string): Promise<{ success: boolean; message: string; id?: string }> {
+    try {
+      console.log('[DOCUMENTATION] Saving documentation:', title);
+      const { data, error } = await supabase
+        .from('documentation')
+        .insert([{ title, content }])
+        .select('id')
+        .single();
+      
+      if (error) {
+        console.error('[DOCUMENTATION] Error saving documentation:', error);
+        return { success: false, message: `Failed to save documentation: ${error.message}` };
+      }
+      
+      console.log('[DOCUMENTATION] Documentation saved successfully:', data.id);
+      return { success: true, message: 'Documentation saved successfully', id: data.id };
+    } catch (error) {
+      console.error('[DOCUMENTATION] Unexpected error:', error);
+      return { success: false, message: `Unexpected error: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  }
+
+  /**
+   * Retrieves documentation from the database
+   * @param id Optional ID of the documentation to retrieve, if omitted returns the latest
+   * @returns The documentation or null if not found
+   */
+  static async getDocumentation(id?: string): Promise<{ title: string; content: string } | null> {
+    try {
+      let query = supabase.from('documentation').select('title, content');
+      
+      if (id) {
+        query = query.eq('id', id);
+      } else {
+        query = query.order('created_at', { ascending: false }).limit(1);
+      }
+      
+      const { data, error } = await query.single();
+      
+      if (error) {
+        console.error('[DOCUMENTATION] Error retrieving documentation:', error);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('[DOCUMENTATION] Unexpected error retrieving documentation:', error);
+      return null;
+    }
+  }
 }
